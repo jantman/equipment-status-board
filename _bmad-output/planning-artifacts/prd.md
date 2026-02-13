@@ -1,5 +1,6 @@
 ---
-stepsCompleted: ['step-01-init', 'step-02-discovery', 'step-03-success', 'step-04-journeys', 'step-05-domain', 'step-06-innovation', 'step-07-project-type', 'step-08-scoping', 'step-09-functional', 'step-10-nonfunctional']
+stepsCompleted: ['step-01-init', 'step-02-discovery', 'step-03-success', 'step-04-journeys', 'step-05-domain', 'step-06-innovation', 'step-07-project-type', 'step-08-scoping', 'step-09-functional', 'step-10-nonfunctional', 'step-11-polish', 'step-12-complete']
+workflow_completed: true
 inputDocuments:
   - '_bmad-output/planning-artifacts/product-brief-equipment-status-board-2026-02-08.md'
   - '_bmad-output/brainstorming/brainstorming-session-2026-02-03.md'
@@ -17,10 +18,29 @@ classification:
   projectContext: 'greenfield'
 ---
 
-# Product Requirements Document - equipment-status-board
+# Product Requirements Document - Equipment Status Board
 
 **Author:** Jantman
 **Date:** 2026-02-13
+
+## Executive Summary
+
+The Equipment Status Board (ESB) is an on-premises web application for Decatur Makers, a 501(c)(3) non-profit makerspace with approximately 600 members who have 24/7 facility access. The ESB solves a critical gap: members have no reliable way to know whether equipment is operational before visiting the space. Status information is scattered across Slack channels, word of mouth, and handwritten signs -- leading to wasted trips, frustration, and reduced trust in the organization.
+
+The ESB provides a centralized system for tracking equipment status, coordinating repairs between the part-time Makerspace Manager and volunteer Technicians, consolidating equipment documentation, and communicating with members through multiple channels: in-space kiosk displays, a public static status page, QR code-driven equipment pages, and a full-featured Slack App.
+
+**Key differentiators:**
+- Built for the makerspace model: volunteer Technicians, a part-time Manager, and a Slack-first community
+- Physical-digital bridge via QR codes: every piece of equipment becomes a gateway to status, documentation, and problem reporting
+- Slack as a first-class interface: full two-way integration meets the community where they already communicate
+- On-premises and volunteer-maintainable: Docker container on local servers, no cloud dependency for core functionality, no dedicated IT staff required
+
+**Target users:**
+- **Members (~600):** Check equipment status before visiting; report problems via QR code or Slack
+- **Volunteer Technicians (handful):** Manage repair queue; log diagnostic work; coordinate via Slack
+- **Staff/Makerspace Manager (4):** Kanban overview of all repairs; equipment registry management; user provisioning
+
+**Project context:** Open-source volunteer project. Python backend, MySQL database, Docker deployment. Greenfield build with defined stakeholder requirements.
 
 ## Success Criteria
 
@@ -48,35 +68,6 @@ classification:
 - Repair records include diagnostic notes that are useful to the next person
 - The Makerspace Manager reports improved visibility into what's broken and what's stuck
 - Member surveys indicate awareness of and trust in the status board within 3 months of launch
-
-## Product Scope
-
-### MVP - Minimum Viable Product
-
-- Equipment registry with full field set (name, manufacturer, model, serial, area, documentation, photos)
-- Repair records with complete status workflow (New through Resolved/Closed)
-- Member-facing QR code pages with problem reporting
-- In-space kiosk display (per-area, color-coded, auto-refresh)
-- Static status page pushed to cloud hosting on status change
-- Role-based experiences (Member: status dashboard, Technician: repair queue, Staff: Kanban)
-- Full Slack App integration (notifications, problem reporting, repair record CRUD)
-- Local account authentication with role-based access
-- Docker deployment with MySQL backend
-- CI/CD via GitHub Actions with unit tests and Playwright browser tests
-
-### Growth Features (Post-MVP)
-
-- NewRelic or similar analytics on the static status page
-- Parts inventory with stock tracking, low-stock indicators, and ordering workflow
-- Consumable-specific routing to broader volunteer pool
-- Smart Technician routing based on Area assignments and expertise
-- Per-member notification preferences
-
-### Vision (Future)
-
-- Authentication provider integration (Slack OAuth or Neon One SSO)
-- Reporting and analytics -- repair time trends, equipment reliability metrics, volunteer contribution tracking
-- Automated equipment monitoring or IoT integration
 
 ## User Journeys
 
@@ -122,141 +113,93 @@ She clicks into the drill press record, sees Marcus's detailed diagnosis and the
 
 **Resolution:** The Monday morning Kanban check replaces Dana's mental checklist. Stuck items are immediately visible by how long they've been in a column. Parts ordering is structured instead of ad hoc. She spends less time tracking status and more time actually managing the space. When the board asks "what's the state of the woodshop?" at a staff meeting, she pulls up the dashboard instead of guessing.
 
-### Journey Requirements Summary
+### Journey-to-Requirements Traceability
 
-These three journeys reveal distinct capability requirements:
+Each journey maps to specific functional requirement areas:
 
-**From Sarah's journey (Member):**
-- Public-facing status page accessible remotely (static page + Slack bot)
-- QR code equipment pages combining status, documentation, and problem reporting
-- Simple problem report form (name, description, severity, optional photo)
-- Post-submission confirmation with Slack channel links
-- Existing issue display on QR pages to reduce duplicates
-
-**From Marcus's journey (Technician):**
-- Sortable/filterable repair queue as default landing page
-- Mobile-friendly repair record editing (notes, status, photos from phone)
-- Append-only notes log preserving diagnostic history
-- Parts identification workflow (Parts Needed status + part details)
-- Ability to claim and resolve records efficiently
-
-**From Dana's journey (Staff/Manager):**
-- Kanban board with columns by status and visual aging indicators
-- Equipment registry management (create, edit, archive)
-- Parts ordering workflow (Parts Needed → Parts Ordered → Parts Received)
-- User account provisioning and role management
-- Area and Slack channel configuration
-
-**Cross-cutting requirements revealed:**
-- Multi-channel status delivery (kiosk, static page, Slack, web UI)
-- Role-based default views and permissions
-- Real-time status updates across all channels
-- Slack integration for notifications and two-way interaction
-- Photo/video upload support for both reports and repairs
+- **Sarah (Member):** Status Display & Member Access (FR27-33), Problem Reporting (FR22-26), Slack Integration (FR40, FR43)
+- **Marcus (Technician):** Repair Records (FR11-21), Role-Based Experiences (FR35), Slack Integration (FR41-42)
+- **Dana (Staff/Manager):** Equipment Registry (FR1-10), Role-Based Experiences (FR36-37), User Management (FR45-51), Slack Integration (FR38-39, FR44)
+- **Cross-cutting:** Multi-channel status delivery, role-based access, photo/video uploads
 
 ## Web Application Specific Requirements
 
-### Project-Type Overview
+### Architecture Decisions
 
-The ESB is a traditional multi-page web application with a Python backend and MySQL database, deployed as a Docker container on local infrastructure. The application serves three distinct role-based experiences through server-rendered pages, with a separate static HTML status page pushed to cloud hosting for remote access. No SEO requirements. No real-time/WebSocket requirements -- all dynamic views use polling or manual refresh.
-
-### Technical Architecture Considerations
-
-**Application Architecture:**
 - Multi-page application with server-rendered HTML
 - Python backend (framework TBD during architecture phase)
 - MySQL database
 - Docker container deployment on local servers within the makerspace
 - No public internet exposure for the main application; remote access via static page and Slack only
 
-**Browser Support:**
-- Modern/contemporary browsers only (Chrome, Firefox, Safari, Edge -- current and previous major versions)
-- No IE11 or legacy browser support required
+### Browser & Device Support
 
-**Responsive Design:**
+- Modern browsers only (Chrome, Firefox, Safari, Edge -- current and previous major versions)
 - All authenticated views must work on mobile devices (Technicians work from phones at the bench)
 - Kiosk display optimized for large screens with stripped-down layout via URL parameter
 - QR code landing pages optimized for mobile-first (phone scanning)
 
-**Performance & Refresh:**
+### Refresh Strategy
+
 - Kiosk auto-refresh via 60-second polling
-- Authenticated views (repair queue, Kanban) use manual refresh or standard page navigation
+- Authenticated views use manual refresh or standard page navigation
 - Static status page regenerated and pushed on status change events
 
-**Accessibility:**
-- Follow best practices (semantic HTML, proper contrast, keyboard navigation)
-- Not a primary design driver; no formal WCAG compliance target
+### Key Implementation Factors
 
-### Implementation Considerations
-
-**Skip sections (not applicable):**
-- SEO strategy -- internal tool with no public-facing discoverable pages
-- Native features -- browser-only, no native app wrappers
-- CLI commands -- no command-line interface
-
-**Key implementation factors:**
 - Photo/video upload handling on local filesystem (configurable size limit, default 500MB)
 - QR code generation for equipment pages
 - Static page generation and push to cloud hosting on status change
 - Slack App integration (OAuth, event subscriptions, interactive components)
 - Role-based access control (Member/Technician/Staff) with local accounts
 - All mutation requests logged in JSON to STDOUT for data reconstruction
+- No SEO requirements -- internal tool
+- No real-time/WebSocket requirements
 
 ## Project Scoping & Phased Development
 
-### MVP Strategy & Philosophy
+### Strategy
 
-**MVP Approach:** Problem-solving MVP -- deliver the complete v1.0 feature set as specified by stakeholders. This is an open-source volunteer project for a 501(c)(3) non-profit makerspace with defined requirements. Scope is driven by organizational needs, not market validation.
+**Approach:** Deliver the complete v1.0 feature set as specified by stakeholders. This is an open-source volunteer project for a 501(c)(3) non-profit makerspace with defined requirements. Scope is driven by organizational needs, not market validation.
 
 **Resource Model:** Volunteer open-source development. No dedicated team or timeline pressure -- quality and completeness over speed.
 
-### MVP Feature Set (v1.0)
+### v1.0 Scope
 
-**All three user journeys fully supported:**
+All three user journeys fully supported:
 - Sarah (Member): status checking, QR code reporting, kiosk display, static page
 - Marcus (Technician): repair queue, mobile-friendly record updates, diagnostic notes
 - Dana (Staff/Manager): Kanban board, equipment registry, user management, parts workflow
 
-**Must-Have Capabilities:**
-- Equipment registry with full field set and document/photo management
-- Repair records with complete 10-status workflow
-- QR code equipment pages with problem reporting
-- In-space kiosk display (per-area, color-coded, 60-second auto-refresh)
-- Static status page pushed to cloud hosting on status change
-- Role-based experiences with distinct default landing pages
-- Full Slack App integration (notifications, problem reporting, repair record CRUD via rich forms)
-- Local account authentication with role-based access (Member/Technician/Staff)
-- Docker deployment with MySQL backend
-- CI/CD via GitHub Actions with unit tests and Playwright browser tests
-- All mutation requests logged in JSON to STDOUT
+Complete capability set: equipment registry, 10-status repair workflow, QR code pages, kiosk display, static status page, role-based experiences, full Slack App, local auth, Docker/MySQL deployment, CI/CD with comprehensive tests.
 
-### Post-MVP Features
+### Phase 2 (Growth)
 
-**Phase 2 (Growth):**
 - Parts inventory with stock tracking, low-stock indicators, and ordering workflow (data model accommodated from day one)
 - Consumable-specific routing to broader volunteer pool
 - Smart Technician routing based on Area assignments and expertise
 - NewRelic or similar analytics on the static status page
 - Per-member notification preferences
 
-**Phase 3 (Vision):**
+### Phase 3 (Vision)
+
 - Authentication provider integration (Slack OAuth or Neon One SSO)
 - Reporting and analytics -- repair time trends, equipment reliability metrics, volunteer contribution tracking
 - Automated equipment monitoring or IoT integration
 
-### Risk Mitigation Strategy
+### Risk Mitigation
 
 **Technical Risks:**
-- *Slack App complexity:* The full Slack App (OAuth, event subscriptions, interactive components, rich forms) is the most complex integration. Mitigate by building the web UI first and adding Slack as a parallel interface to the same backend, not a separate system.
-- *On-premises deployment:* No cloud dependency for core functionality, but the static page push and Slack integration require outbound internet access. Ensure graceful degradation if internet is unavailable (core app still works on local network).
+- *Slack App complexity:* Mitigate by building the web UI first and adding Slack as a parallel interface to the same backend, not a separate system.
+- *On-premises deployment:* Ensure graceful degradation if internet is unavailable (core app still works on local network).
 
 **Operational Risks:**
-- *Volunteer maintainability:* Docker deployment and clear documentation are essential. The system must be restartable and debuggable by someone who didn't build it.
-- *Data durability:* MySQL on local servers with no HA. JSON mutation logging to STDOUT provides a data reconstruction path if something goes wrong. Regular database backups should be documented as an operational procedure.
+- *Volunteer maintainability:* Docker deployment and clear documentation essential. The system must be restartable and debuggable by someone who didn't build it.
+- *Data durability:* JSON mutation logging to STDOUT provides a data reconstruction path. Regular database backups documented as an operational procedure.
 
 **Adoption Risks:**
-- *Member awareness:* QR code stickers on equipment are the primary discovery mechanism. Physical deployment of stickers is a non-technical dependency that must happen for the system to deliver value.
-- *Technician buy-in:* The system only works if Technicians actually use it. The Slack integration (meeting them where they already are) is the key adoption lever -- validating why it's in v1.0.
+- *Member awareness:* QR code stickers on equipment are the primary discovery mechanism. Physical deployment is a non-technical dependency.
+- *Technician buy-in:* Slack integration meets Technicians where they already are -- the key adoption lever validating its inclusion in v1.0.
 
 ## Functional Requirements
 
