@@ -1,33 +1,10 @@
 """Tests for admin views (user management)."""
 
 import json
-import logging
-
-import pytest
+from unittest.mock import MagicMock, patch
 
 from esb.extensions import db as _db
 from esb.models.user import User
-from esb.utils.logging import mutation_logger
-
-
-class _CaptureHandler(logging.Handler):
-    """Test handler that captures log records."""
-
-    def __init__(self):
-        super().__init__()
-        self.records = []
-
-    def emit(self, record):
-        self.records.append(record)
-
-
-@pytest.fixture
-def capture():
-    """Add a capture handler to the mutation logger for testing."""
-    handler = _CaptureHandler()
-    mutation_logger.addHandler(handler)
-    yield handler
-    mutation_logger.removeHandler(handler)
 
 
 class TestListUsers:
@@ -172,6 +149,28 @@ class TestCreateUserPost:
         assert user is not None
         assert user.slack_handle == '@slackuser'
 
+    @patch('esb.services.user_service._slack_sdk_available', True)
+    @patch('esb.services.user_service.WebClient')
+    def test_slack_success_redirects_to_users(self, mock_client_cls, staff_client, staff_user, app):
+        """When Slack delivery succeeds, redirects to user list with success flash."""
+        app.config['SLACK_BOT_TOKEN'] = 'xoxb-fake-token'
+        mock_client = MagicMock()
+        mock_client_cls.return_value = mock_client
+        mock_client.users_lookupByEmail.return_value = {'user': {'id': 'U12345'}}
+        mock_client.conversations_open.return_value = {'channel': {'id': 'D12345'}}
+
+        resp = staff_client.post('/admin/users/new', data={
+            'username': 'slackdelivered',
+            'email': 'slackdelivered@example.com',
+            'role': 'technician',
+            'slack_handle': '@slackdelivered',
+        })
+        assert resp.status_code == 302
+        assert '/admin/users' in resp.headers['Location']
+
+        resp = staff_client.get('/admin/users')
+        assert b'sent via Slack' in resp.data
+
 
 class TestChangeRole:
     """Tests for POST /admin/users/<id>/role."""
@@ -190,14 +189,13 @@ class TestChangeRole:
         assert user.role == 'staff'
 
     def test_invalid_role_shows_error(self, staff_client, staff_user, tech_user):
-        """Invalid role flash error and redirects."""
+        """Invalid role flashes error and redirects."""
         resp = staff_client.post(f'/admin/users/{tech_user.id}/role', data={
             'user_id': str(tech_user.id),
             'role': 'superadmin',
         }, follow_redirects=True)
-        # SelectField validates choices, so it should re-render with error
-        # Since 'superadmin' is not a valid choice, WTForms won't validate
         assert resp.status_code == 200
+        assert b'Invalid role change request' in resp.data
 
     def test_technician_gets_403(self, tech_client, tech_user):
         """Technician cannot change roles."""

@@ -1,7 +1,6 @@
 """Tests for user service (account provisioning, role management)."""
 
 import json
-import logging
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -9,27 +8,6 @@ import pytest
 from esb.extensions import db as _db
 from esb.models.user import User
 from esb.utils.exceptions import ValidationError
-from esb.utils.logging import mutation_logger
-
-
-class _CaptureHandler(logging.Handler):
-    """Test handler that captures log records."""
-
-    def __init__(self):
-        super().__init__()
-        self.records = []
-
-    def emit(self, record):
-        self.records.append(record)
-
-
-@pytest.fixture
-def capture():
-    """Add a capture handler to the mutation logger for testing."""
-    handler = _CaptureHandler()
-    mutation_logger.addHandler(handler)
-    yield handler
-    mutation_logger.removeHandler(handler)
 
 
 class TestCreateUser:

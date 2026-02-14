@@ -88,4 +88,6 @@ def change_role(id):
             flash('User role updated successfully.', 'success')
         except ValidationError as e:
             flash(str(e), 'danger')
+    else:
+        flash('Invalid role change request.', 'danger')
     return redirect(url_for('admin.list_users'))

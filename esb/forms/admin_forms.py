@@ -2,14 +2,14 @@
 
 from flask_wtf import FlaskForm
 from wtforms import HiddenField, SelectField, StringField, SubmitField
-from wtforms.validators import DataRequired, Email
+from wtforms.validators import DataRequired, Email, Length
 
 
 class UserCreateForm(FlaskForm):
     """Form for creating a new user account."""
 
-    username = StringField('Username *', validators=[DataRequired()])
-    email = StringField('Email *', validators=[DataRequired(), Email()])
+    username = StringField('Username *', validators=[DataRequired(), Length(max=80)])
+    email = StringField('Email *', validators=[DataRequired(), Email(), Length(max=255)])
     slack_handle = StringField('Slack Handle')
     role = SelectField(
         'Role *',

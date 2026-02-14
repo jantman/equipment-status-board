@@ -34,7 +34,7 @@
                 </td>
                 <td>
                     <form method="POST" action="{{ url_for('admin.change_role', id=user.id) }}" class="d-inline-flex align-items-center gap-1">
-                        {{ role_form.hidden_tag() }}
+                        {{ role_form.csrf_token }}
                         <input type="hidden" name="user_id" value="{{ user.id }}">
                         <select name="role" class="form-select form-select-sm" style="width: auto;">
                             <option value="technician" {{ 'selected' if user.role == 'technician' }}>Technician</option>
