@@ -259,6 +259,86 @@ class TestTempPasswordDisplay:
         assert b'Back to Users' in resp.data
 
 
+class TestResetPassword:
+    """Tests for POST /admin/users/<id>/reset-password."""
+
+    def test_staff_resets_password(self, staff_client, staff_user, tech_user):
+        """Staff can reset a user's password."""
+        resp = staff_client.post(f'/admin/users/{tech_user.id}/reset-password')
+        assert resp.status_code == 302
+        # Redirects to temp password display
+        assert '/created' in resp.headers['Location']
+
+    def test_technician_gets_403(self, tech_client, tech_user, staff_user):
+        """Technician cannot reset passwords."""
+        resp = tech_client.post(f'/admin/users/{staff_user.id}/reset-password')
+        assert resp.status_code == 403
+
+    def test_unauthenticated_redirects_to_login(self, client, app, tech_user):
+        """Unauthenticated user redirected to login."""
+        resp = client.post(f'/admin/users/{tech_user.id}/reset-password')
+        assert resp.status_code == 302
+        assert '/auth/login' in resp.headers['Location']
+
+    def test_temp_password_displayed_once(self, staff_client, staff_user, tech_user):
+        """After reset, temp password page shows once then redirects."""
+        resp = staff_client.post(f'/admin/users/{tech_user.id}/reset-password')
+        redirect_url = resp.headers['Location']
+
+        # First visit shows temp password
+        resp = staff_client.get(redirect_url)
+        assert resp.status_code == 200
+        assert b'Temporary Password' in resp.data
+
+        # Second visit redirects (password cleared from session)
+        resp = staff_client.get(redirect_url)
+        assert resp.status_code == 302
+        assert '/admin/users' in resp.headers['Location']
+
+    def test_old_password_no_longer_works(self, staff_client, staff_user, tech_user):
+        """After reset, the old password no longer works."""
+        staff_client.post(f'/admin/users/{tech_user.id}/reset-password')
+        user = _db.session.get(User, tech_user.id)
+        assert not user.check_password('testpass')
+
+    def test_logs_password_reset_mutation(self, staff_client, staff_user, tech_user, capture):
+        """Password reset logs mutation event."""
+        capture.records.clear()
+        staff_client.post(f'/admin/users/{tech_user.id}/reset-password')
+        entries = [
+            json.loads(r.message) for r in capture.records
+            if 'user.password_reset' in r.message
+        ]
+        assert len(entries) == 1
+        entry = entries[0]
+        assert entry['event'] == 'user.password_reset'
+        assert entry['user'] == 'staffuser'
+        assert entry['data']['username'] == 'techuser'
+        assert entry['data']['reset_by'] == 'staffuser'
+        # Verify no password values leaked in data
+        assert 'password' not in json.dumps(entry['data'])
+
+    @patch('esb.services.user_service._slack_sdk_available', True)
+    @patch('esb.services.user_service.WebClient')
+    def test_slack_delivery_redirects_to_users(self, mock_client_cls, staff_client, staff_user, tech_user, app):
+        """When Slack succeeds, redirects to user list with success flash."""
+        app.config['SLACK_BOT_TOKEN'] = 'xoxb-fake-token'
+        mock_client = MagicMock()
+        mock_client_cls.return_value = mock_client
+        mock_client.users_lookupByEmail.return_value = {'user': {'id': 'U12345'}}
+        mock_client.conversations_open.return_value = {'channel': {'id': 'D12345'}}
+
+        tech_user.slack_handle = '@techuser'
+        _db.session.commit()
+
+        resp = staff_client.post(f'/admin/users/{tech_user.id}/reset-password')
+        assert resp.status_code == 302
+        assert '/admin/users' in resp.headers['Location']
+
+        resp = staff_client.get('/admin/users')
+        assert b'sent via Slack' in resp.data
+
+
 class TestMutationLogging:
     """Tests for mutation logging in admin views."""
 

@@ -132,6 +132,73 @@ def change_role(user_id: int, new_role: str, changed_by: str) -> User:
     return user
 
 
+def change_password(user_id: int, current_password: str, new_password: str) -> User:
+    """Change a user's own password.
+
+    Args:
+        user_id: ID of the user changing their password.
+        current_password: The user's current password (verified before changing).
+        new_password: The new password to set.
+
+    Returns:
+        The updated User instance.
+
+    Raises:
+        ValidationError: if user not found or current password is incorrect.
+    """
+    user = db.session.get(User, user_id)
+    if user is None:
+        raise ValidationError(f'User with id {user_id} not found')
+
+    if not user.check_password(current_password):
+        raise ValidationError('Current password is incorrect')
+
+    user.set_password(new_password)
+    db.session.commit()
+
+    log_mutation('user.password_changed', user.username, {
+        'user_id': user.id,
+        'username': user.username,
+    })
+
+    return user
+
+
+def reset_password(user_id: int, reset_by: str) -> tuple[User, str, bool]:
+    """Reset a user's password (Staff action).
+
+    Generates a new temporary password, attempts Slack delivery.
+
+    Args:
+        user_id: ID of the user whose password is being reset.
+        reset_by: Username of the Staff member performing the reset.
+
+    Returns:
+        Tuple of (user, temp_password, slack_delivered).
+
+    Raises:
+        ValidationError: if user not found.
+    """
+    user = db.session.get(User, user_id)
+    if user is None:
+        raise ValidationError(f'User with id {user_id} not found')
+
+    temp_password = secrets.token_urlsafe(12)
+    user.set_password(temp_password)
+    db.session.commit()
+
+    slack_delivered = _deliver_temp_password_via_slack(user, temp_password)
+
+    log_mutation('user.password_reset', reset_by, {
+        'user_id': user.id,
+        'username': user.username,
+        'reset_by': reset_by,
+        'slack_delivered': slack_delivered,
+    })
+
+    return user, temp_password, slack_delivered
+
+
 def _deliver_temp_password_via_slack(user: User, temp_password: str) -> bool:
     """Attempt to deliver temporary password via Slack DM.
 

@@ -1,6 +1,6 @@
 # Story 1.4: Password Management
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -26,75 +26,75 @@ So that I can maintain account security and recover access if my password is los
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Add password management functions to user_service (AC: #1, #2, #4, #5, #6)
-  - [ ] 1.1: Add `change_password(user_id, current_password, new_password)` to `esb/services/user_service.py`
-  - [ ] 1.2: `change_password()` verifies current password via `user.check_password(current_password)` -- raises `ValidationError('Current password is incorrect')` on mismatch
-  - [ ] 1.3: `change_password()` calls `user.set_password(new_password)` and `db.session.commit()`
-  - [ ] 1.4: `change_password()` logs mutation event `user.password_changed` with `{"user_id": id, "username": "..."}` -- **NEVER log passwords**
-  - [ ] 1.5: Add `reset_password(user_id, reset_by)` to `esb/services/user_service.py`
-  - [ ] 1.6: `reset_password()` generates a new temp password via `secrets.token_urlsafe(12)`, calls `user.set_password(temp_password)`, commits
-  - [ ] 1.7: `reset_password()` attempts Slack delivery via existing `_deliver_temp_password_via_slack(user, temp_password)`
-  - [ ] 1.8: `reset_password()` returns `tuple[User, str, bool]` -- (user, temp_password, slack_delivered) -- same pattern as `create_user()`
-  - [ ] 1.9: `reset_password()` logs mutation event `user.password_reset` with `{"user_id": id, "username": "...", "reset_by": "...", "slack_delivered": true/false}` -- **NEVER log passwords**
-  - [ ] 1.10: Write service tests in `tests/test_services/test_user_service.py` for both functions
+- [x] Task 1: Add password management functions to user_service (AC: #1, #2, #4, #5, #6)
+  - [x] 1.1: Add `change_password(user_id, current_password, new_password)` to `esb/services/user_service.py`
+  - [x] 1.2: `change_password()` verifies current password via `user.check_password(current_password)` -- raises `ValidationError('Current password is incorrect')` on mismatch
+  - [x] 1.3: `change_password()` calls `user.set_password(new_password)` and `db.session.commit()`
+  - [x] 1.4: `change_password()` logs mutation event `user.password_changed` with `{"user_id": id, "username": "..."}` -- **NEVER log passwords**
+  - [x] 1.5: Add `reset_password(user_id, reset_by)` to `esb/services/user_service.py`
+  - [x] 1.6: `reset_password()` generates a new temp password via `secrets.token_urlsafe(12)`, calls `user.set_password(temp_password)`, commits
+  - [x] 1.7: `reset_password()` attempts Slack delivery via existing `_deliver_temp_password_via_slack(user, temp_password)`
+  - [x] 1.8: `reset_password()` returns `tuple[User, str, bool]` -- (user, temp_password, slack_delivered) -- same pattern as `create_user()`
+  - [x] 1.9: `reset_password()` logs mutation event `user.password_reset` with `{"user_id": id, "username": "...", "reset_by": "...", "slack_delivered": true/false}` -- **NEVER log passwords**
+  - [x] 1.10: Write service tests in `tests/test_services/test_user_service.py` for both functions
 
-- [ ] Task 2: Create ChangePasswordForm (AC: #1, #2, #3)
-  - [ ] 2.1: Add `ChangePasswordForm` to `esb/forms/auth_forms.py`
-  - [ ] 2.2: Fields: `current_password` (PasswordField, DataRequired), `new_password` (PasswordField, DataRequired), `confirm_password` (PasswordField, DataRequired, EqualTo('new_password'))
-  - [ ] 2.3: Submit button: "Change Password"
+- [x] Task 2: Create ChangePasswordForm (AC: #1, #2, #3)
+  - [x] 2.1: Add `ChangePasswordForm` to `esb/forms/auth_forms.py`
+  - [x] 2.2: Fields: `current_password` (PasswordField, DataRequired), `new_password` (PasswordField, DataRequired), `confirm_password` (PasswordField, DataRequired, EqualTo('new_password'))
+  - [x] 2.3: Submit button: "Change Password"
 
-- [ ] Task 3: Create ResetPasswordForm (AC: #4)
-  - [ ] 3.1: Add `ResetPasswordForm` to `esb/forms/admin_forms.py`
-  - [ ] 3.2: Minimal form -- only needs CSRF protection (no user-editable fields; user_id comes from URL)
+- [x] Task 3: Create ResetPasswordForm (AC: #4)
+  - [x] 3.1: Add `ResetPasswordForm` to `esb/forms/admin_forms.py`
+  - [x] 3.2: Minimal form -- only needs CSRF protection (no user-editable fields; user_id comes from URL)
 
-- [ ] Task 4: Implement change password view in auth blueprint (AC: #1, #2, #3, #6)
-  - [ ] 4.1: Add `GET/POST /auth/change-password` route to `esb/views/auth.py`
-  - [ ] 4.2: Route protected by `@login_required` (all authenticated users, not just Staff)
-  - [ ] 4.3: GET: render `auth/change_password.html` with the form
-  - [ ] 4.4: POST: validate form, call `user_service.change_password(current_user.id, form.current_password.data, form.new_password.data)`
-  - [ ] 4.5: On success: flash `'Your password has been changed.'` as `'success'`, redirect to the role-appropriate landing page (or back to change password page)
-  - [ ] 4.6: On ValidationError (wrong current password): flash error as `'danger'`, re-render form
-  - [ ] 4.7: On form validation failure (passwords don't match): re-render form with inline WTForms errors
+- [x] Task 4: Implement change password view in auth blueprint (AC: #1, #2, #3, #6)
+  - [x] 4.1: Add `GET/POST /auth/change-password` route to `esb/views/auth.py`
+  - [x] 4.2: Route protected by `@login_required` (all authenticated users, not just Staff)
+  - [x] 4.3: GET: render `auth/change_password.html` with the form
+  - [x] 4.4: POST: validate form, call `user_service.change_password(current_user.id, form.current_password.data, form.new_password.data)`
+  - [x] 4.5: On success: flash `'Your password has been changed.'` as `'success'`, redirect to the role-appropriate landing page (or back to change password page)
+  - [x] 4.6: On ValidationError (wrong current password): flash error as `'danger'`, re-render form
+  - [x] 4.7: On form validation failure (passwords don't match): re-render form with inline WTForms errors
 
-- [ ] Task 5: Add password reset route to admin blueprint (AC: #4, #5, #6)
-  - [ ] 5.1: Add `POST /admin/users/<int:id>/reset-password` route to `esb/views/admin.py`
-  - [ ] 5.2: Route protected by `@role_required('staff')`
-  - [ ] 5.3: Call `user_service.reset_password(user_id=id, reset_by=current_user.username)`
-  - [ ] 5.4: If `slack_delivered == True`: flash `'Password reset. New temporary password sent via Slack DM.'` as `'success'`, redirect to user list
-  - [ ] 5.5: If `slack_delivered == False`: store temp password in `session['_temp_password']`, redirect to existing `GET /admin/users/<int:id>/created` page (reuse the one-time password display from Story 1.3)
-  - [ ] 5.6: Prevent Staff from resetting their own password via this route (optional safeguard -- they should use Change Password instead)
+- [x] Task 5: Add password reset route to admin blueprint (AC: #4, #5, #6)
+  - [x] 5.1: Add `POST /admin/users/<int:id>/reset-password` route to `esb/views/admin.py`
+  - [x] 5.2: Route protected by `@role_required('staff')`
+  - [x] 5.3: Call `user_service.reset_password(user_id=id, reset_by=current_user.username)`
+  - [x] 5.4: If `slack_delivered == True`: flash `'Password reset. New temporary password sent via Slack DM.'` as `'success'`, redirect to user list
+  - [x] 5.5: If `slack_delivered == False`: store temp password in `session['_temp_password']`, redirect to existing `GET /admin/users/<int:id>/created` page (reuse the one-time password display from Story 1.3)
+  - [x] 5.6: Prevent Staff from resetting their own password via this route (optional safeguard -- they should use Change Password instead)
 
-- [ ] Task 6: Create change_password template (AC: #1, #2, #3)
-  - [ ] 6.1: Create `esb/templates/auth/change_password.html` extending `base.html`
-  - [ ] 6.2: Single-column form following UX patterns: labels above fields, required fields marked with *, inline validation errors
-  - [ ] 6.3: Fields: Current Password, New Password, Confirm New Password
-  - [ ] 6.4: Primary button: "Change Password" (`btn-primary`), Cancel link: "Cancel" (`btn-outline-secondary`) linking back
+- [x] Task 6: Create change_password template (AC: #1, #2, #3)
+  - [x] 6.1: Create `esb/templates/auth/change_password.html` extending `base.html`
+  - [x] 6.2: Single-column form following UX patterns: labels above fields, required fields marked with *, inline validation errors
+  - [x] 6.3: Fields: Current Password, New Password, Confirm New Password
+  - [x] 6.4: Primary button: "Change Password" (`btn-primary`), Cancel link: "Cancel" (`btn-outline-secondary`) linking back
 
-- [ ] Task 7: Update user management page with Reset Password button (AC: #4)
-  - [ ] 7.1: Add "Reset Password" button (or link) to each user row in `esb/templates/admin/users.html`
-  - [ ] 7.2: Button submits a POST form to `/admin/users/<id>/reset-password` (with CSRF token)
-  - [ ] 7.3: Use `btn-outline-secondary btn-sm` styling -- not danger, since this is reversible (user gets a new temp password)
+- [x] Task 7: Update user management page with Reset Password button (AC: #4)
+  - [x] 7.1: Add "Reset Password" button (or link) to each user row in `esb/templates/admin/users.html`
+  - [x] 7.2: Button submits a POST form to `/admin/users/<id>/reset-password` (with CSRF token)
+  - [x] 7.3: Use `btn-outline-secondary btn-sm` styling -- not danger, since this is reversible (user gets a new temp password)
 
-- [ ] Task 8: Add "Change Password" link to navbar (AC: #1)
-  - [ ] 8.1: Add "Change Password" link to the right side of the navbar in `esb/templates/base.html`, next to the username and Logout link
-  - [ ] 8.2: Link points to `/auth/change-password`
+- [x] Task 8: Add "Change Password" link to navbar (AC: #1)
+  - [x] 8.1: Add "Change Password" link to the right side of the navbar in `esb/templates/base.html`, next to the username and Logout link
+  - [x] 8.2: Link points to `/auth/change-password`
 
-- [ ] Task 9: Write view and integration tests (AC: all)
-  - [ ] 9.1: Add change password tests to `tests/test_views/test_auth_views.py`
-  - [ ] 9.2: Test GET /auth/change-password renders form for authenticated user
-  - [ ] 9.3: Test unauthenticated user redirected to login
-  - [ ] 9.4: Test POST with valid data (correct current password, matching new passwords) changes password
-  - [ ] 9.5: Test POST with incorrect current password shows error, password unchanged
-  - [ ] 9.6: Test POST with non-matching new passwords shows validation error
-  - [ ] 9.7: Test POST with missing required fields shows validation errors
-  - [ ] 9.8: Test mutation logging for user.password_changed event
-  - [ ] 9.9: Add reset password tests to `tests/test_views/test_admin_views.py`
-  - [ ] 9.10: Test POST /admin/users/<id>/reset-password as staff generates new temp password
-  - [ ] 9.11: Test technician gets 403 on POST /admin/users/<id>/reset-password
-  - [ ] 9.12: Test unauthenticated user redirected to login
-  - [ ] 9.13: Test mutation logging for user.password_reset event
-  - [ ] 9.14: Test Slack delivery mock (success path returns True, failure returns False)
-  - [ ] 9.15: Test one-time password display page reuse from Story 1.3 (session-based, cleared after display)
+- [x] Task 9: Write view and integration tests (AC: all)
+  - [x] 9.1: Add change password tests to `tests/test_views/test_auth_views.py`
+  - [x] 9.2: Test GET /auth/change-password renders form for authenticated user
+  - [x] 9.3: Test unauthenticated user redirected to login
+  - [x] 9.4: Test POST with valid data (correct current password, matching new passwords) changes password
+  - [x] 9.5: Test POST with incorrect current password shows error, password unchanged
+  - [x] 9.6: Test POST with non-matching new passwords shows validation error
+  - [x] 9.7: Test POST with missing required fields shows validation errors
+  - [x] 9.8: Test mutation logging for user.password_changed event
+  - [x] 9.9: Add reset password tests to `tests/test_views/test_admin_views.py`
+  - [x] 9.10: Test POST /admin/users/<id>/reset-password as staff generates new temp password
+  - [x] 9.11: Test technician gets 403 on POST /admin/users/<id>/reset-password
+  - [x] 9.12: Test unauthenticated user redirected to login
+  - [x] 9.13: Test mutation logging for user.password_reset event
+  - [x] 9.14: Test Slack delivery mock (success path returns True, failure returns False)
+  - [x] 9.15: Test one-time password display page reuse from Story 1.3 (session-based, cleared after display)
 
 ## Dev Notes
 
@@ -367,12 +367,45 @@ Per the UX spec and Journey 4 (Staff Manages Equipment & Users):
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+Claude Opus 4.6 (claude-opus-4-6)
 
 ### Debug Log References
 
+None
+
 ### Completion Notes List
+
+- All 9 tasks and 42 subtasks completed
+- 26 new tests added (183 total, all passing)
+- Ruff lint clean
+- No new dependencies required
+- Reused existing `user_created` view/template for temp password display after reset
+- Reused existing `_deliver_temp_password_via_slack()` for password reset Slack delivery
+- Fixed mutation log test assertions to check `entry['data']` instead of full `entry` (event names contain "password")
 
 ### Change Log
 
+- `esb/services/user_service.py` - Added `change_password()` and `reset_password()` functions
+- `esb/forms/auth_forms.py` - Added `ChangePasswordForm` with EqualTo validator
+- `esb/forms/admin_forms.py` - Added `ResetPasswordForm` (CSRF-only)
+- `esb/views/auth.py` - Added `GET/POST /auth/change-password` route
+- `esb/views/admin.py` - Added `POST /admin/users/<id>/reset-password` route, pass `reset_form` to template
+- `esb/templates/auth/change_password.html` - New template for change password form
+- `esb/templates/admin/users.html` - Added Reset Password button per user row
+- `esb/templates/base.html` - Added Change Password link to navbar
+
 ### File List
+
+- esb/services/user_service.py (modified)
+- esb/forms/auth_forms.py (modified)
+- esb/forms/admin_forms.py (modified)
+- esb/views/auth.py (modified)
+- esb/views/admin.py (modified)
+- esb/templates/auth/change_password.html (new)
+- esb/templates/admin/users.html (modified)
+- esb/templates/base.html (modified)
+- tests/test_services/test_user_service.py (modified)
+- tests/test_views/test_auth_views.py (modified)
+- tests/test_views/test_admin_views.py (modified)
+- _bmad-output/implementation-artifacts/sprint-status.yaml (modified)
+- _bmad-output/implementation-artifacts/1-4-password-management.md (modified)

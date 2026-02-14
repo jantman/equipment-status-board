@@ -3,7 +3,7 @@
 from flask import Blueprint, flash, redirect, render_template, session, url_for
 from flask_login import current_user
 
-from esb.forms.admin_forms import RoleChangeForm, UserCreateForm
+from esb.forms.admin_forms import ResetPasswordForm, RoleChangeForm, UserCreateForm
 from esb.services import user_service
 from esb.utils.decorators import role_required
 from esb.utils.exceptions import ValidationError
@@ -24,7 +24,10 @@ def list_users():
     """User management table listing all users."""
     users = user_service.list_users()
     role_form = RoleChangeForm()
-    return render_template('admin/users.html', users=users, role_form=role_form)
+    reset_form = ResetPasswordForm()
+    return render_template(
+        'admin/users.html', users=users, role_form=role_form, reset_form=reset_form,
+    )
 
 
 @admin_bp.route('/users/new', methods=['GET', 'POST'])
@@ -90,4 +93,26 @@ def change_role(id):
             flash(str(e), 'danger')
     else:
         flash('Invalid role change request.', 'danger')
+    return redirect(url_for('admin.list_users'))
+
+
+@admin_bp.route('/users/<int:id>/reset-password', methods=['POST'])
+@role_required('staff')
+def reset_password(id):
+    """Reset a user's password."""
+    form = ResetPasswordForm()
+    if form.validate_on_submit():
+        user, temp_password, slack_delivered = user_service.reset_password(
+            user_id=id,
+            reset_by=current_user.username,
+        )
+
+        if slack_delivered:
+            flash('Password reset. New temporary password sent via Slack DM.', 'success')
+            return redirect(url_for('admin.list_users'))
+
+        session['_temp_password'] = temp_password
+        return redirect(url_for('admin.user_created', id=user.id))
+
+    flash('Invalid request.', 'danger')
     return redirect(url_for('admin.list_users'))

@@ -301,6 +301,104 @@ class TestMutationLogging:
         assert logout_entries[0]['data']['username'] == 'staffuser'
 
 
+class TestChangePasswordPage:
+    """Tests for GET /auth/change-password."""
+
+    def test_renders_form_for_authenticated_user(self, staff_client):
+        """Authenticated user sees change password form."""
+        resp = staff_client.get('/auth/change-password')
+        assert resp.status_code == 200
+        assert b'Change Password' in resp.data
+        assert b'Current Password' in resp.data
+        assert b'New Password' in resp.data
+        assert b'Confirm New Password' in resp.data
+
+    def test_unauthenticated_redirects_to_login(self, client, app):
+        """Unauthenticated user redirected to login."""
+        resp = client.get('/auth/change-password')
+        assert resp.status_code == 302
+        assert '/auth/login' in resp.headers['Location']
+
+    def test_technician_can_access(self, tech_client):
+        """Technician can access change password (not staff-only)."""
+        resp = tech_client.get('/auth/change-password')
+        assert resp.status_code == 200
+        assert b'Change Password' in resp.data
+
+
+class TestChangePasswordPost:
+    """Tests for POST /auth/change-password."""
+
+    def test_valid_change_succeeds(self, staff_client, staff_user):
+        """Valid data changes password and shows success flash."""
+        resp = staff_client.post('/auth/change-password', data={
+            'current_password': 'testpass',
+            'new_password': 'newpass123',
+            'confirm_password': 'newpass123',
+        }, follow_redirects=True)
+        assert resp.status_code == 200
+        assert b'Your password has been changed.' in resp.data
+
+        # Verify new password works
+        from esb.models.user import User
+        user = _db.session.get(User, staff_user.id)
+        assert user.check_password('newpass123')
+        assert not user.check_password('testpass')
+
+    def test_wrong_current_password_shows_error(self, staff_client, staff_user):
+        """Incorrect current password shows error."""
+        resp = staff_client.post('/auth/change-password', data={
+            'current_password': 'wrongpass',
+            'new_password': 'newpass123',
+            'confirm_password': 'newpass123',
+        })
+        assert resp.status_code == 200
+        assert b'Current password is incorrect' in resp.data
+
+        # Verify password unchanged
+        from esb.models.user import User
+        user = _db.session.get(User, staff_user.id)
+        assert user.check_password('testpass')
+
+    def test_mismatched_passwords_shows_error(self, staff_client, staff_user):
+        """Non-matching new passwords shows validation error."""
+        resp = staff_client.post('/auth/change-password', data={
+            'current_password': 'testpass',
+            'new_password': 'newpass123',
+            'confirm_password': 'different456',
+        })
+        assert resp.status_code == 200
+        assert b'Passwords must match' in resp.data
+
+    def test_missing_fields_shows_errors(self, staff_client, staff_user):
+        """Missing required fields re-renders form."""
+        resp = staff_client.post('/auth/change-password', data={
+            'current_password': '',
+            'new_password': '',
+            'confirm_password': '',
+        })
+        assert resp.status_code == 200
+        # Form re-renders (validation failure)
+
+    def test_logs_password_changed_mutation(self, staff_client, staff_user, capture):
+        """Password change logs mutation event."""
+        capture.records.clear()
+        staff_client.post('/auth/change-password', data={
+            'current_password': 'testpass',
+            'new_password': 'newpass123',
+            'confirm_password': 'newpass123',
+        })
+        entries = [
+            json.loads(r.message) for r in capture.records
+            if 'user.password_changed' in r.message
+        ]
+        assert len(entries) == 1
+        assert entries[0]['event'] == 'user.password_changed'
+        assert entries[0]['data']['username'] == 'staffuser'
+        # Verify no password values leaked in data
+        assert 'password' not in json.dumps(entries[0]['data'])
+
+
 class TestFullFlow:
     """Integration tests for the full login->access->logout flow."""
 

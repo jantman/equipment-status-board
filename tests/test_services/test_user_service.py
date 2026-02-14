@@ -273,6 +273,139 @@ class TestChangeRole:
         assert entry['data']['username'] == 'techuser'
 
 
+class TestChangePassword:
+    """Tests for user_service.change_password()."""
+
+    def test_changes_password_with_correct_current(self, app, staff_user):
+        """change_password() updates password when current password is correct."""
+        from esb.services.user_service import change_password
+
+        user = change_password(staff_user.id, 'testpass', 'newpass123')
+        assert user.check_password('newpass123')
+        assert not user.check_password('testpass')
+
+    def test_wrong_current_password_raises(self, app, staff_user):
+        """change_password() raises ValidationError on wrong current password."""
+        from esb.services.user_service import change_password
+
+        with pytest.raises(ValidationError, match='Current password is incorrect'):
+            change_password(staff_user.id, 'wrongpass', 'newpass123')
+
+    def test_user_not_found_raises(self, app):
+        """change_password() raises ValidationError when user not found."""
+        from esb.services.user_service import change_password
+
+        with pytest.raises(ValidationError, match='not found'):
+            change_password(99999, 'anypass', 'newpass')
+
+    def test_password_change_persists(self, app, staff_user):
+        """Password change is persisted to database."""
+        from esb.services.user_service import change_password
+
+        change_password(staff_user.id, 'testpass', 'newpass123')
+        found = _db.session.get(User, staff_user.id)
+        assert found.check_password('newpass123')
+
+    def test_logs_password_changed_mutation(self, app, staff_user, capture):
+        """change_password() logs user.password_changed mutation event."""
+        from esb.services.user_service import change_password
+
+        change_password(staff_user.id, 'testpass', 'newpass123')
+        entries = [
+            json.loads(r.message) for r in capture.records
+            if 'user.password_changed' in r.message
+        ]
+        assert len(entries) == 1
+        entry = entries[0]
+        assert entry['event'] == 'user.password_changed'
+        assert entry['user'] == 'staffuser'
+        assert entry['data']['user_id'] == staff_user.id
+        assert entry['data']['username'] == 'staffuser'
+        # Verify no password values leaked in data
+        assert 'password' not in json.dumps(entry['data'])
+
+
+class TestResetPassword:
+    """Tests for user_service.reset_password()."""
+
+    def test_resets_password_successfully(self, app, tech_user):
+        """reset_password() generates new temp password."""
+        from esb.services.user_service import reset_password
+
+        user, temp_password, slack_delivered = reset_password(tech_user.id, 'staffuser')
+        assert user.id == tech_user.id
+        assert isinstance(temp_password, str)
+        assert len(temp_password) >= 12
+        assert user.check_password(temp_password)
+        assert not user.check_password('testpass')  # Old password no longer works
+        assert slack_delivered is False  # No Slack configured
+
+    def test_user_not_found_raises(self, app):
+        """reset_password() raises ValidationError when user not found."""
+        from esb.services.user_service import reset_password
+
+        with pytest.raises(ValidationError, match='not found'):
+            reset_password(99999, 'staffuser')
+
+    def test_logs_password_reset_mutation(self, app, tech_user, capture):
+        """reset_password() logs user.password_reset mutation event."""
+        from esb.services.user_service import reset_password
+
+        reset_password(tech_user.id, 'staffuser')
+        entries = [
+            json.loads(r.message) for r in capture.records
+            if 'user.password_reset' in r.message
+        ]
+        assert len(entries) == 1
+        entry = entries[0]
+        assert entry['event'] == 'user.password_reset'
+        assert entry['user'] == 'staffuser'
+        assert entry['data']['user_id'] == tech_user.id
+        assert entry['data']['username'] == 'techuser'
+        assert entry['data']['reset_by'] == 'staffuser'
+        assert 'slack_delivered' in entry['data']
+        # Verify no password values leaked in data
+        assert 'password' not in json.dumps(entry['data'])
+
+    @patch('esb.services.user_service._slack_sdk_available', True)
+    @patch('esb.services.user_service.WebClient')
+    def test_slack_delivery_attempted(self, mock_client_cls, app, tech_user):
+        """reset_password() attempts Slack delivery when configured."""
+        from esb.services.user_service import reset_password
+
+        app.config['SLACK_BOT_TOKEN'] = 'xoxb-fake-token'
+        mock_client = MagicMock()
+        mock_client_cls.return_value = mock_client
+        mock_client.users_lookupByEmail.return_value = {'user': {'id': 'U12345'}}
+        mock_client.conversations_open.return_value = {'channel': {'id': 'D12345'}}
+
+        # Give the user a slack handle
+        tech_user.slack_handle = '@techuser'
+        _db.session.commit()
+
+        user, temp_password, slack_delivered = reset_password(tech_user.id, 'staffuser')
+        assert slack_delivered is True
+        mock_client.chat_postMessage.assert_called_once()
+
+    @patch('esb.services.user_service._slack_sdk_available', True)
+    @patch('esb.services.user_service.WebClient')
+    def test_slack_failure_returns_false(self, mock_client_cls, app, tech_user):
+        """reset_password() returns slack_delivered=False on Slack failure."""
+        from esb.services.user_service import reset_password
+
+        app.config['SLACK_BOT_TOKEN'] = 'xoxb-fake-token'
+        mock_client = MagicMock()
+        mock_client_cls.return_value = mock_client
+        mock_client.users_lookupByEmail.side_effect = Exception('Slack error')
+
+        tech_user.slack_handle = '@techuser'
+        _db.session.commit()
+
+        user, temp_password, slack_delivered = reset_password(tech_user.id, 'staffuser')
+        assert slack_delivered is False
+        assert user.check_password(temp_password)  # Password still changed
+
+
 class TestSlackDelivery:
     """Tests for Slack temp password delivery."""
 

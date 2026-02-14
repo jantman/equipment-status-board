@@ -5,8 +5,8 @@ from urllib.parse import urlparse
 from flask import Blueprint, flash, redirect, render_template, request, session, url_for
 from flask_login import current_user, login_required, login_user, logout_user
 
-from esb.forms.auth_forms import LoginForm
-from esb.services import auth_service
+from esb.forms.auth_forms import ChangePasswordForm, LoginForm
+from esb.services import auth_service, user_service
 from esb.utils.exceptions import ValidationError
 from esb.utils.logging import log_mutation
 
@@ -42,6 +42,28 @@ def login():
         return redirect(url_for('health'))
 
     return render_template('auth/login.html', form=form)
+
+
+@auth_bp.route('/change-password', methods=['GET', 'POST'])
+@login_required
+def change_password():
+    """Change password form and handler."""
+    form = ChangePasswordForm()
+    if form.validate_on_submit():
+        try:
+            user_service.change_password(
+                current_user.id,
+                form.current_password.data,
+                form.new_password.data,
+            )
+        except ValidationError as e:
+            flash(str(e), 'danger')
+            return render_template('auth/change_password.html', form=form)
+
+        flash('Your password has been changed.', 'success')
+        return redirect(url_for('auth.change_password'))
+
+    return render_template('auth/change_password.html', form=form)
 
 
 @auth_bp.route('/logout')

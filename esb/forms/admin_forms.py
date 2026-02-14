@@ -28,3 +28,7 @@ class RoleChangeForm(FlaskForm):
         choices=[('technician', 'Technician'), ('staff', 'Staff')],
         validators=[DataRequired()],
     )
+
+
+class ResetPasswordForm(FlaskForm):
+    """Minimal form for resetting a user's password (CSRF only)."""

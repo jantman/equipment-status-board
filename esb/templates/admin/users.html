@@ -42,6 +42,10 @@
                         </select>
                         <button type="submit" class="btn btn-sm btn-outline-secondary">Update</button>
                     </form>
+                    <form method="POST" action="{{ url_for('admin.reset_password', id=user.id) }}" class="d-inline ms-1">
+                        {{ reset_form.csrf_token }}
+                        <button type="submit" class="btn btn-sm btn-outline-secondary">Reset Password</button>
+                    </form>
                 </td>
             </tr>
             {% endfor %}
