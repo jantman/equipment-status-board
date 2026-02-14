@@ -1,6 +1,6 @@
 # Story 1.3: User Account Provisioning & Role Management
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -28,76 +28,76 @@ So that Technicians and other Staff can access the system.
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Create user_service module (AC: #2, #3, #4, #7)
-  - [ ] 1.1: Create `esb/services/user_service.py` with `create_user()`, `list_users()`, `change_role()`, `get_user()`
-  - [ ] 1.2: `create_user(username, email, role, slack_handle, created_by)` validates uniqueness of username and email, raises `ValidationError` on conflicts
-  - [ ] 1.3: `create_user()` generates a cryptographically secure temporary password using `secrets.token_urlsafe(12)` (produces 16-char URL-safe string)
-  - [ ] 1.4: `create_user()` returns a dict/tuple containing the User object, the plaintext temp password, and a `slack_delivered` boolean
-  - [ ] 1.5: `create_user()` attempts Slack DM delivery if `SLACK_BOT_TOKEN` is configured and user has a `slack_handle` -- calls internal `_deliver_temp_password_via_slack()`
-  - [ ] 1.6: `create_user()` logs mutation event `user.created` with user details (NEVER the password)
-  - [ ] 1.7: `change_role(user_id, new_role, changed_by)` validates new role is 'technician' or 'staff', updates user, logs `user.role_changed`
-  - [ ] 1.8: `list_users()` returns all users ordered by username
-  - [ ] 1.9: `get_user(user_id)` returns a single User or raises `ValidationError` if not found
-  - [ ] 1.10: Write service tests in `tests/test_services/test_user_service.py`
+- [x] Task 1: Create user_service module (AC: #2, #3, #4, #7)
+  - [x] 1.1: Create `esb/services/user_service.py` with `create_user()`, `list_users()`, `change_role()`, `get_user()`
+  - [x] 1.2: `create_user(username, email, role, slack_handle, created_by)` validates uniqueness of username and email, raises `ValidationError` on conflicts
+  - [x] 1.3: `create_user()` generates a cryptographically secure temporary password using `secrets.token_urlsafe(12)` (produces 16-char URL-safe string)
+  - [x] 1.4: `create_user()` returns a dict/tuple containing the User object, the plaintext temp password, and a `slack_delivered` boolean
+  - [x] 1.5: `create_user()` attempts Slack DM delivery if `SLACK_BOT_TOKEN` is configured and user has a `slack_handle` -- calls internal `_deliver_temp_password_via_slack()`
+  - [x] 1.6: `create_user()` logs mutation event `user.created` with user details (NEVER the password)
+  - [x] 1.7: `change_role(user_id, new_role, changed_by)` validates new role is 'technician' or 'staff', updates user, logs `user.role_changed`
+  - [x] 1.8: `list_users()` returns all users ordered by username
+  - [x] 1.9: `get_user(user_id)` returns a single User or raises `ValidationError` if not found
+  - [x] 1.10: Write service tests in `tests/test_services/test_user_service.py`
 
-- [ ] Task 2: Implement Slack temp password delivery helper (AC: #3, #4)
-  - [ ] 2.1: Create `_deliver_temp_password_via_slack(user, temp_password)` in user_service
-  - [ ] 2.2: Guard import: `try: from slack_sdk import WebClient` with fallback if not installed
-  - [ ] 2.3: If `SLACK_BOT_TOKEN` not configured or slack_sdk not installed, return `False` immediately
-  - [ ] 2.4: Lookup Slack user: call `users_lookupByEmail(email=user.email)` to get Slack user ID
-  - [ ] 2.5: Open DM: call `conversations_open(users=[slack_user_id])` to get DM channel
-  - [ ] 2.6: Send message: call `chat_postMessage(channel=dm_channel_id, text=message)` with temp password
-  - [ ] 2.7: Catch ALL Slack exceptions (SlackApiError, network errors) -- log warning, return `False`
-  - [ ] 2.8: On success return `True`; NEVER block user creation on Slack failures
+- [x] Task 2: Implement Slack temp password delivery helper (AC: #3, #4)
+  - [x] 2.1: Create `_deliver_temp_password_via_slack(user, temp_password)` in user_service
+  - [x] 2.2: Guard import: `try: from slack_sdk import WebClient` with fallback if not installed
+  - [x] 2.3: If `SLACK_BOT_TOKEN` not configured or slack_sdk not installed, return `False` immediately
+  - [x] 2.4: Lookup Slack user: call `users_lookupByEmail(email=user.email)` to get Slack user ID
+  - [x] 2.5: Open DM: call `conversations_open(users=[slack_user_id])` to get DM channel
+  - [x] 2.6: Send message: call `chat_postMessage(channel=dm_channel_id, text=message)` with temp password
+  - [x] 2.7: Catch ALL Slack exceptions (SlackApiError, network errors) -- log warning, return `False`
+  - [x] 2.8: On success return `True`; NEVER block user creation on Slack failures
 
-- [ ] Task 3: Create admin forms (AC: #2, #5)
-  - [ ] 3.1: Create `esb/forms/admin_forms.py` with `UserCreateForm`
-  - [ ] 3.2: `UserCreateForm` fields: username (StringField, required), email (StringField, required), slack_handle (StringField, optional), role (SelectField with choices [('technician', 'Technician'), ('staff', 'Staff')])
-  - [ ] 3.3: Add validators: DataRequired on username and email, Email validator on email field
-  - [ ] 3.4: Create `RoleChangeForm` with role SelectField and hidden user_id for inline role change on user list
+- [x] Task 3: Create admin forms (AC: #2, #5)
+  - [x] 3.1: Create `esb/forms/admin_forms.py` with `UserCreateForm`
+  - [x] 3.2: `UserCreateForm` fields: username (StringField, required), email (StringField, required), slack_handle (StringField, optional), role (SelectField with choices [('technician', 'Technician'), ('staff', 'Staff')])
+  - [x] 3.3: Add validators: DataRequired on username and email, Email validator on email field
+  - [x] 3.4: Create `RoleChangeForm` with role SelectField and hidden user_id for inline role change on user list
 
-- [ ] Task 4: Implement admin user management views (AC: #1, #2, #4, #5, #6)
-  - [ ] 4.1: Replace stub in `esb/views/admin.py` with full user management implementation
-  - [ ] 4.2: `GET /admin/users` -- list all users in a table, protected by `@role_required('staff')`
-  - [ ] 4.3: `GET/POST /admin/users/new` -- render user creation form (GET), process submission (POST)
-  - [ ] 4.4: On successful creation: call `user_service.create_user()` which returns user, temp_password, slack_delivered
-  - [ ] 4.5: If `slack_delivered == True`: flash success "User created. Temporary password sent via Slack DM." and redirect to user list
-  - [ ] 4.6: If `slack_delivered == False`: redirect to `GET /admin/users/<id>/created` -- one-time temp password display page
-  - [ ] 4.7: `GET /admin/users/<int:id>/created` -- one-time password display page. Temp password passed via session flash or session variable (cleared after display)
-  - [ ] 4.8: `POST /admin/users/<int:id>/role` -- change user role, flash success, redirect to user list
-  - [ ] 4.9: All routes protected by `@role_required('staff')`
-  - [ ] 4.10: On ValidationError from service: flash error as 'danger' and re-render form
+- [x] Task 4: Implement admin user management views (AC: #1, #2, #4, #5, #6)
+  - [x] 4.1: Replace stub in `esb/views/admin.py` with full user management implementation
+  - [x] 4.2: `GET /admin/users` -- list all users in a table, protected by `@role_required('staff')`
+  - [x] 4.3: `GET/POST /admin/users/new` -- render user creation form (GET), process submission (POST)
+  - [x] 4.4: On successful creation: call `user_service.create_user()` which returns user, temp_password, slack_delivered
+  - [x] 4.5: If `slack_delivered == True`: flash success "User created. Temporary password sent via Slack DM." and redirect to user list
+  - [x] 4.6: If `slack_delivered == False`: redirect to `GET /admin/users/<id>/created` -- one-time temp password display page
+  - [x] 4.7: `GET /admin/users/<int:id>/created` -- one-time password display page. Temp password passed via session flash or session variable (cleared after display)
+  - [x] 4.8: `POST /admin/users/<int:id>/role` -- change user role, flash success, redirect to user list
+  - [x] 4.9: All routes protected by `@role_required('staff')`
+  - [x] 4.10: On ValidationError from service: flash error as 'danger' and re-render form
 
-- [ ] Task 5: Create admin templates (AC: #1, #2, #4)
-  - [ ] 5.1: Create `esb/templates/admin/users.html` -- extends `base.html`, table of users with columns: username, email, role, status (Active/Inactive), actions
-  - [ ] 5.2: Table includes inline role change form per row (dropdown + small submit button)
-  - [ ] 5.3: "Add User" button (btn-primary) at top of user list
-  - [ ] 5.4: Create `esb/templates/admin/user_create.html` -- extends `base.html`, user creation form following UX form patterns (single-column, labels above fields, required fields marked with *)
-  - [ ] 5.5: Create `esb/templates/admin/user_created.html` -- extends `base.html`, one-time temp password display with prominent warning: "This password will only be shown once. Please ensure the user receives it."
-  - [ ] 5.6: Password display uses a styled card/alert with the password in monospace font
-  - [ ] 5.7: "Back to Users" button on the password display page
+- [x] Task 5: Create admin templates (AC: #1, #2, #4)
+  - [x] 5.1: Create `esb/templates/admin/users.html` -- extends `base.html`, table of users with columns: username, email, role, status (Active/Inactive), actions
+  - [x] 5.2: Table includes inline role change form per row (dropdown + small submit button)
+  - [x] 5.3: "Add User" button (btn-primary) at top of user list
+  - [x] 5.4: Create `esb/templates/admin/user_create.html` -- extends `base.html`, user creation form following UX form patterns (single-column, labels above fields, required fields marked with *)
+  - [x] 5.5: Create `esb/templates/admin/user_created.html` -- extends `base.html`, one-time temp password display with prominent warning: "This password will only be shown once. Please ensure the user receives it."
+  - [x] 5.6: Password display uses a styled card/alert with the password in monospace font
+  - [x] 5.7: "Back to Users" button on the password display page
 
-- [ ] Task 6: Write view and integration tests (AC: all)
-  - [ ] 6.1: Create `tests/test_views/test_admin_views.py`
-  - [ ] 6.2: Test GET /admin/users renders user table for staff
-  - [ ] 6.3: Test technician gets 403 on GET /admin/users
-  - [ ] 6.4: Test unauthenticated user redirected to login on GET /admin/users
-  - [ ] 6.5: Test GET /admin/users/new renders creation form for staff
-  - [ ] 6.6: Test POST /admin/users/new with valid data creates user
-  - [ ] 6.7: Test POST /admin/users/new with duplicate username shows error
-  - [ ] 6.8: Test POST /admin/users/new with duplicate email shows error
-  - [ ] 6.9: Test POST /admin/users/new with missing required fields shows validation errors
-  - [ ] 6.10: Test POST /admin/users/<id>/role changes role successfully
-  - [ ] 6.11: Test POST /admin/users/<id>/role with invalid role shows error
-  - [ ] 6.12: Test mutation logging for user.created event
-  - [ ] 6.13: Test mutation logging for user.role_changed event
-  - [ ] 6.14: Test temp password display page shows password when Slack not configured
-  - [ ] 6.15: Add service tests in `tests/test_services/test_user_service.py` for all service functions
+- [x] Task 6: Write view and integration tests (AC: all)
+  - [x] 6.1: Create `tests/test_views/test_admin_views.py`
+  - [x] 6.2: Test GET /admin/users renders user table for staff
+  - [x] 6.3: Test technician gets 403 on GET /admin/users
+  - [x] 6.4: Test unauthenticated user redirected to login on GET /admin/users
+  - [x] 6.5: Test GET /admin/users/new renders creation form for staff
+  - [x] 6.6: Test POST /admin/users/new with valid data creates user
+  - [x] 6.7: Test POST /admin/users/new with duplicate username shows error
+  - [x] 6.8: Test POST /admin/users/new with duplicate email shows error
+  - [x] 6.9: Test POST /admin/users/new with missing required fields shows validation errors
+  - [x] 6.10: Test POST /admin/users/<id>/role changes role successfully
+  - [x] 6.11: Test POST /admin/users/<id>/role with invalid role shows error
+  - [x] 6.12: Test mutation logging for user.created event
+  - [x] 6.13: Test mutation logging for user.role_changed event
+  - [x] 6.14: Test temp password display page shows password when Slack not configured
+  - [x] 6.15: Add service tests in `tests/test_services/test_user_service.py` for all service functions
 
-- [ ] Task 7: Add slack_sdk dependency (AC: #3)
-  - [ ] 7.1: Add `slack_sdk>=3.39.0` to `requirements.txt`
-  - [ ] 7.2: Add to `requirements-dev.txt` (inherits from requirements.txt)
-  - [ ] 7.3: Guard all slack_sdk imports with try/except for environments without it installed
+- [x] Task 7: Add slack_sdk dependency (AC: #3)
+  - [x] 7.1: Add `slack_sdk>=3.39.0` to `requirements.txt`
+  - [x] 7.2: Add to `requirements-dev.txt` (inherits from requirements.txt)
+  - [x] 7.3: Guard all slack_sdk imports with try/except for environments without it installed
 
 ## Dev Notes
 
@@ -386,10 +386,37 @@ Per the UX spec and Journey 4 (Staff Manages Equipment & Users):
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+Claude Opus 4.6
 
 ### Debug Log References
 
+- email_validator package required by WTForms Email() validator -- added to requirements.txt
+
 ### Completion Notes List
 
+- Task 1-2: Created `esb/services/user_service.py` with full user provisioning, role management, and Slack DM delivery. All service functions follow architecture patterns (service layer, domain exceptions, mutation logging). 24 service tests cover create/list/get/change_role/Slack delivery.
+- Task 3: Created `esb/forms/admin_forms.py` with `UserCreateForm` (with Email validator) and `RoleChangeForm` for inline role changes.
+- Task 4: Replaced admin.py stub with full user management views: list users, create user form, one-time password display, role change. All routes protected by `@role_required('staff')`. Temp password passed via session variable, cleared after display.
+- Task 5: Created three admin templates extending base.html: users table with inline role change, user creation form, and one-time temp password display with warning.
+- Task 6: Created 25 view/integration tests covering all ACs: RBAC (staff access, technician 403, unauth redirect), user creation (valid, duplicate username/email, missing fields, invalid email), role change, temp password display (one-time visibility), and mutation logging.
+- Task 7: Added `slack_sdk>=3.39.0` and `email_validator>=2.0` to requirements.txt. All slack_sdk imports guarded with try/except.
+- All 157 tests pass (108 original + 24 service + 25 view), ruff lint clean, zero regressions.
+
+### Change Log
+
+- 2026-02-14: Implemented Story 1.3 - User Account Provisioning & Role Management (all 7 tasks complete)
+
 ### File List
+
+**New files:**
+- `esb/services/user_service.py` -- User provisioning, role management, Slack DM delivery
+- `esb/forms/admin_forms.py` -- UserCreateForm, RoleChangeForm
+- `esb/templates/admin/users.html` -- User management table
+- `esb/templates/admin/user_create.html` -- User creation form
+- `esb/templates/admin/user_created.html` -- One-time temp password display
+- `tests/test_services/test_user_service.py` -- 24 user service tests
+- `tests/test_views/test_admin_views.py` -- 25 admin view tests
+
+**Modified files:**
+- `esb/views/admin.py` -- Replaced stub with full user management routes
+- `requirements.txt` -- Added slack_sdk>=3.39.0 and email_validator>=2.0

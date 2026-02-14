@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block title %}User Management - Equipment Status Board{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1>User Management</h1>
+    <a href="{{ url_for('admin.create_user') }}" class="btn btn-primary">Add User</a>
+</div>
+
+<div class="table-responsive">
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Username</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for user in users %}
+            <tr>
+                <td>{{ user.username }}</td>
+                <td>{{ user.email }}</td>
+                <td>{{ user.role|capitalize }}</td>
+                <td>
+                    {% if user.is_active %}
+                    <span class="badge bg-success">Active</span>
+                    {% else %}
+                    <span class="badge bg-secondary">Inactive</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <form method="POST" action="{{ url_for('admin.change_role', id=user.id) }}" class="d-inline-flex align-items-center gap-1">
+                        {{ role_form.hidden_tag() }}
+                        <input type="hidden" name="user_id" value="{{ user.id }}">
+                        <select name="role" class="form-select form-select-sm" style="width: auto;">
+                            <option value="technician" {{ 'selected' if user.role == 'technician' }}>Technician</option>
+                            <option value="staff" {{ 'selected' if user.role == 'staff' }}>Staff</option>
+                        </select>
+                        <button type="submit" class="btn btn-sm btn-outline-secondary">Update</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
