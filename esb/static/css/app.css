@@ -1,0 +1,6 @@
+/* ESB custom styles */
+
+/* Kiosk layout: larger font for readability on wall-mounted displays */
+.kiosk-body {
+    font-size: 1.25rem;
+}

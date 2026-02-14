@@ -1,0 +1,28 @@
+[project]
+name = "equipment-status-board"
+version = "0.1.0"
+description = "Equipment status tracking and repair management for Decatur Makers makerspace"
+requires-python = ">=3.14"
+dependencies = [
+    "Flask>=3.1.2",
+    "Flask-SQLAlchemy>=3.1.1",
+    "Flask-Migrate>=4.1.0",
+    "Flask-Login>=0.6.3",
+    "Flask-WTF>=1.2.2",
+    "PyMySQL>=1.1.1",
+    "python-dotenv>=1.1.0",
+    "gunicorn>=23.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.4",
+    "ruff>=0.9.7",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 120
