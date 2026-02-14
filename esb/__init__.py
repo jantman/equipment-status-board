@@ -82,12 +82,13 @@ def _register_cli(app):
     @app.cli.command('seed-admin')
     @click.argument('username')
     @click.argument('email')
-    @click.argument('password')
+    @click.option('--password', prompt=True, hide_input=True,
+                  confirmation_prompt=True, help='Password for the new admin user.')
     def seed_admin(username, email, password):
         """Create an initial staff user if none exists."""
         existing = _db.session.execute(
             _db.select(User).filter_by(role='staff')
-        ).scalar_one_or_none()
+        ).scalars().first()
         if existing:
             click.echo(f'Staff user already exists: {existing.username}')
             return

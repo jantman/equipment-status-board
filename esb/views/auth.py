@@ -1,6 +1,8 @@
 """Auth routes (login, logout)."""
 
-from flask import Blueprint, flash, redirect, render_template, session, url_for
+from urllib.parse import urlparse
+
+from flask import Blueprint, flash, redirect, render_template, request, session, url_for
 from flask_login import current_user, login_required, login_user, logout_user
 
 from esb.forms.auth_forms import LoginForm
@@ -25,7 +27,7 @@ def login():
             log_mutation('user.login_failed', 'anonymous', {
                 'username': form.username.data,
             })
-            flash('Invalid username or password', 'error')
+            flash('Invalid username or password', 'danger')
             return render_template('auth/login.html', form=form)
 
         login_user(user, remember=False)
@@ -34,6 +36,9 @@ def login():
             'user_id': user.id,
             'username': user.username,
         })
+        next_page = request.args.get('next')
+        if next_page and urlparse(next_page).netloc == '':
+            return redirect(next_page)
         return redirect(url_for('health'))
 
     return render_template('auth/login.html', form=form)

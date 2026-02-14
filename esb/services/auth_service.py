@@ -4,9 +4,16 @@ All auth business logic lives here. Views call these functions;
 they never query models directly.
 """
 
+from werkzeug.security import check_password_hash, generate_password_hash
+
 from esb.extensions import db
 from esb.models.user import User
 from esb.utils.exceptions import ValidationError
+
+# Pre-computed dummy hash to prevent timing-based username enumeration.
+# When a user is not found, we still run a hash comparison against this
+# so the response time is constant regardless of whether the username exists.
+_DUMMY_HASH = generate_password_hash('dummy-constant-time-pad')
 
 
 def authenticate(username: str, password: str) -> User:
@@ -21,7 +28,12 @@ def authenticate(username: str, password: str) -> User:
         db.select(User).filter_by(username=username)
     ).scalar_one_or_none()
 
-    if user is None or not user.check_password(password):
+    if user is None:
+        # Constant-time: still run hash comparison to prevent timing enumeration
+        check_password_hash(_DUMMY_HASH, password)
+        raise ValidationError('Invalid username or password')
+
+    if not user.check_password(password):
         raise ValidationError('Invalid username or password')
 
     if not user.is_active:

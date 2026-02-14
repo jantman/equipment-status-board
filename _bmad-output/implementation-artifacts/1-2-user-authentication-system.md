@@ -1,6 +1,6 @@
 # Story 1.2: User Authentication System
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -331,11 +331,21 @@ Claude Opus 4.6
 ### Completion Notes List
 
 - All 10 tasks complete, all 8 acceptance criteria satisfied
-- 102 tests passing (15 model + 9 service + 23 view/integration + 55 existing)
+- 108 tests passing (15 model + 9 service + 27 view/integration + 7 decorator + 3 CLI + 47 existing)
 - ruff lint clean
 - Werkzeug scrypt hashing used (default, not pbkdf2)
 - `flask seed-admin` CLI command available for initial admin creation
-- Task 8.4 (update RBAC decorator tests to use real User model) not strictly done -- existing tests still use MagicMock users, but new integration tests in test_auth_views.py verify RBAC with real User instances
+- Task 8.4: RBAC decorator tests rewritten to use real User model instances (code review fix H1)
+
+### Code Review Fixes Applied
+
+- **H1:** Rewrote `test_decorators.py` to use real User model instances instead of MagicMock
+- **H2:** Changed `scalar_one_or_none()` to `.scalars().first()` in seed-admin to handle multiple staff users
+- **H3:** Created `tests/test_cli.py` with 3 tests for seed-admin CLI command
+- **M1:** Changed seed-admin password from positional argument to `click.option(prompt=True, hide_input=True)`
+- **M2:** Added constant-time dummy hash comparison in `auth_service.authenticate()` to prevent username enumeration
+- **M3:** Added `next` parameter support to login view with open redirect prevention
+- **L1:** Changed flash category from `'error'` to `'danger'` for consistency with architecture spec
 
 ### File List
 
@@ -350,7 +360,8 @@ Claude Opus 4.6
 - `tests/test_services/__init__.py`
 - `tests/test_services/test_auth_service.py` -- 9 tests for auth service
 - `tests/test_views/__init__.py`
-- `tests/test_views/test_auth_views.py` -- 23 tests for auth views, RBAC, mutation logging
+- `tests/test_views/test_auth_views.py` -- 27 tests for auth views, RBAC, mutation logging
+- `tests/test_cli.py` -- 3 tests for seed-admin CLI command
 
 **Modified files:**
 - `esb/__init__.py` -- Replaced placeholder user_loader, added before_request session handler, model import, seed-admin CLI command

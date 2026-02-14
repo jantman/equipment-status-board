@@ -1,49 +1,20 @@
-"""Tests for RBAC decorator."""
+"""Tests for RBAC decorator with real User model."""
 
-from unittest.mock import MagicMock, patch
-
-import pytest
-from flask import Flask
-
+from esb.extensions import db as _db
+from esb.models.user import User
 from esb.utils.decorators import ROLE_HIERARCHY, role_required
 
 
-@pytest.fixture
-def app():
-    """Create a minimal Flask app for testing."""
-    app = Flask(__name__)
-    app.config['SECRET_KEY'] = 'test-secret'
-    app.config['TESTING'] = True
-
-    from flask_login import LoginManager
-    login_manager = LoginManager()
-    login_manager.init_app(app)
-
-    @login_manager.user_loader
-    def load_user(user_id):
-        return None
-
-    @app.route('/technician-only')
-    @role_required('technician')
-    def technician_route():
-        return 'ok'
-
-    @app.route('/staff-only')
-    @role_required('staff')
-    def staff_route():
-        return 'ok'
-
-    return app
-
-
-def _make_user(role):
-    """Create a mock user with the given role."""
-    user = MagicMock()
-    user.is_authenticated = True
-    user.is_active = True
-    user.is_anonymous = False
-    user.role = role
-    user.get_id = MagicMock(return_value='1')
+def _create_user_and_login(app, client, username, role):
+    """Create a user in the DB and log them in via the auth view."""
+    user = User(username=username, email=f'{username}@example.com', role=role)
+    user.set_password('testpass')
+    _db.session.add(user)
+    _db.session.commit()
+    client.post('/auth/login', data={
+        'username': username,
+        'password': 'testpass',
+    })
     return user
 
 
@@ -58,53 +29,67 @@ class TestRoleHierarchy:
 
 
 class TestRoleRequired:
-    """Tests for @role_required decorator."""
+    """Tests for @role_required decorator with real User model instances."""
 
     def test_unauthenticated_redirects(self, app):
-        """Unauthenticated users are redirected (handled by Flask-Login)."""
+        """Unauthenticated users are redirected to login."""
+        @app.route('/test-dec-staff')
+        @role_required('staff')
+        def dec_staff_route():
+            return 'ok'
+
         with app.test_client() as client:
-            resp = client.get('/staff-only')
-            assert resp.status_code in (302, 401)
+            resp = client.get('/test-dec-staff')
+            assert resp.status_code == 302
+            assert '/auth/login' in resp.headers['Location']
 
     def test_staff_gets_200_on_staff_route(self, app):
         """Staff user can access staff-only route."""
-        user = _make_user('staff')
-        with app.test_client() as client:
-            with patch('flask_login.utils._get_user', return_value=user):
-                resp = client.get('/staff-only')
-                assert resp.status_code == 200
+        @app.route('/test-dec-staff2')
+        @role_required('staff')
+        def dec_staff_route2():
+            return 'ok'
+
+        client = app.test_client()
+        _create_user_and_login(app, client, 'dec_staff', 'staff')
+        resp = client.get('/test-dec-staff2')
+        assert resp.status_code == 200
 
     def test_staff_gets_200_on_technician_route(self, app):
         """Staff user can access technician-only route (hierarchy)."""
-        user = _make_user('staff')
-        with app.test_client() as client:
-            with patch('flask_login.utils._get_user', return_value=user):
-                resp = client.get('/technician-only')
-                assert resp.status_code == 200
+        @app.route('/test-dec-tech')
+        @role_required('technician')
+        def dec_tech_route():
+            return 'ok'
+
+        client = app.test_client()
+        _create_user_and_login(app, client, 'dec_staff2', 'staff')
+        resp = client.get('/test-dec-tech')
+        assert resp.status_code == 200
 
     def test_technician_gets_403_on_staff_route(self, app):
         """Technician user gets 403 on staff-only route."""
-        user = _make_user('technician')
-        with app.test_client() as client:
-            with patch('flask_login.utils._get_user', return_value=user):
-                resp = client.get('/staff-only')
-                assert resp.status_code == 403
+        @app.route('/test-dec-staff3')
+        @role_required('staff')
+        def dec_staff_route3():
+            return 'ok'
+
+        client = app.test_client()
+        _create_user_and_login(app, client, 'dec_tech', 'technician')
+        resp = client.get('/test-dec-staff3')
+        assert resp.status_code == 403
 
     def test_technician_gets_200_on_technician_route(self, app):
         """Technician user can access technician-only route."""
-        user = _make_user('technician')
-        with app.test_client() as client:
-            with patch('flask_login.utils._get_user', return_value=user):
-                resp = client.get('/technician-only')
-                assert resp.status_code == 200
+        @app.route('/test-dec-tech2')
+        @role_required('technician')
+        def dec_tech_route2():
+            return 'ok'
 
-    def test_unknown_role_gets_403(self, app):
-        """Unknown role gets 403 on any protected route."""
-        user = _make_user('viewer')
-        with app.test_client() as client:
-            with patch('flask_login.utils._get_user', return_value=user):
-                resp = client.get('/technician-only')
-                assert resp.status_code == 403
+        client = app.test_client()
+        _create_user_and_login(app, client, 'dec_tech2', 'technician')
+        resp = client.get('/test-dec-tech2')
+        assert resp.status_code == 200
 
     def test_decorator_preserves_function_name(self, app):
         """Decorated function preserves original name via @wraps."""

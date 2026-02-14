@@ -120,6 +120,48 @@ class TestLoginPost:
         assert '/health' in resp.headers['Location']
 
 
+class TestLoginNextRedirect:
+    """Tests for login ?next= redirect (AC: safe redirect after login)."""
+
+    def test_redirects_to_next_on_login(self, client, staff_user):
+        """Successful login redirects to ?next= path."""
+        resp = client.post('/auth/login?next=/health', data={
+            'username': 'staffuser',
+            'password': 'testpass',
+        })
+        assert resp.status_code == 302
+        assert resp.headers['Location'].endswith('/health')
+
+    def test_ignores_absolute_url_next(self, client, staff_user):
+        """Login ignores ?next= with absolute URL (open redirect prevention)."""
+        resp = client.post('/auth/login?next=https://evil.com/steal', data={
+            'username': 'staffuser',
+            'password': 'testpass',
+        })
+        assert resp.status_code == 302
+        assert 'evil.com' not in resp.headers['Location']
+        assert '/health' in resp.headers['Location']
+
+    def test_ignores_protocol_relative_next(self, client, staff_user):
+        """Login ignores ?next= with protocol-relative URL."""
+        resp = client.post('/auth/login?next=//evil.com/steal', data={
+            'username': 'staffuser',
+            'password': 'testpass',
+        })
+        assert resp.status_code == 302
+        assert 'evil.com' not in resp.headers['Location']
+        assert '/health' in resp.headers['Location']
+
+    def test_no_next_redirects_to_health(self, client, staff_user):
+        """Login without ?next= redirects to health."""
+        resp = client.post('/auth/login', data={
+            'username': 'staffuser',
+            'password': 'testpass',
+        })
+        assert resp.status_code == 302
+        assert '/health' in resp.headers['Location']
+
+
 class TestLogout:
     """Tests for logout route."""
 
