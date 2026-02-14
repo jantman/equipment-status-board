@@ -1,0 +1,36 @@
+{% extends "base_public.html" %}
+
+{% block title %}Log In - Equipment Status Board{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center mt-5">
+    <div class="col-sm-8 col-md-6 col-lg-4">
+        <div class="card">
+            <div class="card-body">
+                <h2 class="card-title text-center mb-4">Equipment Status Board</h2>
+                <form method="POST" novalidate>
+                    {{ form.hidden_tag() }}
+                    <div class="mb-3">
+                        {{ form.username.label(class="form-label") }} <span class="text-danger">*</span>
+                        {{ form.username(class="form-control" ~ (" is-invalid" if form.username.errors else ""), autofocus=true) }}
+                        {% for error in form.username.errors %}
+                        <div class="invalid-feedback">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+                    <div class="mb-3">
+                        {{ form.password.label(class="form-label") }} <span class="text-danger">*</span>
+                        {{ form.password(class="form-control" ~ (" is-invalid" if form.password.errors else "")) }}
+                        {% for error in form.password.errors %}
+                        <div class="invalid-feedback">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+                    {{ form.submit(class="btn btn-primary w-100") }}
+                </form>
+                <p class="text-muted text-center mt-3 mb-0">
+                    <small>Forgot your password? Contact an administrator.</small>
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

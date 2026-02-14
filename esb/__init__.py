@@ -1,6 +1,6 @@
 """ESB application package."""
 
-from flask import Flask, redirect, render_template, url_for
+from flask import Flask, redirect, render_template, session, url_for
 
 from esb.config import config
 from esb.extensions import csrf, db, login_manager, migrate
@@ -23,10 +23,20 @@ def create_app(config_name='default'):
     migrate.init_app(app, db)
     csrf.init_app(app)
 
-    # Placeholder user loader (replaced when User model is implemented)
+    # Import models so Alembic can detect them
+    import esb.models  # noqa: F401
+
+    from esb.services import auth_service
+
     @login_manager.user_loader
     def load_user(user_id):
-        return None
+        return auth_service.load_user(user_id)
+
+    login_manager.login_message_category = 'warning'
+
+    @app.before_request
+    def enforce_permanent_session():
+        session.permanent = True
 
     # Register blueprints
     register_blueprints(app)
@@ -56,4 +66,33 @@ def create_app(config_name='default'):
     def health():
         return 'ok'
 
+    # CLI commands
+    _register_cli(app)
+
     return app
+
+
+def _register_cli(app):
+    """Register Flask CLI commands."""
+    import click
+
+    from esb.extensions import db as _db
+    from esb.models.user import User
+
+    @app.cli.command('seed-admin')
+    @click.argument('username')
+    @click.argument('email')
+    @click.argument('password')
+    def seed_admin(username, email, password):
+        """Create an initial staff user if none exists."""
+        existing = _db.session.execute(
+            _db.select(User).filter_by(role='staff')
+        ).scalar_one_or_none()
+        if existing:
+            click.echo(f'Staff user already exists: {existing.username}')
+            return
+        user = User(username=username, email=email, role='staff')
+        user.set_password(password)
+        _db.session.add(user)
+        _db.session.commit()
+        click.echo(f'Created staff user: {username}')
