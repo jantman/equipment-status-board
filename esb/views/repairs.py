@@ -161,6 +161,10 @@ def upload_photo(id):
 @role_required('technician')
 def serve_photo(id, filename):
     """Serve an uploaded repair photo file."""
+    try:
+        repair_service.get_repair_record(id)
+    except ValidationError:
+        abort(404)
     upload_path = current_app.config['UPLOAD_PATH']
     directory = os.path.join(upload_path, 'repairs', str(id))
     return send_from_directory(directory, filename)

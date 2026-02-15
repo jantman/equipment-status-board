@@ -97,5 +97,8 @@
     {% for entry in timeline %}
     {% include 'components/_timeline_entry.html' %}
     {% endfor %}
+    {% if not timeline %}
+    <li class="list-group-item text-muted">No timeline entries yet.</li>
+    {% endif %}
 </ol>
 {% endblock %}

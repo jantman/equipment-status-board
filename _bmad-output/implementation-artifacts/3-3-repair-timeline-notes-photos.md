@@ -1,6 +1,6 @@
 # Story 3.3: Repair Timeline, Notes & Photos
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -697,17 +697,19 @@ None required.
 - Task 6: Added 11 service tests covering `add_repair_note()` and `add_repair_photo()` -- timeline entry creation, audit log, mutation log, validation errors, whitespace stripping.
 - Task 7: Added 13 view tests covering detail page forms, timeline rendering, note POST (staff/tech/unauth/404), photo POST (staff/tech/unauth/404), and file serving (success/404).
 - Total: 561 tests passing (24 new), 0 lint errors.
+- Code Review Fixes: 6 issues fixed (1 HIGH, 3 MEDIUM, 2 LOW). 4 new tests added (565 total). See Change Log.
 
 ### Change Log
 
 - 2026-02-15: Implemented Story 3.3 -- repair timeline notes, photos, enhanced timeline display. 24 new tests added.
+- 2026-02-15: Code review fixes -- [H1] Added video file rendering (video tag for mp4/mov/avi/webm) in timeline template. [M1] Added repair record existence check to serve_photo route. [M2] Added 2 view tests for form validation error flash paths (empty note, missing file). [M3] Added 1 view test for photo timeline entry thumbnail rendering. [L1] Replaced new-tab photo links with Bootstrap modal for in-page expansion (AC #6). [L3] Added empty timeline UX message. 4 new tests (565 total).
 
 ### File List
 
 - esb/forms/repair_forms.py (MODIFIED) -- Added RepairNoteForm and RepairPhotoUploadForm
 - esb/services/repair_service.py (MODIFIED) -- Added add_repair_note() and add_repair_photo()
-- esb/views/repairs.py (MODIFIED) -- Added add_note, upload_photo, serve_photo routes; updated detail view
-- esb/templates/repairs/detail.html (MODIFIED) -- Added note form, photo upload form above timeline
-- esb/templates/components/_timeline_entry.html (MODIFIED) -- Added type badges, status badges, photo thumbnails, responsive timestamps
+- esb/views/repairs.py (MODIFIED) -- Added add_note, upload_photo, serve_photo routes; updated detail view; added record existence check to serve_photo
+- esb/templates/repairs/detail.html (MODIFIED) -- Added note form, photo upload form above timeline; added empty timeline message
+- esb/templates/components/_timeline_entry.html (MODIFIED) -- Added type badges, status badges, photo thumbnails with modal expansion, video file rendering, responsive timestamps
 - tests/test_services/test_repair_service.py (MODIFIED) -- Added TestAddRepairNote (7 tests) and TestAddRepairPhoto (4 tests)
-- tests/test_views/test_repair_views.py (MODIFIED) -- Added TestAddNote (7 tests), TestUploadPhoto (4 tests), TestServePhoto (2 tests)
+- tests/test_views/test_repair_views.py (MODIFIED) -- Added TestAddNote (9 tests), TestUploadPhoto (5 tests), TestServePhoto (3 tests)

@@ -4,6 +4,7 @@ from io import BytesIO
 from unittest.mock import patch
 
 from esb.extensions import db as _db
+from esb.models.document import Document
 from esb.models.repair_record import RepairRecord
 from esb.models.repair_timeline_entry import RepairTimelineEntry
 from esb.utils.exceptions import ValidationError
@@ -375,6 +376,51 @@ class TestAddNote:
         })
         assert resp.status_code == 404
 
+    def test_empty_note_flashes_validation_error(self, staff_client, make_repair_record):
+        """POST with empty note flashes form validation error."""
+        record = make_repair_record()
+        resp = staff_client.post(f'/repairs/{record.id}/notes', data={
+            'note': '',
+        }, follow_redirects=True)
+        assert resp.status_code == 200
+        assert b'This field is required' in resp.data
+
+    def test_detail_shows_photo_timeline_with_thumbnail(self, app, staff_client, make_repair_record, tmp_path):
+        """Detail page renders photo timeline entry with thumbnail image."""
+        app.config['UPLOAD_PATH'] = str(tmp_path)
+        record = make_repair_record()
+
+        doc = Document(
+            parent_type='repair_photo',
+            parent_id=record.id,
+            original_filename='test_photo.jpg',
+            stored_filename='abc123.jpg',
+            content_type='image/jpeg',
+            size_bytes=100,
+            uploaded_by='staffuser',
+        )
+        _db.session.add(doc)
+        _db.session.flush()
+
+        entry = RepairTimelineEntry(
+            repair_record_id=record.id,
+            entry_type='photo',
+            content=str(doc.id),
+            author_name='staffuser',
+        )
+        _db.session.add(entry)
+        _db.session.commit()
+
+        file_dir = tmp_path / 'repairs' / str(record.id)
+        file_dir.mkdir(parents=True)
+        (file_dir / 'abc123.jpg').write_bytes(b'fake jpeg data')
+
+        resp = staff_client.get(f'/repairs/{record.id}')
+        assert resp.status_code == 200
+        assert b'Photo uploaded' in resp.data
+        assert b'img-thumbnail' in resp.data
+        assert b'test_photo.jpg' in resp.data
+
 
 class TestUploadPhoto:
     """Tests for POST /repairs/<id>/photos."""
@@ -429,6 +475,18 @@ class TestUploadPhoto:
         )
         assert resp.status_code == 404
 
+    def test_missing_file_flashes_validation_error(self, staff_client, make_repair_record):
+        """POST without file flashes form validation error."""
+        record = make_repair_record()
+        resp = staff_client.post(
+            f'/repairs/{record.id}/photos',
+            data={},
+            content_type='multipart/form-data',
+            follow_redirects=True,
+        )
+        assert resp.status_code == 200
+        assert b'Please select a file to upload' in resp.data
+
 
 class TestServePhoto:
     """Tests for GET /repairs/<id>/files/<filename>."""
@@ -453,4 +511,9 @@ class TestServePhoto:
         app.config['UPLOAD_PATH'] = str(tmp_path)
         record = make_repair_record()
         resp = staff_client.get(f'/repairs/{record.id}/files/nonexistent.jpg')
+        assert resp.status_code == 404
+
+    def test_nonexistent_record_returns_404(self, staff_client):
+        """Serving file for non-existent repair record returns 404."""
+        resp = staff_client.get('/repairs/9999/files/test.jpg')
         assert resp.status_code == 404

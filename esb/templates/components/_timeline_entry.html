@@ -23,12 +23,31 @@
             {% if entry.entry_type == 'photo' and photos_by_id is defined and entry.content in photos_by_id %}
             <div class="mt-2">
                 {% set doc = photos_by_id[entry.content] %}
-                <a href="{{ url_for('repairs.serve_photo', id=entry.repair_record_id, filename=doc.stored_filename) }}" target="_blank">
-                    <img src="{{ url_for('repairs.serve_photo', id=entry.repair_record_id, filename=doc.stored_filename) }}"
-                         alt="{{ doc.original_filename }}"
-                         class="img-thumbnail"
-                         style="max-width: 200px; max-height: 200px;">
+                {% set ext = doc.stored_filename.rsplit('.', 1)[-1]|lower if '.' in doc.stored_filename else '' %}
+                {% set is_video = ext in ('mp4', 'mov', 'avi', 'webm') %}
+                {% set file_url = url_for('repairs.serve_photo', id=entry.repair_record_id, filename=doc.stored_filename) %}
+                {% if is_video %}
+                <a href="{{ file_url }}" target="_blank">
+                    <video src="{{ file_url }}" class="img-thumbnail" style="max-width: 200px; max-height: 200px;" muted preload="metadata"></video>
                 </a>
+                {% else %}
+                <a href="#" data-bs-toggle="modal" data-bs-target="#photo-modal-{{ doc.id }}">
+                    <img src="{{ file_url }}" alt="{{ doc.original_filename }}" class="img-thumbnail" style="max-width: 200px; max-height: 200px;">
+                </a>
+                <div class="modal fade" id="photo-modal-{{ doc.id }}" tabindex="-1" aria-hidden="true">
+                    <div class="modal-dialog modal-lg modal-dialog-centered">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">{{ doc.original_filename }}</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body text-center">
+                                <img src="{{ file_url }}" alt="{{ doc.original_filename }}" class="img-fluid">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
                 <div class="small text-muted mt-1">{{ doc.original_filename }}</div>
             </div>
             {% elif entry.entry_type != 'photo' and entry.content %}
