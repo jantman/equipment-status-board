@@ -60,7 +60,7 @@ development_status:
   epic-3: in-progress
   3-1-repair-record-creation-data-model: done
   3-2-repair-record-workflow-updates: done
-  3-3-repair-timeline-notes-photos: backlog
+  3-3-repair-timeline-notes-photos: ready-for-dev
   3-4-technician-repair-queue: backlog
   3-5-staff-kanban-board: backlog
   epic-3-retrospective: optional
