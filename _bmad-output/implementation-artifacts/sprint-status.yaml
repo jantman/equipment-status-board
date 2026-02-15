@@ -53,7 +53,7 @@ development_status:
   2-1-area-management: done
   2-2-equipment-registry-crud: done
   2-3-equipment-documentation-media: review
-  2-4-equipment-archiving-technician-permissions: backlog
+  2-4-equipment-archiving-technician-permissions: ready-for-dev
   epic-2-retrospective: optional
 
   # Epic 3: Repair Tracking & Technician Workflow
