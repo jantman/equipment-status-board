@@ -2,6 +2,7 @@
 
 from esb.extensions import db
 from esb.models.audit_log import AuditLog
+from esb.models.document import Document
 from esb.models.equipment import Equipment
 from esb.models.repair_record import REPAIR_SEVERITIES, REPAIR_STATUSES, RepairRecord
 from esb.models.repair_timeline_entry import RepairTimelineEntry
@@ -278,3 +279,121 @@ def update_repair_record(
         })
 
     return record
+
+
+def add_repair_note(
+    repair_record_id: int,
+    note: str,
+    author_name: str,
+    author_id: int | None = None,
+) -> RepairTimelineEntry:
+    """Add a note to a repair record's timeline.
+
+    Args:
+        repair_record_id: ID of the repair record.
+        note: Text content of the note.
+        author_name: Username of the person adding the note.
+        author_id: User ID of the author (None for system notes).
+
+    Returns:
+        The created RepairTimelineEntry.
+
+    Raises:
+        ValidationError: if repair record not found or note is empty.
+    """
+    if not note or not note.strip():
+        raise ValidationError('Note text is required')
+
+    record = db.session.get(RepairRecord, repair_record_id)
+    if record is None:
+        raise ValidationError(f'Repair record with id {repair_record_id} not found')
+
+    entry = RepairTimelineEntry(
+        repair_record_id=record.id,
+        entry_type='note',
+        author_id=author_id,
+        author_name=author_name,
+        content=note.strip(),
+    )
+    db.session.add(entry)
+
+    db.session.add(AuditLog(
+        entity_type='repair_record',
+        entity_id=record.id,
+        action='note_added',
+        user_id=author_id,
+        changes={'note': note.strip()},
+    ))
+
+    db.session.commit()
+
+    log_mutation('repair_record.note_added', author_name, {
+        'id': record.id,
+        'note': note.strip(),
+    })
+
+    return entry
+
+
+def add_repair_photo(
+    repair_record_id: int,
+    file,
+    author_name: str,
+    author_id: int | None = None,
+) -> tuple[Document, RepairTimelineEntry]:
+    """Upload a photo to a repair record and add a timeline entry.
+
+    Args:
+        repair_record_id: ID of the repair record.
+        file: Werkzeug FileStorage object from the form.
+        author_name: Username of the person uploading.
+        author_id: User ID of the uploader.
+
+    Returns:
+        Tuple of (Document, RepairTimelineEntry).
+
+    Raises:
+        ValidationError: if repair record not found or file invalid.
+    """
+    from esb.services import upload_service
+
+    record = db.session.get(RepairRecord, repair_record_id)
+    if record is None:
+        raise ValidationError(f'Repair record with id {repair_record_id} not found')
+
+    doc = upload_service.save_upload(
+        file=file,
+        parent_type='repair_photo',
+        parent_id=record.id,
+        uploaded_by=author_name,
+    )
+
+    entry = RepairTimelineEntry(
+        repair_record_id=record.id,
+        entry_type='photo',
+        author_id=author_id,
+        author_name=author_name,
+        content=str(doc.id),
+    )
+    db.session.add(entry)
+
+    db.session.add(AuditLog(
+        entity_type='repair_record',
+        entity_id=record.id,
+        action='photo_added',
+        user_id=author_id,
+        changes={
+            'document_id': doc.id,
+            'filename': doc.original_filename,
+        },
+    ))
+
+    db.session.commit()
+
+    log_mutation('repair_record.photo_added', author_name, {
+        'id': record.id,
+        'document_id': doc.id,
+        'filename': doc.original_filename,
+    })
+
+    return doc, entry

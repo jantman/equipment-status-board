@@ -57,6 +57,41 @@
     </div>
 </div>
 
+{# --- Add Note Form --- #}
+<div class="card mb-3">
+    <div class="card-body">
+        <form method="post" action="{{ url_for('repairs.add_note', id=record.id) }}">
+            {{ note_form.hidden_tag() }}
+            <div class="mb-2">
+                <label for="note" class="form-label">Add a Note</label>
+                {{ note_form.note(class="form-control" ~ (" is-invalid" if note_form.note.errors else ""), rows="3", placeholder="Type your diagnostic notes here...") }}
+                {% for error in note_form.note.errors %}
+                <div class="invalid-feedback">{{ error }}</div>
+                {% endfor %}
+            </div>
+            {{ note_form.submit(class="btn btn-primary") }}
+        </form>
+    </div>
+</div>
+
+{# --- Upload Photo Form --- #}
+<div class="card mb-3">
+    <div class="card-body">
+        <form method="post" action="{{ url_for('repairs.upload_photo', id=record.id) }}" enctype="multipart/form-data">
+            {{ photo_form.hidden_tag() }}
+            <div class="row g-2 align-items-end">
+                <div class="col">
+                    <label for="{{ photo_form.file.id }}" class="form-label">Upload Diagnostic Photo</label>
+                    {{ photo_form.file(class="form-control") }}
+                </div>
+                <div class="col-auto">
+                    {{ photo_form.submit(class="btn btn-primary") }}
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
 <h3>Timeline</h3>
 <ol class="list-group mb-4">
     {% for entry in timeline %}

@@ -2,26 +2,44 @@
     <div class="d-flex justify-content-between align-items-start">
         <div>
             {% if entry.entry_type == 'creation' %}
+            <span class="badge bg-success me-1">Created</span>
             <strong>Repair record created</strong>
             {% elif entry.entry_type == 'note' %}
+            <span class="badge bg-primary me-1">Note</span>
             <strong>Note added</strong>
             {% elif entry.entry_type == 'status_change' %}
-            <strong>Status changed from {{ entry.old_value }} to {{ entry.new_value }}</strong>
+            <span class="badge bg-warning text-dark me-1">Status</span>
+            <strong>Status changed from <span class="badge bg-secondary">{{ entry.old_value }}</span> to <span class="badge bg-info text-dark">{{ entry.new_value }}</span></strong>
             {% elif entry.entry_type == 'assignee_change' %}
+            <span class="badge bg-info text-dark me-1">Assignee</span>
             <strong>{% if entry.new_value %}Assigned to {{ entry.new_value }}{% else %}Unassigned{% endif %}</strong>
             {% elif entry.entry_type == 'eta_update' %}
+            <span class="badge bg-secondary me-1">ETA</span>
             <strong>ETA {% if entry.new_value %}set to {{ entry.new_value }}{% else %}removed{% endif %}</strong>
             {% elif entry.entry_type == 'photo' %}
+            <span class="badge bg-dark me-1">Photo</span>
             <strong>Photo uploaded</strong>
             {% endif %}
-            {% if entry.content %}
+            {% if entry.entry_type == 'photo' and photos_by_id is defined and entry.content in photos_by_id %}
+            <div class="mt-2">
+                {% set doc = photos_by_id[entry.content] %}
+                <a href="{{ url_for('repairs.serve_photo', id=entry.repair_record_id, filename=doc.stored_filename) }}" target="_blank">
+                    <img src="{{ url_for('repairs.serve_photo', id=entry.repair_record_id, filename=doc.stored_filename) }}"
+                         alt="{{ doc.original_filename }}"
+                         class="img-thumbnail"
+                         style="max-width: 200px; max-height: 200px;">
+                </a>
+                <div class="small text-muted mt-1">{{ doc.original_filename }}</div>
+            </div>
+            {% elif entry.entry_type != 'photo' and entry.content %}
             <p class="mb-0 mt-1">{{ entry.content }}</p>
             {% endif %}
         </div>
         <small class="text-muted text-nowrap ms-2">
             {{ entry.author_name or (entry.author.username if entry.author else 'System') }}
             &middot;
-            {{ entry.created_at.strftime('%Y-%m-%d %H:%M') }}
+            <span class="d-none d-md-inline">{{ entry.created_at|format_datetime }}</span>
+            <span class="d-md-none">{{ entry.created_at|relative_time }}</span>
         </small>
     </div>
 </li>

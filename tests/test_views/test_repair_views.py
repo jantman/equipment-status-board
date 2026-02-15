@@ -1,5 +1,6 @@
 """Tests for repair record views."""
 
+from io import BytesIO
 from unittest.mock import patch
 
 from esb.extensions import db as _db
@@ -281,3 +282,175 @@ class TestEditRepairRecord:
         })
         assert resp.status_code == 302
         assert '/auth/login' in resp.headers['Location']
+
+
+class TestAddNote:
+    """Tests for POST /repairs/<id>/notes."""
+
+    def test_detail_shows_note_form(self, staff_client, make_repair_record):
+        """Detail page contains the note form."""
+        record = make_repair_record()
+        resp = staff_client.get(f'/repairs/{record.id}')
+        assert resp.status_code == 200
+        assert b'Add a Note' in resp.data
+        assert b'Add Note' in resp.data
+
+    def test_detail_shows_photo_upload_form(self, staff_client, make_repair_record):
+        """Detail page contains the photo upload form."""
+        record = make_repair_record()
+        resp = staff_client.get(f'/repairs/{record.id}')
+        assert resp.status_code == 200
+        assert b'Upload Diagnostic Photo' in resp.data
+        assert b'Upload Photo' in resp.data
+        assert b'multipart/form-data' in resp.data
+
+    def test_detail_shows_timeline_entries_all_types(self, staff_client, make_repair_record):
+        """Detail page renders timeline with multiple entry types."""
+        record = make_repair_record()
+        _db.session.add_all([
+            RepairTimelineEntry(
+                repair_record_id=record.id, entry_type='creation',
+                content='Created', author_name='staffuser',
+            ),
+            RepairTimelineEntry(
+                repair_record_id=record.id, entry_type='note',
+                content='Test note', author_name='staffuser',
+            ),
+            RepairTimelineEntry(
+                repair_record_id=record.id, entry_type='status_change',
+                old_value='New', new_value='In Progress', author_name='staffuser',
+            ),
+            RepairTimelineEntry(
+                repair_record_id=record.id, entry_type='assignee_change',
+                new_value='techuser', author_name='staffuser',
+            ),
+        ])
+        _db.session.commit()
+
+        resp = staff_client.get(f'/repairs/{record.id}')
+        assert resp.status_code == 200
+        assert b'Repair record created' in resp.data
+        assert b'Note added' in resp.data
+        assert b'Status changed from' in resp.data
+        assert b'Assigned to techuser' in resp.data
+
+    def test_staff_adds_note_successfully(self, staff_client, make_repair_record):
+        """Staff POST note returns 302 redirect to detail."""
+        record = make_repair_record()
+        resp = staff_client.post(f'/repairs/{record.id}/notes', data={
+            'note': 'Motor bearings worn',
+        }, follow_redirects=False)
+        assert resp.status_code == 302
+        assert f'/repairs/{record.id}' in resp.headers['Location']
+
+        entry = _db.session.execute(
+            _db.select(RepairTimelineEntry).filter_by(
+                repair_record_id=record.id, entry_type='note',
+            )
+        ).scalar_one()
+        assert entry.content == 'Motor bearings worn'
+
+    def test_tech_adds_note_successfully(self, tech_client, make_repair_record):
+        """Technician POST note returns 302 redirect to detail."""
+        record = make_repair_record()
+        resp = tech_client.post(f'/repairs/{record.id}/notes', data={
+            'note': 'Checked alignment',
+        }, follow_redirects=False)
+        assert resp.status_code == 302
+        assert f'/repairs/{record.id}' in resp.headers['Location']
+
+    def test_unauthenticated_redirects_to_login(self, client, make_repair_record):
+        """Unauthenticated POST redirects to login."""
+        record = make_repair_record()
+        resp = client.post(f'/repairs/{record.id}/notes', data={
+            'note': 'Should not work',
+        })
+        assert resp.status_code == 302
+        assert '/auth/login' in resp.headers['Location']
+
+    def test_nonexistent_record_returns_404(self, staff_client):
+        """POST to non-existent record returns 404."""
+        resp = staff_client.post('/repairs/9999/notes', data={
+            'note': 'No record',
+        })
+        assert resp.status_code == 404
+
+
+class TestUploadPhoto:
+    """Tests for POST /repairs/<id>/photos."""
+
+    def test_staff_uploads_photo_successfully(self, app, staff_client, make_repair_record, tmp_path):
+        """Staff POST with file returns 302 redirect to detail."""
+        app.config['UPLOAD_PATH'] = str(tmp_path)
+        record = make_repair_record()
+        data = {'file': (BytesIO(b'fake image content'), 'test.jpg')}
+        resp = staff_client.post(
+            f'/repairs/{record.id}/photos',
+            data=data,
+            content_type='multipart/form-data',
+            follow_redirects=False,
+        )
+        assert resp.status_code == 302
+        assert f'/repairs/{record.id}' in resp.headers['Location']
+
+    def test_tech_uploads_photo_successfully(self, app, tech_client, make_repair_record, tmp_path):
+        """Technician POST with file returns 302 redirect to detail."""
+        app.config['UPLOAD_PATH'] = str(tmp_path)
+        record = make_repair_record()
+        data = {'file': (BytesIO(b'fake image content'), 'photo.png')}
+        resp = tech_client.post(
+            f'/repairs/{record.id}/photos',
+            data=data,
+            content_type='multipart/form-data',
+            follow_redirects=False,
+        )
+        assert resp.status_code == 302
+        assert f'/repairs/{record.id}' in resp.headers['Location']
+
+    def test_unauthenticated_redirects_to_login(self, client, make_repair_record):
+        """Unauthenticated POST redirects to login."""
+        record = make_repair_record()
+        data = {'file': (BytesIO(b'fake'), 'test.jpg')}
+        resp = client.post(
+            f'/repairs/{record.id}/photos',
+            data=data,
+            content_type='multipart/form-data',
+        )
+        assert resp.status_code == 302
+        assert '/auth/login' in resp.headers['Location']
+
+    def test_nonexistent_record_returns_404(self, staff_client):
+        """POST to non-existent record returns 404."""
+        data = {'file': (BytesIO(b'fake'), 'test.jpg')}
+        resp = staff_client.post(
+            '/repairs/9999/photos',
+            data=data,
+            content_type='multipart/form-data',
+        )
+        assert resp.status_code == 404
+
+
+class TestServePhoto:
+    """Tests for GET /repairs/<id>/files/<filename>."""
+
+    def test_returns_uploaded_file(self, app, staff_client, make_repair_record, tmp_path):
+        """File serving route returns the uploaded file."""
+        app.config['UPLOAD_PATH'] = str(tmp_path)
+        record = make_repair_record()
+
+        # Create the file on disk
+        file_dir = tmp_path / 'repairs' / str(record.id)
+        file_dir.mkdir(parents=True)
+        test_file = file_dir / 'test_photo.jpg'
+        test_file.write_bytes(b'fake jpeg data')
+
+        resp = staff_client.get(f'/repairs/{record.id}/files/test_photo.jpg')
+        assert resp.status_code == 200
+        assert resp.data == b'fake jpeg data'
+
+    def test_nonexistent_file_returns_404(self, app, staff_client, make_repair_record, tmp_path):
+        """Non-existent file returns 404."""
+        app.config['UPLOAD_PATH'] = str(tmp_path)
+        record = make_repair_record()
+        resp = staff_client.get(f'/repairs/{record.id}/files/nonexistent.jpg')
+        assert resp.status_code == 404

@@ -1,12 +1,14 @@
 """Repair record routes."""
 
-from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
+import os
+
+from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, send_from_directory, url_for
 from flask_login import current_user
 
-from esb.forms.repair_forms import RepairRecordCreateForm, RepairRecordUpdateForm
+from esb.forms.repair_forms import RepairNoteForm, RepairPhotoUploadForm, RepairRecordCreateForm, RepairRecordUpdateForm
 from esb.models.repair_record import REPAIR_STATUSES
 from esb.models.repair_timeline_entry import RepairTimelineEntry
-from esb.services import equipment_service, repair_service
+from esb.services import equipment_service, repair_service, upload_service
 from esb.utils.decorators import role_required
 from esb.utils.exceptions import ValidationError
 
@@ -83,11 +85,85 @@ def detail(id):
         RepairTimelineEntry.created_at.desc()
     ).all()
 
+    note_form = RepairNoteForm()
+    photo_form = RepairPhotoUploadForm()
+    photos = upload_service.get_documents('repair_photo', id)
+    photos_by_id = {str(p.id): p for p in photos}
+
     return render_template(
         'repairs/detail.html',
         record=record,
         timeline=timeline,
+        note_form=note_form,
+        photo_form=photo_form,
+        photos=photos,
+        photos_by_id=photos_by_id,
     )
+
+
+@repairs_bp.route('/<int:id>/notes', methods=['POST'])
+@role_required('technician')
+def add_note(id):
+    """Add a note to a repair record."""
+    try:
+        repair_service.get_repair_record(id)
+    except ValidationError:
+        abort(404)
+
+    form = RepairNoteForm()
+    if form.validate_on_submit():
+        try:
+            repair_service.add_repair_note(
+                repair_record_id=id,
+                note=form.note.data,
+                author_name=current_user.username,
+                author_id=current_user.id,
+            )
+            flash('Note added.', 'success')
+        except ValidationError as e:
+            flash(str(e), 'danger')
+    else:
+        for field, errors in form.errors.items():
+            for error in errors:
+                flash(error, 'danger')
+    return redirect(url_for('repairs.detail', id=id))
+
+
+@repairs_bp.route('/<int:id>/photos', methods=['POST'])
+@role_required('technician')
+def upload_photo(id):
+    """Upload a diagnostic photo to a repair record."""
+    try:
+        repair_service.get_repair_record(id)
+    except ValidationError:
+        abort(404)
+
+    form = RepairPhotoUploadForm()
+    if form.validate_on_submit():
+        try:
+            repair_service.add_repair_photo(
+                repair_record_id=id,
+                file=form.file.data,
+                author_name=current_user.username,
+                author_id=current_user.id,
+            )
+            flash('Photo uploaded.', 'success')
+        except ValidationError as e:
+            flash(str(e), 'danger')
+    else:
+        for field, errors in form.errors.items():
+            for error in errors:
+                flash(error, 'danger')
+    return redirect(url_for('repairs.detail', id=id))
+
+
+@repairs_bp.route('/<int:id>/files/<path:filename>')
+@role_required('technician')
+def serve_photo(id, filename):
+    """Serve an uploaded repair photo file."""
+    upload_path = current_app.config['UPLOAD_PATH']
+    directory = os.path.join(upload_path, 'repairs', str(id))
+    return send_from_directory(directory, filename)
 
 
 @repairs_bp.route('/<int:id>/edit', methods=['GET', 'POST'])

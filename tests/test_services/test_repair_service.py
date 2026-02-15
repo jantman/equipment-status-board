@@ -455,3 +455,160 @@ class TestUpdateRepairRecord:
             record.id, 'staffuser', author_id=staff_user.id, status='New',
         )
         assert updated.status == 'New'
+
+
+class TestAddRepairNote:
+    """Tests for add_repair_note()."""
+
+    def test_creates_note_timeline_entry(self, app, make_repair_record, staff_user, capture):
+        """Creates a note timeline entry with content, author_name, author_id."""
+        record = make_repair_record()
+        entry = repair_service.add_repair_note(
+            record.id, 'Motor bearings look worn', 'staffuser', author_id=staff_user.id,
+        )
+        assert entry.entry_type == 'note'
+        assert entry.content == 'Motor bearings look worn'
+        assert entry.author_name == 'staffuser'
+        assert entry.author_id == staff_user.id
+        assert entry.repair_record_id == record.id
+
+    def test_creates_audit_log(self, app, make_repair_record, staff_user, capture):
+        """Creates an audit log entry with action='note_added'."""
+        record = make_repair_record()
+        repair_service.add_repair_note(
+            record.id, 'Check wiring', 'staffuser', author_id=staff_user.id,
+        )
+        audit = _db.session.execute(
+            _db.select(AuditLog).filter_by(
+                entity_type='repair_record', entity_id=record.id, action='note_added',
+            )
+        ).scalar_one()
+        assert audit.user_id == staff_user.id
+        assert audit.changes['note'] == 'Check wiring'
+
+    def test_emits_mutation_log(self, app, make_repair_record, staff_user, capture):
+        """Mutation log is emitted with event='repair_record.note_added'."""
+        record = make_repair_record()
+        repair_service.add_repair_note(
+            record.id, 'Bearing noise', 'staffuser', author_id=staff_user.id,
+        )
+        assert len(capture.records) == 1
+        log_data = json.loads(capture.records[0].message)
+        assert log_data['event'] == 'repair_record.note_added'
+        assert log_data['user'] == 'staffuser'
+        assert log_data['data']['id'] == record.id
+        assert log_data['data']['note'] == 'Bearing noise'
+
+    def test_empty_note_raises(self, app, make_repair_record):
+        """Raises ValidationError when note is empty string."""
+        record = make_repair_record()
+        with pytest.raises(ValidationError, match='Note text is required'):
+            repair_service.add_repair_note(record.id, '', 'staffuser')
+
+    def test_whitespace_note_raises(self, app, make_repair_record):
+        """Raises ValidationError when note is whitespace only."""
+        record = make_repair_record()
+        with pytest.raises(ValidationError, match='Note text is required'):
+            repair_service.add_repair_note(record.id, '   ', 'staffuser')
+
+    def test_nonexistent_record_raises(self, app):
+        """Raises ValidationError for non-existent repair record."""
+        with pytest.raises(ValidationError, match='Repair record with id 9999 not found'):
+            repair_service.add_repair_note(9999, 'test note', 'staffuser')
+
+    def test_strips_whitespace(self, app, make_repair_record, staff_user, capture):
+        """Leading and trailing whitespace is stripped from note content."""
+        record = make_repair_record()
+        entry = repair_service.add_repair_note(
+            record.id, '  trimmed note  ', 'staffuser', author_id=staff_user.id,
+        )
+        assert entry.content == 'trimmed note'
+
+
+class TestAddRepairPhoto:
+    """Tests for add_repair_photo()."""
+
+    def test_creates_document_and_timeline_entry(self, app, make_repair_record, staff_user, tmp_path, capture):
+        """Creates Document via upload_service and photo timeline entry."""
+        record = make_repair_record()
+        app.config['UPLOAD_PATH'] = str(tmp_path)
+
+        from io import BytesIO
+        from werkzeug.datastructures import FileStorage
+        fake_file = FileStorage(
+            stream=BytesIO(b'fake image content'),
+            filename='test.jpg',
+            content_type='image/jpeg',
+        )
+
+        doc, entry = repair_service.add_repair_photo(
+            record.id, fake_file, 'staffuser', author_id=staff_user.id,
+        )
+        assert doc.parent_type == 'repair_photo'
+        assert doc.parent_id == record.id
+        assert entry.entry_type == 'photo'
+        assert entry.content == str(doc.id)
+        assert entry.author_name == 'staffuser'
+        assert entry.repair_record_id == record.id
+
+    def test_creates_audit_log(self, app, make_repair_record, staff_user, tmp_path, capture):
+        """Creates audit log entry with action='photo_added'."""
+        record = make_repair_record()
+        app.config['UPLOAD_PATH'] = str(tmp_path)
+
+        from io import BytesIO
+        from werkzeug.datastructures import FileStorage
+        fake_file = FileStorage(
+            stream=BytesIO(b'fake image data'),
+            filename='photo.png',
+            content_type='image/png',
+        )
+
+        doc, _entry = repair_service.add_repair_photo(
+            record.id, fake_file, 'staffuser', author_id=staff_user.id,
+        )
+        audit = _db.session.execute(
+            _db.select(AuditLog).filter_by(
+                entity_type='repair_record', entity_id=record.id, action='photo_added',
+            )
+        ).scalar_one()
+        assert audit.user_id == staff_user.id
+        assert audit.changes['document_id'] == doc.id
+
+    def test_emits_mutation_log(self, app, make_repair_record, staff_user, tmp_path, capture):
+        """Mutation log is emitted with event='repair_record.photo_added'."""
+        record = make_repair_record()
+        app.config['UPLOAD_PATH'] = str(tmp_path)
+
+        from io import BytesIO
+        from werkzeug.datastructures import FileStorage
+        fake_file = FileStorage(
+            stream=BytesIO(b'fake image data'),
+            filename='photo.jpg',
+            content_type='image/jpeg',
+        )
+
+        doc, _entry = repair_service.add_repair_photo(
+            record.id, fake_file, 'staffuser', author_id=staff_user.id,
+        )
+        # upload_service emits its own mutation log + our photo_added log
+        photo_logs = [
+            r for r in capture.records
+            if 'photo_added' in r.message
+        ]
+        assert len(photo_logs) == 1
+        log_data = json.loads(photo_logs[0].message)
+        assert log_data['event'] == 'repair_record.photo_added'
+        assert log_data['data']['document_id'] == doc.id
+
+    def test_nonexistent_record_raises(self, app):
+        """Raises ValidationError for non-existent repair record."""
+        from io import BytesIO
+        from werkzeug.datastructures import FileStorage
+        fake_file = FileStorage(
+            stream=BytesIO(b'data'),
+            filename='test.jpg',
+            content_type='image/jpeg',
+        )
+        with pytest.raises(ValidationError, match='Repair record with id 9999 not found'):
+            repair_service.add_repair_photo(9999, fake_file, 'staffuser')

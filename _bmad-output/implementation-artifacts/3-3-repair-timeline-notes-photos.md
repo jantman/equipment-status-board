@@ -1,6 +1,6 @@
 # Story 3.3: Repair Timeline, Notes & Photos
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -30,57 +30,57 @@ so that the next person has full context and no effort is duplicated.
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Add RepairNoteForm and RepairPhotoUploadForm to repair_forms.py (AC: #1, #2)
-  - [ ] 1.1 Add `RepairNoteForm` with note TextAreaField (DataRequired, max 5000) and submit button
-  - [ ] 1.2 Add `RepairPhotoUploadForm` with FileField (FileRequired, FileAllowed for image/video) and submit button
+- [x] Task 1: Add RepairNoteForm and RepairPhotoUploadForm to repair_forms.py (AC: #1, #2)
+  - [x] 1.1 Add `RepairNoteForm` with note TextAreaField (DataRequired, max 5000) and submit button
+  - [x] 1.2 Add `RepairPhotoUploadForm` with FileField (FileRequired, FileAllowed for image/video) and submit button
 
-- [ ] Task 2: Add service functions for notes and photos (AC: #1, #2, #8)
-  - [ ] 2.1 Add `add_repair_note()` to `esb/services/repair_service.py` -- creates `note` timeline entry, audit log entry, and mutation log
-  - [ ] 2.2 Add `add_repair_photo()` to `esb/services/repair_service.py` -- calls `upload_service.save_upload()` with `repair_photo` parent_type, creates `photo` timeline entry with document_id reference in content, audit log entry, and mutation log
+- [x] Task 2: Add service functions for notes and photos (AC: #1, #2, #8)
+  - [x] 2.1 Add `add_repair_note()` to `esb/services/repair_service.py` -- creates `note` timeline entry, audit log entry, and mutation log
+  - [x] 2.2 Add `add_repair_photo()` to `esb/services/repair_service.py` -- calls `upload_service.save_upload()` with `repair_photo` parent_type, creates `photo` timeline entry with document_id reference in content, audit log entry, and mutation log
 
-- [ ] Task 3: Add view routes for notes, photos, and file serving (AC: #1, #2, #6)
-  - [ ] 3.1 Add `POST /repairs/<int:id>/notes` route to handle note form submission
-  - [ ] 3.2 Add `POST /repairs/<int:id>/photos` route to handle photo upload form submission
-  - [ ] 3.3 Add `GET /repairs/<int:id>/files/<path:filename>` route to serve uploaded repair photos
-  - [ ] 3.4 Update `detail()` view to pass note form, photo form, and repair photos to template
+- [x] Task 3: Add view routes for notes, photos, and file serving (AC: #1, #2, #6)
+  - [x] 3.1 Add `POST /repairs/<int:id>/notes` route to handle note form submission
+  - [x] 3.2 Add `POST /repairs/<int:id>/photos` route to handle photo upload form submission
+  - [x] 3.3 Add `GET /repairs/<int:id>/files/<path:filename>` route to serve uploaded repair photos
+  - [x] 3.4 Update `detail()` view to pass note form, photo form, and repair photos to template
 
-- [ ] Task 4: Enhance timeline component template (AC: #3, #4, #5, #6, #7)
-  - [ ] 4.1 Add entry type icons (Bootstrap Icons or Unicode) for each timeline entry type
-  - [ ] 4.2 Add status badges (colored Bootstrap badges) for status_change old/new values
-  - [ ] 4.3 Add photo thumbnail display for `photo` entries with click-to-expand (Bootstrap modal or linked full-size view)
-  - [ ] 4.4 Add responsive timestamps: absolute on desktop (`Feb 15, 2026 2:34 PM`), relative on mobile (`2 hours ago`) using `data-` attributes and CSS media queries or the existing `relative_time` filter with responsive display
+- [x] Task 4: Enhance timeline component template (AC: #3, #4, #5, #6, #7)
+  - [x] 4.1 Add entry type icons (Bootstrap Icons or Unicode) for each timeline entry type
+  - [x] 4.2 Add status badges (colored Bootstrap badges) for status_change old/new values
+  - [x] 4.3 Add photo thumbnail display for `photo` entries with click-to-expand (Bootstrap modal or linked full-size view)
+  - [x] 4.4 Add responsive timestamps: absolute on desktop (`Feb 15, 2026 2:34 PM`), relative on mobile (`2 hours ago`) using `data-` attributes and CSS media queries or the existing `relative_time` filter with responsive display
 
-- [ ] Task 5: Update repair detail page template (AC: #1, #2, #3, #6, #8)
-  - [ ] 5.1 Add inline note form above the timeline (text area + "Add Note" button)
-  - [ ] 5.2 Add photo upload form above the timeline (file input + "Upload Photo" button)
-  - [ ] 5.3 Pass `note_form`, `photo_form`, and `photos` to the template context
-  - [ ] 5.4 Ensure forms use `enctype="multipart/form-data"` for photo upload
-  - [ ] 5.5 Ensure timeline remains append-only in the UI (no edit/delete controls on entries)
+- [x] Task 5: Update repair detail page template (AC: #1, #2, #3, #6, #8)
+  - [x] 5.1 Add inline note form above the timeline (text area + "Add Note" button)
+  - [x] 5.2 Add photo upload form above the timeline (file input + "Upload Photo" button)
+  - [x] 5.3 Pass `note_form`, `photo_form`, and `photos` to the template context
+  - [x] 5.4 Ensure forms use `enctype="multipart/form-data"` for photo upload
+  - [x] 5.5 Ensure timeline remains append-only in the UI (no edit/delete controls on entries)
 
-- [ ] Task 6: Write service tests (AC: #1, #2, #8)
-  - [ ] 6.1 Test `add_repair_note()` creates note timeline entry with content, author_name, author_id
-  - [ ] 6.2 Test `add_repair_note()` creates audit log entry
-  - [ ] 6.3 Test `add_repair_note()` emits mutation log
-  - [ ] 6.4 Test `add_repair_note()` with empty/whitespace note raises ValidationError
-  - [ ] 6.5 Test `add_repair_note()` with non-existent repair record raises ValidationError
-  - [ ] 6.6 Test `add_repair_photo()` saves file via upload_service and creates photo timeline entry
-  - [ ] 6.7 Test `add_repair_photo()` creates audit log entry
-  - [ ] 6.8 Test `add_repair_photo()` emits mutation log
-  - [ ] 6.9 Test `add_repair_photo()` with non-existent repair record raises ValidationError
+- [x] Task 6: Write service tests (AC: #1, #2, #8)
+  - [x] 6.1 Test `add_repair_note()` creates note timeline entry with content, author_name, author_id
+  - [x] 6.2 Test `add_repair_note()` creates audit log entry
+  - [x] 6.3 Test `add_repair_note()` emits mutation log
+  - [x] 6.4 Test `add_repair_note()` with empty/whitespace note raises ValidationError
+  - [x] 6.5 Test `add_repair_note()` with non-existent repair record raises ValidationError
+  - [x] 6.6 Test `add_repair_photo()` saves file via upload_service and creates photo timeline entry
+  - [x] 6.7 Test `add_repair_photo()` creates audit log entry
+  - [x] 6.8 Test `add_repair_photo()` emits mutation log
+  - [x] 6.9 Test `add_repair_photo()` with non-existent repair record raises ValidationError
 
-- [ ] Task 7: Write view tests (AC: #1, #2, #3, #6)
-  - [ ] 7.1 Test detail page shows note form and photo upload form (GET 200)
-  - [ ] 7.2 Test detail page shows timeline entries with all entry types
-  - [ ] 7.3 Test note POST: staff submits note successfully (302 redirect to detail)
-  - [ ] 7.4 Test note POST: technician submits note successfully
-  - [ ] 7.5 Test note POST: unauthenticated redirects to login
-  - [ ] 7.6 Test note POST: non-existent record returns 404
-  - [ ] 7.7 Test photo POST: staff uploads photo successfully (302 redirect to detail)
-  - [ ] 7.8 Test photo POST: technician uploads photo successfully
-  - [ ] 7.9 Test photo POST: unauthenticated redirects to login
-  - [ ] 7.10 Test photo POST: non-existent record returns 404
-  - [ ] 7.11 Test file serving route returns uploaded file
-  - [ ] 7.12 Test file serving route for non-existent file returns 404
+- [x] Task 7: Write view tests (AC: #1, #2, #3, #6)
+  - [x] 7.1 Test detail page shows note form and photo upload form (GET 200)
+  - [x] 7.2 Test detail page shows timeline entries with all entry types
+  - [x] 7.3 Test note POST: staff submits note successfully (302 redirect to detail)
+  - [x] 7.4 Test note POST: technician submits note successfully
+  - [x] 7.5 Test note POST: unauthenticated redirects to login
+  - [x] 7.6 Test note POST: non-existent record returns 404
+  - [x] 7.7 Test photo POST: staff uploads photo successfully (302 redirect to detail)
+  - [x] 7.8 Test photo POST: technician uploads photo successfully
+  - [x] 7.9 Test photo POST: unauthenticated redirects to login
+  - [x] 7.10 Test photo POST: non-existent record returns 404
+  - [x] 7.11 Test file serving route returns uploaded file
+  - [x] 7.12 Test file serving route for non-existent file returns 404
 
 ## Dev Notes
 
@@ -681,10 +681,33 @@ class TestAddRepairNote:
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+Claude Opus 4.6
 
 ### Debug Log References
 
+None required.
+
 ### Completion Notes List
 
+- Task 1: Added `RepairNoteForm` (TextAreaField + DataRequired + Length max 5000) and `RepairPhotoUploadForm` (FileField + FileRequired + FileAllowed for image/video extensions) to `esb/forms/repair_forms.py`.
+- Task 2: Added `add_repair_note()` and `add_repair_photo()` to `esb/services/repair_service.py`. Both follow existing service patterns: validate input, create timeline entry, create audit log, commit, emit mutation log. `add_repair_photo()` delegates file I/O to `upload_service.save_upload()`.
+- Task 3: Added `add_note()`, `upload_photo()`, and `serve_photo()` routes to `esb/views/repairs.py`. Updated `detail()` to pass note form, photo form, photos list, and photos_by_id dict to template.
+- Task 4: Enhanced `_timeline_entry.html` with Bootstrap badge labels for each entry type, status badges for status_change entries, photo thumbnail display with click-to-expand (links to full-size), and responsive timestamps (absolute on desktop via `format_datetime`, relative on mobile via `relative_time`).
+- Task 5: Updated `repairs/detail.html` with inline note form and photo upload form (with `enctype="multipart/form-data"`) above the timeline. No edit/delete controls on timeline entries (append-only enforced).
+- Task 6: Added 11 service tests covering `add_repair_note()` and `add_repair_photo()` -- timeline entry creation, audit log, mutation log, validation errors, whitespace stripping.
+- Task 7: Added 13 view tests covering detail page forms, timeline rendering, note POST (staff/tech/unauth/404), photo POST (staff/tech/unauth/404), and file serving (success/404).
+- Total: 561 tests passing (24 new), 0 lint errors.
+
+### Change Log
+
+- 2026-02-15: Implemented Story 3.3 -- repair timeline notes, photos, enhanced timeline display. 24 new tests added.
+
 ### File List
+
+- esb/forms/repair_forms.py (MODIFIED) -- Added RepairNoteForm and RepairPhotoUploadForm
+- esb/services/repair_service.py (MODIFIED) -- Added add_repair_note() and add_repair_photo()
+- esb/views/repairs.py (MODIFIED) -- Added add_note, upload_photo, serve_photo routes; updated detail view
+- esb/templates/repairs/detail.html (MODIFIED) -- Added note form, photo upload form above timeline
+- esb/templates/components/_timeline_entry.html (MODIFIED) -- Added type badges, status badges, photo thumbnails, responsive timestamps
+- tests/test_services/test_repair_service.py (MODIFIED) -- Added TestAddRepairNote (7 tests) and TestAddRepairPhoto (4 tests)
+- tests/test_views/test_repair_views.py (MODIFIED) -- Added TestAddNote (7 tests), TestUploadPhoto (4 tests), TestServePhoto (2 tests)

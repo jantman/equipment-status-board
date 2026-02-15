@@ -1,6 +1,7 @@
 """Repair record forms."""
 
 from flask_wtf import FlaskForm
+from flask_wtf.file import FileAllowed, FileField, FileRequired
 from wtforms import BooleanField, DateField, SelectField, SubmitField, TextAreaField
 from wtforms.validators import DataRequired, Length, Optional
 
@@ -42,3 +43,23 @@ class RepairRecordUpdateForm(FlaskForm):
     )
     note = TextAreaField('Add Note', validators=[Optional(), Length(max=5000)])
     submit = SubmitField('Save Changes')
+
+
+class RepairNoteForm(FlaskForm):
+    """Form for adding a note to a repair record."""
+
+    note = TextAreaField('Note', validators=[DataRequired(), Length(max=5000)])
+    submit = SubmitField('Add Note')
+
+
+class RepairPhotoUploadForm(FlaskForm):
+    """Form for uploading a diagnostic photo/video to a repair record."""
+
+    file = FileField('Photo/Video', validators=[
+        FileRequired('Please select a file to upload.'),
+        FileAllowed(
+            ['jpg', 'jpeg', 'png', 'gif', 'webp', 'mp4', 'mov', 'avi', 'webm'],
+            'Only image and video files are allowed.',
+        ),
+    ])
+    submit = SubmitField('Upload Photo')
