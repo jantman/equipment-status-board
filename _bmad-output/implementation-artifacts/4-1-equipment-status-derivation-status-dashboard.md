@@ -1,6 +1,6 @@
 # Story 4.1: Equipment Status Derivation & Status Dashboard
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -28,49 +28,49 @@ So that I can quickly check whether the equipment I need is operational before v
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Create `status_service.py` with status derivation logic (AC: #1, #2, #3)
-  - [ ] 1.1: Implement `compute_equipment_status(equipment_id)` -- returns status dict with `color`, `label`, `severity`, `issue_description`
-  - [ ] 1.2: Implement `get_area_status_dashboard()` -- returns all non-archived areas with their equipment and computed statuses
-  - [ ] 1.3: Status derivation rules: no open records = green/Operational; highest severity "Down" = red/Down; highest severity "Degraded" or "Not Sure" = yellow/Degraded
-  - [ ] 1.4: Include brief issue description from the highest-severity open repair record
-- [ ] Task 2: Create `_status_indicator.html` component template (AC: #7, #8)
-  - [ ] 2.1: Large variant -- color background block with icon and text label (for QR pages)
-  - [ ] 2.2: Compact variant -- badge-sized with color, icon, and short text (for tables, Kanban, kiosk)
-  - [ ] 2.3: Minimal variant -- color dot + equipment name, no text label (for static page)
-  - [ ] 2.4: Accessibility -- ARIA label, color + icon + text (three channels), never color alone
-- [ ] Task 3: Create `status_dashboard.html` template (AC: #4, #5, #6)
-  - [ ] 3.1: Area grid with responsive layout (1 col phone, 2-3 tablet, 4+ desktop)
-  - [ ] 3.2: Each equipment item shows name, compact status indicator
-  - [ ] 3.3: Yellow/red items show brief issue description
-  - [ ] 3.4: Extends `base.html` (authenticated view, requires login)
-- [ ] Task 4: Update `views/public.py` with status dashboard route (AC: #4)
-  - [ ] 4.1: Replace placeholder `/public/` route with actual status dashboard route
-  - [ ] 4.2: Route calls `status_service.get_area_status_dashboard()`
-  - [ ] 4.3: Renders `public/status_dashboard.html`
-- [ ] Task 5: Update navigation and login redirect (AC: #4)
-  - [ ] 5.1: Add Status Dashboard link to navbar for authenticated users
-  - [ ] 5.2: Verify member login redirect behavior (members should land on status dashboard)
-- [ ] Task 6: Write service tests for `status_service` (AC: #1, #2, #3)
-  - [ ] 6.1: Test green status -- equipment with no open repair records
-  - [ ] 6.2: Test green status -- equipment with only closed repair records
-  - [ ] 6.3: Test red status -- equipment with "Down" severity open record
-  - [ ] 6.4: Test yellow status -- equipment with "Degraded" severity open record
-  - [ ] 6.5: Test yellow status -- equipment with "Not Sure" severity open record
-  - [ ] 6.6: Test severity priority -- "Down" wins over "Degraded" and "Not Sure"
-  - [ ] 6.7: Test issue description returned from highest severity record
-  - [ ] 6.8: Test `get_area_status_dashboard()` returns areas with equipment and statuses
-  - [ ] 6.9: Test archived equipment excluded from dashboard
-  - [ ] 6.10: Test archived areas excluded from dashboard
-- [ ] Task 7: Write view tests for status dashboard route (AC: #4, #5, #6, #7)
-  - [ ] 7.1: Test dashboard renders for authenticated user (staff, tech)
-  - [ ] 7.2: Test dashboard redirects unauthenticated to login
-  - [ ] 7.3: Test area headings displayed
-  - [ ] 7.4: Test equipment names displayed
-  - [ ] 7.5: Test status indicator CSS classes present (green, yellow, red)
-  - [ ] 7.6: Test issue description displayed for degraded/down equipment
-  - [ ] 7.7: Test empty state when no areas/equipment exist
-  - [ ] 7.8: Test archived equipment not shown
-  - [ ] 7.9: Test status indicator accessibility (ARIA labels present)
+- [x] Task 1: Create `status_service.py` with status derivation logic (AC: #1, #2, #3)
+  - [x] 1.1: Implement `compute_equipment_status(equipment_id)` -- returns status dict with `color`, `label`, `severity`, `issue_description`
+  - [x] 1.2: Implement `get_area_status_dashboard()` -- returns all non-archived areas with their equipment and computed statuses
+  - [x] 1.3: Status derivation rules: no open records = green/Operational; highest severity "Down" = red/Down; highest severity "Degraded" or "Not Sure" = yellow/Degraded
+  - [x] 1.4: Include brief issue description from the highest-severity open repair record
+- [x] Task 2: Create `_status_indicator.html` component template (AC: #7, #8)
+  - [x] 2.1: Large variant -- color background block with icon and text label (for QR pages)
+  - [x] 2.2: Compact variant -- badge-sized with color, icon, and short text (for tables, Kanban, kiosk)
+  - [x] 2.3: Minimal variant -- color dot + equipment name, no text label (for static page)
+  - [x] 2.4: Accessibility -- ARIA label, color + icon + text (three channels), never color alone
+- [x] Task 3: Create `status_dashboard.html` template (AC: #4, #5, #6)
+  - [x] 3.1: Area grid with responsive layout (1 col phone, 2-3 tablet, 4+ desktop)
+  - [x] 3.2: Each equipment item shows name, compact status indicator
+  - [x] 3.3: Yellow/red items show brief issue description
+  - [x] 3.4: Extends `base.html` (authenticated view, requires login)
+- [x] Task 4: Update `views/public.py` with status dashboard route (AC: #4)
+  - [x] 4.1: Replace placeholder `/public/` route with actual status dashboard route
+  - [x] 4.2: Route calls `status_service.get_area_status_dashboard()`
+  - [x] 4.3: Renders `public/status_dashboard.html`
+- [x] Task 5: Update navigation and login redirect (AC: #4)
+  - [x] 5.1: Add Status Dashboard link to navbar for authenticated users
+  - [x] 5.2: Verify member login redirect behavior (members should land on status dashboard)
+- [x] Task 6: Write service tests for `status_service` (AC: #1, #2, #3)
+  - [x] 6.1: Test green status -- equipment with no open repair records
+  - [x] 6.2: Test green status -- equipment with only closed repair records
+  - [x] 6.3: Test red status -- equipment with "Down" severity open record
+  - [x] 6.4: Test yellow status -- equipment with "Degraded" severity open record
+  - [x] 6.5: Test yellow status -- equipment with "Not Sure" severity open record
+  - [x] 6.6: Test severity priority -- "Down" wins over "Degraded" and "Not Sure"
+  - [x] 6.7: Test issue description returned from highest severity record
+  - [x] 6.8: Test `get_area_status_dashboard()` returns areas with equipment and statuses
+  - [x] 6.9: Test archived equipment excluded from dashboard
+  - [x] 6.10: Test archived areas excluded from dashboard
+- [x] Task 7: Write view tests for status dashboard route (AC: #4, #5, #6, #7)
+  - [x] 7.1: Test dashboard renders for authenticated user (staff, tech)
+  - [x] 7.2: Test dashboard redirects unauthenticated to login
+  - [x] 7.3: Test area headings displayed
+  - [x] 7.4: Test equipment names displayed
+  - [x] 7.5: Test status indicator CSS classes present (green, yellow, red)
+  - [x] 7.6: Test issue description displayed for degraded/down equipment
+  - [x] 7.7: Test empty state when no areas/equipment exist
+  - [x] 7.8: Test archived equipment not shown
+  - [x] 7.9: Test status indicator accessibility (ARIA labels present)
 
 ## Dev Notes
 
@@ -346,10 +346,40 @@ Files typically touched per story implementation:
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+Claude Opus 4.6 (claude-opus-4-6)
 
 ### Debug Log References
 
+None required.
+
 ### Completion Notes List
 
+- Task 1: Created `esb/services/status_service.py` with `compute_equipment_status()` and `get_area_status_dashboard()`. Imports `CLOSED_STATUSES` from `repair_service`. Raises `EquipmentNotFound` for missing equipment. Handles edge case where open records have no severity set (defaults to yellow/Degraded). Dashboard function prefetches open records in one query to avoid N+1.
+- Task 2: Created `esb/templates/components/_status_indicator.html` with three variants (large, compact, minimal). Uses Unicode characters for icons (no icon library). All variants include `aria-label` for accessibility. Color + icon + text = three channels.
+- Task 3: Created `esb/templates/public/status_dashboard.html` extending `base.html`. Responsive grid with `col-12 col-sm-6 col-lg-4 col-xl-3`. Yellow/red cards show issue description. Empty state message for no equipment.
+- Task 4: Replaced placeholder `index()` route in `esb/views/public.py` with `status_dashboard()` using `@login_required`. Calls `status_service.get_area_status_dashboard()`.
+- Task 5: Added "Status" nav link to `base.html` for authenticated users. Updated login redirect fallback (non-staff, non-technician users) from `/health` to `/public/`. Updated already-authenticated redirect from `/health` to `/public/`.
+- Task 6: 15 service tests covering all status derivation rules, severity priority, archived exclusions, area sorting, empty dashboard, and EquipmentNotFound.
+- Task 7: 12 view tests covering auth redirect, staff/tech access, area headings, equipment names, CSS classes, issue descriptions, empty state, archived exclusion, ARIA labels, and responsive layout classes.
+- Fixed 1 regression in `test_auth_views.py` (already-authenticated redirect changed from `/health` to `/public/`).
+- Fixed 1 lint error (unused variable `green_equip`).
+
+### Change Log
+
+- 2026-02-15: Implemented Story 4.1 — Equipment Status Derivation & Status Dashboard
+
 ### File List
+
+New files:
+- esb/services/status_service.py
+- esb/templates/components/_status_indicator.html
+- esb/templates/public/status_dashboard.html
+- tests/test_services/test_status_service.py
+- tests/test_views/test_public_views.py
+
+Modified files:
+- esb/views/public.py
+- esb/views/auth.py
+- esb/templates/base.html
+- esb/static/css/app.css
+- tests/test_views/test_auth_views.py

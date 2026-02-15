@@ -90,10 +90,10 @@ class TestLoginPost:
         assert resp.status_code == 200
 
     def test_already_authenticated_redirects(self, staff_client):
-        """Already authenticated user visiting login redirects to health."""
+        """Already authenticated user visiting login redirects to status dashboard."""
         resp = staff_client.get('/auth/login')
         assert resp.status_code == 302
-        assert '/health' in resp.headers['Location']
+        assert '/public/' in resp.headers['Location']
 
 
 class TestLoginNextRedirect:

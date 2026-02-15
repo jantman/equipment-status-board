@@ -1,0 +1,42 @@
+{#
+  Status Indicator Component
+  Pass: status (dict with color, label), variant ('large'|'compact'|'minimal')
+
+  Color mapping:
+    green  -> bg-success / text-success
+    yellow -> bg-warning / text-warning
+    red    -> bg-danger / text-danger
+
+  Icons (Unicode):
+    green/Operational: ✓ (checkmark)
+    yellow/Degraded:   ⚠ (warning)
+    red/Down:          ✗ (X)
+#}
+
+{% set color_map = {'green': 'success', 'yellow': 'warning', 'red': 'danger'} %}
+{% set icon_map = {'green': '✓', 'yellow': '⚠', 'red': '✗'} %}
+{% set bs_class = color_map.get(status.color, 'secondary') %}
+{% set icon = icon_map.get(status.color, '?') %}
+
+{% if variant == 'large' %}
+{# Large variant: color background block with icon and text label (for QR pages) #}
+<div class="status-indicator status-indicator-large bg-{{ bs_class }}{% if bs_class == 'warning' %} text-dark{% else %} text-white{% endif %} p-3 rounded text-center"
+     aria-label="Equipment status: {{ status.label }}">
+  <span class="status-icon fs-1">{{ icon }}</span>
+  <div class="status-label fs-4 fw-bold mt-1">{{ status.label }}</div>
+</div>
+
+{% elif variant == 'minimal' %}
+{# Minimal variant: color dot + equipment name, no text label (for static page) #}
+<span class="status-indicator status-indicator-minimal"
+      aria-label="Equipment status: {{ status.label }}">
+  <span class="status-dot bg-{{ bs_class }} d-inline-block rounded-circle" style="width: 0.75em; height: 0.75em;"></span>
+</span>
+
+{% else %}
+{# Compact variant (default): badge-sized with color, icon, and short text #}
+<span class="status-indicator status-indicator-compact badge bg-{{ bs_class }}{% if bs_class == 'warning' %} text-dark{% endif %}"
+      aria-label="Equipment status: {{ status.label }}">
+  <span class="status-icon">{{ icon }}</span> {{ status.label }}
+</span>
+{% endif %}

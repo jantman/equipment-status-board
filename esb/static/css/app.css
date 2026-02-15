@@ -35,3 +35,16 @@ th.sortable:hover {
     border-left: 3px solid #fd7e14 !important;
     background-color: rgba(255, 193, 7, 0.25) !important;
 }
+
+/* Status indicator component */
+.status-indicator-large .status-icon {
+    display: block;
+}
+
+/* Status dashboard cards */
+.status-card-red {
+    border-left: 3px solid var(--bs-danger);
+}
+.status-card-yellow {
+    border-left: 3px solid var(--bs-warning);
+}

@@ -17,7 +17,7 @@ auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
 def login():
     """Login page and form handler."""
     if current_user.is_authenticated:
-        return redirect(url_for('health'))
+        return redirect(url_for('public.status_dashboard'))
 
     form = LoginForm()
     if form.validate_on_submit():
@@ -43,7 +43,7 @@ def login():
             return redirect(url_for('repairs.kanban'))
         if user.role == 'technician':
             return redirect(url_for('repairs.queue'))
-        return redirect(url_for('health'))
+        return redirect(url_for('public.status_dashboard'))
 
     return render_template('auth/login.html', form=form)
 

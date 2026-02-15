@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}Equipment Status - Equipment Status Board{% endblock %}
+
+{% block content %}
+<h1 class="mb-4">Equipment Status</h1>
+
+{% if not areas %}
+<div class="alert alert-info">No equipment registered yet.</div>
+{% else %}
+  {% for area_data in areas %}
+  <section class="mb-4">
+    <h2 class="h4 mb-3">{{ area_data.area.name }}</h2>
+    {% if not area_data.equipment %}
+    <p class="text-muted">No equipment in this area.</p>
+    {% else %}
+    <div class="row g-3">
+      {% for item in area_data.equipment %}
+      <div class="col-12 col-sm-6 col-lg-4 col-xl-3">
+        <div class="card h-100 status-card status-card-{{ item.status.color }}">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start">
+              <h5 class="card-title mb-1">{{ item.equipment.name }}</h5>
+              {% set status = item.status %}
+              {% set variant = 'compact' %}
+              {% include 'components/_status_indicator.html' %}
+            </div>
+            {% if item.status.color != 'green' and item.status.issue_description %}
+            <p class="card-text text-muted small mt-2 mb-0">{{ item.status.issue_description }}</p>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </section>
+  {% endfor %}
+{% endif %}
+{% endblock %}
