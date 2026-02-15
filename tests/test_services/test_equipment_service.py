@@ -199,18 +199,18 @@ class TestUpdateArea:
         assert entry['data']['changes']['name'] == ['Old Name', 'New Name']
         assert entry['data']['changes']['slack_channel'] == ['#old', '#new']
 
-    def test_logs_empty_changes_when_no_diff(self, app, capture, make_area):
-        """update_area() logs empty changes when nothing changed."""
+    def test_no_log_when_no_changes(self, app, capture, make_area):
+        """update_area() skips mutation log when nothing changed."""
         from esb.services.equipment_service import update_area
 
         area = make_area('Same', '#same')
+        capture.records.clear()
         update_area(area.id, 'Same', '#same', 'staffuser')
         updated_entries = [
             json.loads(r.message) for r in capture.records
             if 'area.updated' in r.message
         ]
-        assert len(updated_entries) == 1
-        assert updated_entries[0]['data']['changes'] == {}
+        assert len(updated_entries) == 0
 
     def test_name_conflict_with_archived_shows_archived_message(self, app, make_area):
         """update_area() shows specific message when conflict is with archived area."""

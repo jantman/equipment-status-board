@@ -89,12 +89,13 @@ def update_area(area_id: int, name: str, slack_channel: str, updated_by: str) ->
 
     db.session.commit()
 
-    log_mutation('area.updated', updated_by, {
-        'id': area.id,
-        'name': area.name,
-        'slack_channel': area.slack_channel,
-        'changes': changes,
-    })
+    if changes:
+        log_mutation('area.updated', updated_by, {
+            'id': area.id,
+            'name': area.name,
+            'slack_channel': area.slack_channel,
+            'changes': changes,
+        })
 
     return area
 

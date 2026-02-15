@@ -1,6 +1,7 @@
 """Tests for Area model."""
 
 import pytest
+from sqlalchemy.exc import IntegrityError
 
 from esb.extensions import db as _db
 from esb.models.area import Area
@@ -50,6 +51,6 @@ class TestAreaUniqueConstraints:
         _db.session.add(a1)
         _db.session.commit()
         _db.session.add(a2)
-        with pytest.raises(Exception):
+        with pytest.raises(IntegrityError):
             _db.session.commit()
         _db.session.rollback()

@@ -376,10 +376,13 @@ Claude Opus 4.6
 - `tests/test_views/test_admin_views.py` (MODIFIED -- added area view tests)
 - `esb/templates/components/_admin_nav.html` (NEW -- admin sub-navigation tabs)
 - `esb/templates/admin/users.html` (MODIFIED -- added admin nav include)
+- `esb/templates/admin/user_create.html` (MODIFIED -- added admin nav include)
 - `tests/conftest.py` (MODIFIED -- added `make_area` factory fixture)
 - `requirements.txt` (MODIFIED -- added cryptography for MySQL 8.4 auth)
+- `_bmad-output/implementation-artifacts/sprint-status.yaml` (MODIFIED -- story status synced)
 
 ## Change Log
 
 - 2026-02-15: Story 2.1 implemented -- Area model, service layer, forms, views, templates, and comprehensive tests (241 total tests, all passing)
 - 2026-02-15: Code review completed -- 7 findings (1 HIGH, 3 MEDIUM, 3 LOW). All HIGH/MEDIUM fixed: added admin sub-navigation tabs, differentiated archived vs active area name conflict errors, centralized `_create_area` helper in conftest as `make_area` fixture, updated File List. 4 new tests added (245 total, all passing).
+- 2026-02-15: Second code review -- 7 findings (0 HIGH, 3 MEDIUM, 4 LOW). All fixed: mobile responsive card layout for area list, specific IntegrityError assertion in model test, sprint-status.yaml added to File List, guarded no-op update mutation logging, explicit endpoint lists for admin nav active state, ARIA attributes on admin tabs, admin nav added to all form pages.

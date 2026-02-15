@@ -10,7 +10,8 @@
 </div>
 
 {% if areas %}
-<div class="table-responsive">
+<!-- Desktop table (hidden on mobile) -->
+<div class="table-responsive d-none d-md-block">
     <table class="table table-striped">
         <thead>
             <tr>
@@ -27,34 +28,50 @@
                 <td>
                     <a href="{{ url_for('admin.edit_area', id=area.id) }}" class="btn btn-sm btn-outline-secondary">Edit</a>
                     <button type="button" class="btn btn-sm btn-danger" data-bs-toggle="modal" data-bs-target="#archiveModal{{ area.id }}">Archive</button>
-
-                    <!-- Archive Confirmation Modal -->
-                    <div class="modal fade" id="archiveModal{{ area.id }}" tabindex="-1" aria-labelledby="archiveModalLabel{{ area.id }}" aria-hidden="true">
-                        <div class="modal-dialog">
-                            <div class="modal-content">
-                                <div class="modal-header">
-                                    <h5 class="modal-title" id="archiveModalLabel{{ area.id }}">Archive Area</h5>
-                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                </div>
-                                <div class="modal-body">
-                                    Are you sure you want to archive <strong>{{ area.name }}</strong>? This area will no longer appear in active area lists or dropdowns.
-                                </div>
-                                <div class="modal-footer">
-                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                    <form method="POST" action="{{ url_for('admin.archive_area', id=area.id) }}" class="d-inline">
-                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                        <button type="submit" class="btn btn-danger">Archive</button>
-                                    </form>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
                 </td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
 </div>
+
+<!-- Mobile cards (hidden on desktop) -->
+<div class="d-md-none">
+    {% for area in areas %}
+    <div class="card mb-2">
+        <div class="card-body">
+            <h6 class="card-title mb-1">{{ area.name }}</h6>
+            <p class="card-text text-muted mb-2">{{ area.slack_channel or '—' }}</p>
+            <a href="{{ url_for('admin.edit_area', id=area.id) }}" class="btn btn-sm btn-outline-secondary">Edit</a>
+            <button type="button" class="btn btn-sm btn-danger" data-bs-toggle="modal" data-bs-target="#archiveModal{{ area.id }}">Archive</button>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Archive Confirmation Modals -->
+{% for area in areas %}
+<div class="modal fade" id="archiveModal{{ area.id }}" tabindex="-1" aria-labelledby="archiveModalLabel{{ area.id }}" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="archiveModalLabel{{ area.id }}">Archive Area</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                Are you sure you want to archive <strong>{{ area.name }}</strong>? This area will no longer appear in active area lists or dropdowns.
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form method="POST" action="{{ url_for('admin.archive_area', id=area.id) }}" class="d-inline">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-danger">Archive</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %}
 {% else %}
 <div class="text-center py-5">
     <p class="text-muted mb-3">No areas have been added yet.</p>
