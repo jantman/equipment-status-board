@@ -4,8 +4,12 @@ All area/equipment business logic lives here. Views call these functions;
 they never query models directly.
 """
 
+from datetime import date
+from decimal import Decimal
+
 from esb.extensions import db
 from esb.models.area import Area
+from esb.models.equipment import Equipment
 from esb.utils.exceptions import ValidationError
 from esb.utils.logging import log_mutation
 
@@ -122,3 +126,154 @@ def archive_area(area_id: int, archived_by: str) -> Area:
     })
 
     return area
+
+
+# --- Equipment CRUD ---
+
+
+def list_equipment(area_id: int | None = None) -> list[Equipment]:
+    """Return all active (non-archived) equipment, optionally filtered by area.
+
+    Args:
+        area_id: If provided, filter to equipment in this area only.
+    """
+    query = db.select(Equipment).filter_by(is_archived=False).order_by(Equipment.name)
+    if area_id is not None:
+        query = query.filter_by(area_id=area_id)
+    return list(db.session.execute(query).scalars().all())
+
+
+def get_equipment(equipment_id: int) -> Equipment:
+    """Get a single equipment record by ID.
+
+    Raises:
+        ValidationError: if equipment not found.
+    """
+    equipment = db.session.get(Equipment, equipment_id)
+    if equipment is None:
+        raise ValidationError(f'Equipment with id {equipment_id} not found')
+    return equipment
+
+
+def create_equipment(
+    name: str,
+    manufacturer: str,
+    model: str,
+    area_id: int,
+    created_by: str,
+    serial_number: str | None = None,
+    acquisition_date: date | None = None,
+    acquisition_source: str | None = None,
+    acquisition_cost: Decimal | None = None,
+    warranty_expiration: date | None = None,
+    description: str | None = None,
+) -> Equipment:
+    """Create a new equipment record.
+
+    Raises:
+        ValidationError: if area_id is invalid or required fields are missing.
+    """
+    if not name or not name.strip():
+        raise ValidationError('Name is required')
+    if not manufacturer or not manufacturer.strip():
+        raise ValidationError('Manufacturer is required')
+    if not model or not model.strip():
+        raise ValidationError('Model is required')
+
+    area = db.session.get(Area, area_id)
+    if area is None:
+        raise ValidationError(f'Area with id {area_id} not found')
+    if area.is_archived:
+        raise ValidationError(f'Area {area.name!r} is archived and cannot be used')
+
+    equipment = Equipment(
+        name=name.strip(),
+        manufacturer=manufacturer.strip(),
+        model=model.strip(),
+        area_id=area_id,
+        serial_number=serial_number,
+        acquisition_date=acquisition_date,
+        acquisition_source=acquisition_source,
+        acquisition_cost=acquisition_cost,
+        warranty_expiration=warranty_expiration,
+        description=description,
+    )
+    db.session.add(equipment)
+    db.session.commit()
+
+    data = {
+        'id': equipment.id,
+        'name': equipment.name,
+        'manufacturer': equipment.manufacturer,
+        'model': equipment.model,
+        'area_id': equipment.area_id,
+    }
+    if serial_number:
+        data['serial_number'] = serial_number
+    if acquisition_date:
+        data['acquisition_date'] = str(acquisition_date)
+    if acquisition_source:
+        data['acquisition_source'] = acquisition_source
+    if acquisition_cost is not None:
+        data['acquisition_cost'] = str(acquisition_cost)
+    if warranty_expiration:
+        data['warranty_expiration'] = str(warranty_expiration)
+    if description:
+        data['description'] = description
+
+    log_mutation('equipment.created', created_by, data)
+
+    return equipment
+
+
+_UPDATABLE_FIELDS = {
+    'name', 'manufacturer', 'model', 'area_id', 'serial_number',
+    'acquisition_date', 'acquisition_source', 'acquisition_cost',
+    'warranty_expiration', 'description',
+}
+
+
+def update_equipment(
+    equipment_id: int,
+    updated_by: str,
+    **fields,
+) -> Equipment:
+    """Update an equipment record.
+
+    Raises:
+        ValidationError: if equipment not found or validation fails.
+    """
+    equipment = db.session.get(Equipment, equipment_id)
+    if equipment is None:
+        raise ValidationError(f'Equipment with id {equipment_id} not found')
+
+    # Validate area_id if being changed
+    if 'area_id' in fields:
+        new_area_id = fields['area_id']
+        if new_area_id != equipment.area_id:
+            area = db.session.get(Area, new_area_id)
+            if area is None:
+                raise ValidationError(f'Area with id {new_area_id} not found')
+            if area.is_archived:
+                raise ValidationError(f'Area {area.name!r} is archived and cannot be used')
+
+    changes = {}
+    for field_name in _UPDATABLE_FIELDS:
+        if field_name not in fields:
+            continue
+        new_value = fields[field_name]
+        old_value = getattr(equipment, field_name)
+        if old_value != new_value:
+            changes[field_name] = [old_value, new_value]
+            setattr(equipment, field_name, new_value)
+
+    db.session.commit()
+
+    if changes:
+        log_mutation('equipment.updated', updated_by, {
+            'id': equipment.id,
+            'name': equipment.name,
+            'changes': changes,
+        })
+
+    return equipment

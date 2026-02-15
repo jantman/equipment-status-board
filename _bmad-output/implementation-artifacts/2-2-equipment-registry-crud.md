@@ -1,6 +1,6 @@
 # Story 2.2: Equipment Registry CRUD
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -30,47 +30,47 @@ so that the makerspace has a complete, organized catalog of all equipment.
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Create Equipment model and migration (AC: #1)
-  - [ ] 1.1 Create `esb/models/equipment.py` with Equipment model
-  - [ ] 1.2 Register Equipment model in `esb/models/__init__.py`
-  - [ ] 1.3 Generate and apply Alembic migration
-  - [ ] 1.4 Write model unit tests
+- [x] Task 1: Create Equipment model and migration (AC: #1)
+  - [x] 1.1 Create `esb/models/equipment.py` with Equipment model
+  - [x] 1.2 Register Equipment model in `esb/models/__init__.py`
+  - [x] 1.3 Generate and apply Alembic migration
+  - [x] 1.4 Write model unit tests
 
-- [ ] Task 2: Create equipment service layer (AC: #2, #3, #4, #5, #7, #8)
-  - [ ] 2.1 Add equipment functions to `esb/services/equipment_service.py` (EXTEND existing file)
-  - [ ] 2.2 Implement `list_equipment(area_id=None)` -- returns active equipment, with optional area filter
-  - [ ] 2.3 Implement `get_equipment(equipment_id)` for single equipment retrieval
-  - [ ] 2.4 Implement `create_equipment(name, manufacturer, model, area_id, created_by, **optional_fields)` with validation and mutation logging
-  - [ ] 2.5 Implement `update_equipment(equipment_id, updated_by, **fields)` with validation and mutation logging
-  - [ ] 2.6 Write service unit tests
+- [x] Task 2: Create equipment service layer (AC: #2, #3, #4, #5, #7, #8)
+  - [x] 2.1 Add equipment functions to `esb/services/equipment_service.py` (EXTEND existing file)
+  - [x] 2.2 Implement `list_equipment(area_id=None)` -- returns active equipment, with optional area filter
+  - [x] 2.3 Implement `get_equipment(equipment_id)` for single equipment retrieval
+  - [x] 2.4 Implement `create_equipment(name, manufacturer, model, area_id, created_by, **optional_fields)` with validation and mutation logging
+  - [x] 2.5 Implement `update_equipment(equipment_id, updated_by, **fields)` with validation and mutation logging
+  - [x] 2.6 Write service unit tests
 
-- [ ] Task 3: Create equipment forms (AC: #4, #5, #7)
-  - [ ] 3.1 Add `EquipmentCreateForm` and `EquipmentEditForm` to `esb/forms/equipment_forms.py` (EXTEND existing file)
-  - [ ] 3.2 Required fields: name, manufacturer, model, area (SelectField)
-  - [ ] 3.3 Optional fields: serial_number, acquisition_date, acquisition_source, acquisition_cost, warranty_expiration, description
+- [x] Task 3: Create equipment forms (AC: #4, #5, #7)
+  - [x] 3.1 Add `EquipmentCreateForm` and `EquipmentEditForm` to `esb/forms/equipment_forms.py` (EXTEND existing file)
+  - [x] 3.2 Required fields: name, manufacturer, model, area (SelectField)
+  - [x] 3.3 Optional fields: serial_number, acquisition_date, acquisition_source, acquisition_cost, warranty_expiration, description
 
-- [ ] Task 4: Create equipment views/routes (AC: #2, #3, #4, #5, #6, #7)
-  - [ ] 4.1 Create `esb/views/equipment.py` with equipment Blueprint (NEW file)
-  - [ ] 4.2 `GET /equipment` -- list active equipment with optional area filter
-  - [ ] 4.3 `GET/POST /equipment/new` -- create equipment form
-  - [ ] 4.4 `GET /equipment/<int:id>` -- equipment detail page
-  - [ ] 4.5 `GET/POST /equipment/<int:id>/edit` -- edit equipment form
-  - [ ] 4.6 Register equipment Blueprint in app factory
-  - [ ] 4.7 Write view integration tests
+- [x] Task 4: Create equipment views/routes (AC: #2, #3, #4, #5, #6, #7)
+  - [x] 4.1 Create `esb/views/equipment.py` with equipment Blueprint (NEW file)
+  - [x] 4.2 `GET /equipment` -- list active equipment with optional area filter
+  - [x] 4.3 `GET/POST /equipment/new` -- create equipment form
+  - [x] 4.4 `GET /equipment/<int:id>` -- equipment detail page
+  - [x] 4.5 `GET/POST /equipment/<int:id>/edit` -- edit equipment form
+  - [x] 4.6 Register equipment Blueprint in app factory
+  - [x] 4.7 Write view integration tests
 
-- [ ] Task 5: Create equipment templates (AC: #2, #3, #4, #5, #6, #7)
-  - [ ] 5.1 Create `esb/templates/equipment/list.html` -- equipment list with area filter
-  - [ ] 5.2 Create `esb/templates/equipment/detail.html` -- equipment detail page
-  - [ ] 5.3 Create `esb/templates/equipment/form.html` -- shared create/edit form
-  - [ ] 5.4 Empty state when no equipment exists
-  - [ ] 5.5 Mobile responsive card layout for list view
+- [x] Task 5: Create equipment templates (AC: #2, #3, #4, #5, #6, #7)
+  - [x] 5.1 Create `esb/templates/equipment/list.html` -- equipment list with area filter
+  - [x] 5.2 Create `esb/templates/equipment/detail.html` -- equipment detail page
+  - [x] 5.3 Create `esb/templates/equipment/form.html` -- shared create/edit form
+  - [x] 5.4 Empty state when no equipment exists
+  - [x] 5.5 Mobile responsive card layout for list view
 
-- [ ] Task 6: RBAC and edge case testing (AC: #2, #4, #5, #7, #8)
-  - [ ] 6.1 Verify `@role_required('staff')` on create/edit routes
-  - [ ] 6.2 Verify `@login_required` on list and detail routes (Technicians can view)
-  - [ ] 6.3 Verify unauthenticated users get redirected to login
-  - [ ] 6.4 Verify area dropdown only shows active (non-archived) areas
-  - [ ] 6.5 Verify archived equipment excluded from listings
+- [x] Task 6: RBAC and edge case testing (AC: #2, #4, #5, #7, #8)
+  - [x] 6.1 Verify `@role_required('staff')` on create/edit routes
+  - [x] 6.2 Verify `@login_required` on list and detail routes (Technicians can view)
+  - [x] 6.3 Verify unauthenticated users get redirected to login
+  - [x] 6.4 Verify area dropdown only shows active (non-archived) areas
+  - [x] 6.5 Verify archived equipment excluded from listings
 
 ## Dev Notes
 
@@ -481,11 +481,42 @@ def _create_equipment(name='Test Equipment', manufacturer='TestCo', model='Model
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+Claude Opus 4.6
 
 ### Debug Log References
 
+- SQLite test DB does not enforce FK constraints; FK enforcement test replaced with NOT NULL test for area_id
+- `_create_equipment` helper needed explicit area param to avoid duplicate "Test Area" unique constraint violations in multi-equipment tests
+
 ### Completion Notes List
 
+- Task 1: Created Equipment model (`esb/models/equipment.py`) with all required/optional fields matching spec. Registered in `__init__.py`. Generated and applied Alembic migration `fe564f1c4920`. 9 model unit tests passing.
+- Task 2: Extended `esb/services/equipment_service.py` with `list_equipment`, `get_equipment`, `create_equipment`, `update_equipment`. Validation for required fields, area existence/archived checks, mutation logging with change tracking. 23 equipment service tests passing.
+- Task 3: Extended `esb/forms/equipment_forms.py` with `EquipmentCreateForm` and `EquipmentEditForm`. Required fields with DataRequired validators, optional fields with Optional validators.
+- Task 4: Replaced equipment Blueprint stub in `esb/views/equipment.py` with full CRUD routes. `@login_required` on list/detail, `@role_required('staff')` on create/edit. Area filter via query param. 404 for not-found equipment.
+- Task 5: Created three templates: `list.html` (responsive table/cards, area filter dropdown, empty states), `detail.html` (breadcrumb, required/optional field sections), `form.html` (shared create/edit with required/optional field sections).
+- Task 6: RBAC tests confirm staff-only create/edit (403 for technicians), login_required on all routes, area dropdown excludes archived areas, archived equipment excluded from listings. Mutation logging verified via `capture` fixture.
+
 ### File List
+
+**New files:**
+- `esb/models/equipment.py`
+- `esb/templates/equipment/list.html`
+- `esb/templates/equipment/detail.html`
+- `esb/templates/equipment/form.html`
+- `migrations/versions/fe564f1c4920_add_equipment_table.py`
+- `tests/test_models/test_equipment.py`
+- `tests/test_views/test_equipment_views.py`
+
+**Modified files:**
+- `esb/models/__init__.py` (added Equipment import)
+- `esb/services/equipment_service.py` (added equipment CRUD functions)
+- `esb/forms/equipment_forms.py` (added EquipmentCreateForm, EquipmentEditForm)
+- `esb/views/equipment.py` (replaced placeholder with full implementation)
+- `tests/conftest.py` (added make_equipment fixture)
+- `tests/test_services/test_equipment_service.py` (added equipment service tests)
+
+### Change Log
+
+- 2026-02-15: Implemented Story 2.2 Equipment Registry CRUD - model, service, forms, views, templates, tests (311 total tests passing, lint clean)
 

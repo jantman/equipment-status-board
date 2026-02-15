@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block title %}Equipment Registry - Equipment Status Board{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1>Equipment Registry</h1>
+    {% if current_user.role == 'staff' %}
+    <a href="{{ url_for('equipment.create') }}" class="btn btn-primary">Add Equipment</a>
+    {% endif %}
+</div>
+
+<form method="GET" action="{{ url_for('equipment.index') }}" class="mb-3">
+    <div class="row align-items-end">
+        <div class="col-auto">
+            <label for="area_id" class="form-label">Filter by Area</label>
+            <select name="area_id" id="area_id" class="form-select" onchange="this.form.submit()">
+                <option value="">All Areas</option>
+                {% for area in areas %}
+                <option value="{{ area.id }}" {% if selected_area_id == area.id %}selected{% endif %}>{{ area.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        {% if selected_area_id %}
+        <div class="col-auto">
+            <a href="{{ url_for('equipment.index') }}" class="btn btn-outline-secondary">Clear Filter</a>
+        </div>
+        {% endif %}
+    </div>
+</form>
+
+{% if equipment %}
+<!-- Desktop table (hidden on mobile) -->
+<div class="table-responsive d-none d-md-block">
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Manufacturer</th>
+                <th>Model</th>
+                <th>Area</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for eq in equipment %}
+            <tr onclick="window.location='{{ url_for('equipment.detail', id=eq.id) }}'" style="cursor: pointer;">
+                <td>{{ eq.name }}</td>
+                <td>{{ eq.manufacturer }}</td>
+                <td>{{ eq.model }}</td>
+                <td>{{ eq.area.name }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Mobile cards (hidden on desktop) -->
+<div class="d-md-none">
+    {% for eq in equipment %}
+    <a href="{{ url_for('equipment.detail', id=eq.id) }}" class="text-decoration-none text-dark">
+        <div class="card mb-2">
+            <div class="card-body">
+                <h6 class="card-title mb-1">{{ eq.name }}</h6>
+                <p class="card-text text-muted mb-1">{{ eq.manufacturer }} {{ eq.model }}</p>
+                <span class="badge bg-secondary">{{ eq.area.name }}</span>
+            </div>
+        </div>
+    </a>
+    {% endfor %}
+</div>
+{% elif selected_area_id %}
+<div class="text-center py-5">
+    <p class="text-muted mb-3">No equipment found in this area.</p>
+    <a href="{{ url_for('equipment.index') }}" class="btn btn-outline-secondary">Clear Filter</a>
+</div>
+{% else %}
+<div class="text-center py-5">
+    <p class="text-muted mb-3">No equipment has been added yet.</p>
+    {% if current_user.role == 'staff' %}
+    <a href="{{ url_for('equipment.create') }}" class="btn btn-primary">Add Equipment</a>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}
