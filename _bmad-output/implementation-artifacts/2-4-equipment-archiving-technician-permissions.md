@@ -1,6 +1,6 @@
 # Story 2.4: Equipment Archiving & Technician Permissions
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -620,6 +620,7 @@ Add new `<li>` element after Areas tab:
 ## Change Log
 
 - 2026-02-15: Implemented Story 2.4 — Equipment Archiving & Technician Permissions (all 8 tasks, 445 tests passing)
+- 2026-02-15: Code review fixes — 7 issues fixed (3 Medium, 4 Low), 452 tests passing
 
 ## Dev Agent Record
 
@@ -653,6 +654,7 @@ No debug issues encountered.
 - `migrations/versions/5a7c16f833e5_add_app_config_table.py` — Alembic migration
 
 **Modified files:**
+- `_bmad-output/implementation-artifacts/sprint-status.yaml` — Updated story status
 - `esb/models/__init__.py` — Added AppConfig import
 - `esb/services/equipment_service.py` — Added `archive_equipment()` function
 - `esb/views/equipment.py` — Added archive route, permission helpers, updated decorators on doc/photo/link routes

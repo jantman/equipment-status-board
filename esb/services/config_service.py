@@ -3,6 +3,8 @@
 All AppConfig reads/writes go through this module.
 """
 
+from sqlalchemy.exc import IntegrityError
+
 from esb.extensions import db
 from esb.models.app_config import AppConfig
 from esb.utils.logging import log_mutation
@@ -49,7 +51,16 @@ def set_config(key: str, value: str, changed_by: str) -> AppConfig:
         config = AppConfig(key=key, value=value)
         db.session.add(config)
 
-    db.session.commit()
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        config = db.session.execute(
+            db.select(AppConfig).filter_by(key=key)
+        ).scalar_one()
+        old_value = config.value
+        config.value = value
+        db.session.commit()
 
     log_mutation('app_config.updated', changed_by, {
         'key': key,

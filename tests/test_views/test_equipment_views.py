@@ -390,6 +390,76 @@ class TestArchiveEquipment:
         resp = staff_client.post(f'/equipment/{eq.id}/archive', follow_redirects=True)
         assert b'Equipment archived successfully' in resp.data
 
+    def test_photo_upload_blocked_for_archived(self, staff_client, make_equipment):
+        """Photo upload route blocked for archived equipment."""
+        eq = make_equipment('Laser', 'Epilog', 'Zing')
+        eq.is_archived = True
+        _db.session.commit()
+
+        resp = staff_client.post(
+            f'/equipment/{eq.id}/photos',
+            data={'file': (io.BytesIO(b'content'), 'photo.jpg')},
+            content_type='multipart/form-data',
+            follow_redirects=True,
+        )
+        assert b'Cannot modify archived equipment' in resp.data
+
+    def test_delete_document_blocked_for_archived(self, staff_client, make_equipment, db):
+        """Document delete blocked for archived equipment."""
+        eq = make_equipment('Laser', 'Epilog', 'Zing')
+        doc = Document(
+            original_filename='test.pdf', stored_filename='x.pdf',
+            content_type='application/pdf', size_bytes=7,
+            parent_type='equipment_doc', parent_id=eq.id, uploaded_by='staffuser',
+        )
+        db.session.add(doc)
+        db.session.commit()
+        eq.is_archived = True
+        db.session.commit()
+
+        resp = staff_client.post(
+            f'/equipment/{eq.id}/documents/{doc.id}/delete',
+            follow_redirects=True,
+        )
+        assert b'Cannot modify archived equipment' in resp.data
+
+    def test_delete_photo_blocked_for_archived(self, staff_client, make_equipment, db):
+        """Photo delete blocked for archived equipment."""
+        eq = make_equipment('Laser', 'Epilog', 'Zing')
+        doc = Document(
+            original_filename='photo.jpg', stored_filename='x.jpg',
+            content_type='image/jpeg', size_bytes=5,
+            parent_type='equipment_photo', parent_id=eq.id, uploaded_by='staffuser',
+        )
+        db.session.add(doc)
+        db.session.commit()
+        eq.is_archived = True
+        db.session.commit()
+
+        resp = staff_client.post(
+            f'/equipment/{eq.id}/photos/{doc.id}/delete',
+            follow_redirects=True,
+        )
+        assert b'Cannot modify archived equipment' in resp.data
+
+    def test_delete_link_blocked_for_archived(self, staff_client, make_equipment, db):
+        """Link delete blocked for archived equipment."""
+        eq = make_equipment('Laser', 'Epilog', 'Zing')
+        link = ExternalLink(
+            equipment_id=eq.id, title='Test',
+            url='https://example.com', created_by='staffuser',
+        )
+        db.session.add(link)
+        db.session.commit()
+        eq.is_archived = True
+        db.session.commit()
+
+        resp = staff_client.post(
+            f'/equipment/{eq.id}/links/{link.id}/delete',
+            follow_redirects=True,
+        )
+        assert b'Cannot modify archived equipment' in resp.data
+
     def test_archive_mutation_logging(self, staff_client, make_equipment, capture):
         """Archive logs equipment.archived mutation."""
         eq = make_equipment('Laser', 'Epilog', 'Zing')
@@ -506,6 +576,42 @@ class TestTechnicianPermissions:
 
         resp = tech_client.post(f'/equipment/{eq.id}/documents/{doc.id}/delete')
         assert resp.status_code == 403
+
+    def test_tech_sees_edit_controls_when_enabled(self, tech_client, make_equipment):
+        """Technician sees upload/add buttons on detail when permission enabled."""
+        from esb.services import config_service
+        config_service.set_config('tech_doc_edit_enabled', 'true', 'test')
+
+        eq = make_equipment()
+        resp = tech_client.get(f'/equipment/{eq.id}')
+        assert resp.status_code == 200
+        assert b'Upload Document' in resp.data
+        assert b'Upload Photo' in resp.data
+        assert b'Add Link' in resp.data
+
+    def test_tech_no_edit_controls_when_disabled(self, tech_client, make_equipment):
+        """Technician sees no upload/add buttons on detail when permission disabled."""
+        eq = make_equipment()
+        resp = tech_client.get(f'/equipment/{eq.id}')
+        assert resp.status_code == 200
+        assert b'Upload Document' not in resp.data
+        assert b'Upload Photo' not in resp.data
+        assert b'Add Link' not in resp.data
+
+    def test_tech_no_edit_controls_on_archived_when_enabled(self, tech_client, make_equipment):
+        """Tech with edit perms sees no edit controls on archived equipment."""
+        from esb.services import config_service
+        config_service.set_config('tech_doc_edit_enabled', 'true', 'test')
+
+        eq = make_equipment()
+        eq.is_archived = True
+        _db.session.commit()
+
+        resp = tech_client.get(f'/equipment/{eq.id}')
+        assert resp.status_code == 200
+        assert b'Upload Document' not in resp.data
+        assert b'Upload Photo' not in resp.data
+        assert b'Add Link' not in resp.data
 
 
 class TestRBACAndEdgeCases:

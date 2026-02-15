@@ -196,7 +196,7 @@ def _can_edit_docs() -> bool:
         return True
     if current_user.role == 'technician':
         from esb.services import config_service
-        return config_service.get_config('tech_doc_edit_enabled', 'false') == 'true'
+        return config_service.get_config('tech_doc_edit_enabled', 'false').lower() == 'true'
     return False
 
 
@@ -213,11 +213,11 @@ def _require_doc_edit():
 @login_required
 def upload_document(id):
     """Handle document upload for an equipment item."""
-    _require_doc_edit()
     try:
         eq = equipment_service.get_equipment(id)
     except ValidationError:
         abort(404)
+    _require_doc_edit()
 
     if eq.is_archived:
         flash('Cannot modify archived equipment.', 'danger')
@@ -247,11 +247,11 @@ def upload_document(id):
 @login_required
 def delete_document(id, doc_id):
     """Delete a document from an equipment item."""
-    _require_doc_edit()
     try:
         eq = equipment_service.get_equipment(id)
     except ValidationError:
         abort(404)
+    _require_doc_edit()
 
     if eq.is_archived:
         flash('Cannot modify archived equipment.', 'danger')
@@ -275,11 +275,11 @@ def delete_document(id, doc_id):
 @login_required
 def upload_photo(id):
     """Handle photo upload for an equipment item."""
-    _require_doc_edit()
     try:
         eq = equipment_service.get_equipment(id)
     except ValidationError:
         abort(404)
+    _require_doc_edit()
 
     if eq.is_archived:
         flash('Cannot modify archived equipment.', 'danger')
@@ -308,11 +308,11 @@ def upload_photo(id):
 @login_required
 def delete_photo(id, photo_id):
     """Delete a photo from an equipment item."""
-    _require_doc_edit()
     try:
         eq = equipment_service.get_equipment(id)
     except ValidationError:
         abort(404)
+    _require_doc_edit()
 
     if eq.is_archived:
         flash('Cannot modify archived equipment.', 'danger')
@@ -336,11 +336,11 @@ def delete_photo(id, photo_id):
 @login_required
 def add_link(id):
     """Add an external link to an equipment item."""
-    _require_doc_edit()
     try:
         eq = equipment_service.get_equipment(id)
     except ValidationError:
         abort(404)
+    _require_doc_edit()
 
     if eq.is_archived:
         flash('Cannot modify archived equipment.', 'danger')
@@ -369,11 +369,11 @@ def add_link(id):
 @login_required
 def delete_link(id, link_id):
     """Delete an external link from an equipment item."""
-    _require_doc_edit()
     try:
         eq = equipment_service.get_equipment(id)
     except ValidationError:
         abort(404)
+    _require_doc_edit()
 
     if eq.is_archived:
         flash('Cannot modify archived equipment.', 'danger')
