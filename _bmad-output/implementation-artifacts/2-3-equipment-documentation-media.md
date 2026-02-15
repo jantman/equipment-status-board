@@ -1,6 +1,6 @@
 # Story 2.3: Equipment Documentation & Media
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -28,60 +28,60 @@ so that members and technicians can find manuals, reference materials, and visua
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Create Document model and ExternalLink model with migration (AC: #1)
-  - [ ] 1.1 Create `esb/models/document.py` with Document model
-  - [ ] 1.2 Create `esb/models/external_link.py` with ExternalLink model
-  - [ ] 1.3 Register both models in `esb/models/__init__.py`
-  - [ ] 1.4 Generate and apply Alembic migration for both tables
-  - [ ] 1.5 Write model unit tests
+- [x] Task 1: Create Document model and ExternalLink model with migration (AC: #1)
+  - [x] 1.1 Create `esb/models/document.py` with Document model
+  - [x] 1.2 Create `esb/models/external_link.py` with ExternalLink model
+  - [x] 1.3 Register both models in `esb/models/__init__.py`
+  - [x] 1.4 Generate and apply Alembic migration for both tables
+  - [x] 1.5 Write model unit tests
 
-- [ ] Task 2: Create upload service (AC: #2, #6)
-  - [ ] 2.1 Create `esb/services/upload_service.py` (NEW file)
-  - [ ] 2.2 Implement `save_upload(file, category, parent_type, parent_id, uploaded_by)` -- validates size, generates safe filename, saves to disk, creates Document record
-  - [ ] 2.3 Implement `delete_upload(document_id, deleted_by)` -- deletes file from disk and removes Document record
-  - [ ] 2.4 Implement `get_documents(parent_type, parent_id)` -- returns documents for a parent entity
-  - [ ] 2.5 Set `MAX_CONTENT_LENGTH` in Flask config for request-level size enforcement
-  - [ ] 2.6 Write service unit tests
+- [x] Task 2: Create upload service (AC: #2, #6)
+  - [x] 2.1 Create `esb/services/upload_service.py` (NEW file)
+  - [x] 2.2 Implement `save_upload(file, category, parent_type, parent_id, uploaded_by)` -- validates size, generates safe filename, saves to disk, creates Document record
+  - [x] 2.3 Implement `delete_upload(document_id, deleted_by)` -- deletes file from disk and removes Document record
+  - [x] 2.4 Implement `get_documents(parent_type, parent_id)` -- returns documents for a parent entity
+  - [x] 2.5 Set `MAX_CONTENT_LENGTH` in Flask config for request-level size enforcement
+  - [x] 2.6 Write service unit tests
 
-- [ ] Task 3: Add external link service functions (AC: #5, #7)
-  - [ ] 3.1 Add link functions to `esb/services/equipment_service.py` (EXTEND existing file)
-  - [ ] 3.2 Implement `add_equipment_link(equipment_id, title, url, created_by)`
-  - [ ] 3.3 Implement `delete_equipment_link(link_id, deleted_by)`
-  - [ ] 3.4 Implement `get_equipment_links(equipment_id)`
-  - [ ] 3.5 Write service unit tests
+- [x] Task 3: Add external link service functions (AC: #5, #7)
+  - [x] 3.1 Add link functions to `esb/services/equipment_service.py` (EXTEND existing file)
+  - [x] 3.2 Implement `add_equipment_link(equipment_id, title, url, created_by)`
+  - [x] 3.3 Implement `delete_equipment_link(link_id, deleted_by)`
+  - [x] 3.4 Implement `get_equipment_links(equipment_id)`
+  - [x] 3.5 Write service unit tests
 
-- [ ] Task 4: Create upload and link forms (AC: #3, #4, #5)
-  - [ ] 4.1 Add `DocumentUploadForm`, `PhotoUploadForm`, `ExternalLinkForm` to `esb/forms/equipment_forms.py` (EXTEND existing file)
-  - [ ] 4.2 DocumentUploadForm: FileField with category SelectField
-  - [ ] 4.3 PhotoUploadForm: FileField only
-  - [ ] 4.4 ExternalLinkForm: title StringField + url URLField
+- [x] Task 4: Create upload and link forms (AC: #3, #4, #5)
+  - [x] 4.1 Add `DocumentUploadForm`, `PhotoUploadForm`, `ExternalLinkForm` to `esb/forms/equipment_forms.py` (EXTEND existing file)
+  - [x] 4.2 DocumentUploadForm: FileField with category SelectField
+  - [x] 4.3 PhotoUploadForm: FileField only
+  - [x] 4.4 ExternalLinkForm: title StringField + url URLField
 
-- [ ] Task 5: Add equipment document/photo/link routes (AC: #3, #4, #5, #6, #7)
-  - [ ] 5.1 Add upload/link routes to `esb/views/equipment.py` (EXTEND existing file)
-  - [ ] 5.2 `POST /equipment/<int:id>/documents` -- document upload
-  - [ ] 5.3 `POST /equipment/<int:id>/photos` -- photo upload
-  - [ ] 5.4 `POST /equipment/<int:id>/links` -- add external link
-  - [ ] 5.5 `POST /equipment/<int:id>/documents/<int:doc_id>/delete` -- delete document
-  - [ ] 5.6 `POST /equipment/<int:id>/photos/<int:photo_id>/delete` -- delete photo
-  - [ ] 5.7 `POST /equipment/<int:id>/links/<int:link_id>/delete` -- delete link
-  - [ ] 5.8 `GET /uploads/equipment/<int:id>/docs/<filename>` -- serve document file (or use Flask's `send_from_directory`)
-  - [ ] 5.9 `GET /uploads/equipment/<int:id>/photos/<filename>` -- serve photo file
-  - [ ] 5.10 Write view integration tests
+- [x] Task 5: Add equipment document/photo/link routes (AC: #3, #4, #5, #6, #7)
+  - [x] 5.1 Add upload/link routes to `esb/views/equipment.py` (EXTEND existing file)
+  - [x] 5.2 `POST /equipment/<int:id>/documents` -- document upload
+  - [x] 5.3 `POST /equipment/<int:id>/photos` -- photo upload
+  - [x] 5.4 `POST /equipment/<int:id>/links` -- add external link
+  - [x] 5.5 `POST /equipment/<int:id>/documents/<int:doc_id>/delete` -- delete document
+  - [x] 5.6 `POST /equipment/<int:id>/photos/<int:photo_id>/delete` -- delete photo
+  - [x] 5.7 `POST /equipment/<int:id>/links/<int:link_id>/delete` -- delete link
+  - [x] 5.8 `GET /uploads/equipment/<int:id>/docs/<filename>` -- serve document file (or use Flask's `send_from_directory`)
+  - [x] 5.9 `GET /uploads/equipment/<int:id>/photos/<filename>` -- serve photo file
+  - [x] 5.10 Write view integration tests
 
-- [ ] Task 6: Update equipment detail template (AC: #3, #4, #5)
-  - [ ] 6.1 Replace Documents placeholder section with document list + upload form
-  - [ ] 6.2 Replace Photos placeholder section with photo gallery + upload form
-  - [ ] 6.3 Replace Links placeholder section with link list + add link form
-  - [ ] 6.4 Add delete buttons (Staff only) for documents, photos, and links
-  - [ ] 6.5 Mobile responsive layout for all sections
+- [x] Task 6: Update equipment detail template (AC: #3, #4, #5)
+  - [x] 6.1 Replace Documents placeholder section with document list + upload form
+  - [x] 6.2 Replace Photos placeholder section with photo gallery + upload form
+  - [x] 6.3 Replace Links placeholder section with link list + add link form
+  - [x] 6.4 Add delete buttons (Staff only) for documents, photos, and links
+  - [x] 6.5 Mobile responsive layout for all sections
 
-- [ ] Task 7: RBAC and edge case testing (AC: #2, #3, #4, #5, #6, #7)
-  - [ ] 7.1 Verify `@role_required('staff')` on upload/add/delete routes
-  - [ ] 7.2 Verify file size rejection works correctly
-  - [ ] 7.3 Verify file type validation (document extensions vs photo extensions)
-  - [ ] 7.4 Verify deletion removes file from disk AND database record
-  - [ ] 7.5 Verify mutation logging for all operations
-  - [ ] 7.6 Verify 404 for non-existent equipment on upload routes
+- [x] Task 7: RBAC and edge case testing (AC: #2, #3, #4, #5, #6, #7)
+  - [x] 7.1 Verify `@role_required('staff')` on upload/add/delete routes
+  - [x] 7.2 Verify file size rejection works correctly
+  - [x] 7.3 Verify file type validation (document extensions vs photo extensions)
+  - [x] 7.4 Verify deletion removes file from disk AND database record
+  - [x] 7.5 Verify mutation logging for all operations
+  - [x] 7.6 Verify 404 for non-existent equipment on upload routes
 
 ## Dev Notes
 
@@ -689,10 +689,44 @@ def test_upload_document_success(self, staff_client, make_equipment, db, capture
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+Claude Opus 4.6
 
 ### Debug Log References
 
+No issues encountered.
+
 ### Completion Notes List
 
+- Task 1: Created Document model (polymorphic parent_type+parent_id pattern) and ExternalLink model (FK to equipment) with composite index on documents table. Generated and applied Alembic migration. 18 model tests passing.
+- Task 2: Created upload_service.py with save_upload, delete_upload, get_documents. Validates file extensions per parent_type, enforces size limits, generates UUID filenames, creates directories on demand. Added MAX_CONTENT_LENGTH to Flask config. 17 service tests passing.
+- Task 3: Extended equipment_service.py with add_equipment_link, delete_equipment_link, get_equipment_links. All functions include input validation and mutation logging. 12 service tests passing.
+- Task 4: Added DocumentUploadForm (FileField + category SelectField), PhotoUploadForm (FileField), ExternalLinkForm (title + URL) to equipment_forms.py.
+- Task 5: Added 8 new routes to equipment.py: upload/delete for documents, photos, links, plus file serving routes. Updated detail view to pass documents, photos, links, and forms to template. Added 413 error handler to app factory. 26 new view tests passing.
+- Task 6: Replaced placeholder sections in detail.html with functional document list, photo gallery, and link list. Each section has collapsible upload/add forms (Staff only), delete buttons with confirmation, and empty states. Mobile responsive layout using Bootstrap grid.
+- Task 7: All RBAC, file validation, deletion, mutation logging, and 404 edge cases verified through existing test suite coverage.
+
 ### File List
+
+**New files:**
+- `esb/models/document.py`
+- `esb/models/external_link.py`
+- `esb/services/upload_service.py`
+- `migrations/versions/eb4115a4e9fd_add_documents_and_external_links_tables.py`
+- `tests/test_models/test_document.py`
+- `tests/test_models/test_external_link.py`
+- `tests/test_services/test_upload_service.py`
+
+**Modified files:**
+- `esb/models/__init__.py` (added Document, ExternalLink imports)
+- `esb/services/equipment_service.py` (added external link functions)
+- `esb/forms/equipment_forms.py` (added upload/link forms)
+- `esb/views/equipment.py` (added upload/link/delete/serve routes, updated detail view)
+- `esb/templates/equipment/detail.html` (replaced placeholder sections)
+- `esb/config.py` (added MAX_CONTENT_LENGTH)
+- `esb/__init__.py` (added 413 error handler)
+- `tests/test_services/test_equipment_service.py` (added link service tests)
+- `tests/test_views/test_equipment_views.py` (added upload/link/delete/serve view tests)
+
+## Change Log
+
+- 2026-02-15: Implemented Story 2.3 -- Equipment Documentation & Media (all 7 tasks complete, 389 tests passing)

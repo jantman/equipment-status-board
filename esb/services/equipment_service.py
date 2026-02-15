@@ -10,6 +10,7 @@ from decimal import Decimal
 from esb.extensions import db
 from esb.models.area import Area
 from esb.models.equipment import Equipment
+from esb.models.external_link import ExternalLink
 from esb.utils.exceptions import ValidationError
 from esb.utils.logging import log_mutation
 
@@ -291,3 +292,75 @@ def update_equipment(
         })
 
     return equipment
+
+
+# --- External Links ---
+
+
+def add_equipment_link(
+    equipment_id: int, title: str, url: str, created_by: str,
+) -> ExternalLink:
+    """Add an external link to an equipment record.
+
+    Raises:
+        ValidationError: if equipment not found or fields invalid.
+    """
+    equipment = db.session.get(Equipment, equipment_id)
+    if equipment is None:
+        raise ValidationError(f'Equipment with id {equipment_id} not found')
+
+    if not title or not title.strip():
+        raise ValidationError('Title is required')
+    if not url or not url.strip():
+        raise ValidationError('URL is required')
+
+    link = ExternalLink(
+        equipment_id=equipment_id,
+        title=title.strip(),
+        url=url.strip(),
+        created_by=created_by,
+    )
+    db.session.add(link)
+    db.session.commit()
+
+    log_mutation('equipment_link.created', created_by, {
+        'id': link.id,
+        'equipment_id': link.equipment_id,
+        'title': link.title,
+        'url': link.url,
+    })
+
+    return link
+
+
+def delete_equipment_link(link_id: int, deleted_by: str) -> None:
+    """Delete an external link.
+
+    Raises:
+        ValidationError: if link not found.
+    """
+    link = db.session.get(ExternalLink, link_id)
+    if link is None:
+        raise ValidationError(f'Link with id {link_id} not found')
+
+    log_data = {
+        'id': link.id,
+        'equipment_id': link.equipment_id,
+        'title': link.title,
+    }
+
+    db.session.delete(link)
+    db.session.commit()
+
+    log_mutation('equipment_link.deleted', deleted_by, log_data)
+
+
+def get_equipment_links(equipment_id: int) -> list[ExternalLink]:
+    """Get all external links for an equipment item, ordered by created_at desc."""
+    return list(
+        db.session.execute(
+            db.select(ExternalLink)
+            .filter_by(equipment_id=equipment_id)
+            .order_by(ExternalLink.created_at.desc())
+        ).scalars().all()
+    )

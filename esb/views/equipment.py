@@ -1,10 +1,28 @@
 """Equipment registry routes."""
 
-from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
+import os
+
+from flask import (
+    Blueprint,
+    abort,
+    current_app,
+    flash,
+    redirect,
+    render_template,
+    request,
+    send_from_directory,
+    url_for,
+)
 from flask_login import current_user, login_required
 
-from esb.forms.equipment_forms import EquipmentCreateForm, EquipmentEditForm
-from esb.services import equipment_service
+from esb.forms.equipment_forms import (
+    DocumentUploadForm,
+    EquipmentCreateForm,
+    EquipmentEditForm,
+    ExternalLinkForm,
+    PhotoUploadForm,
+)
+from esb.services import equipment_service, upload_service
 from esb.utils.decorators import role_required
 from esb.utils.exceptions import ValidationError
 
@@ -79,7 +97,23 @@ def detail(id):
     except ValidationError:
         abort(404)
 
-    return render_template('equipment/detail.html', equipment=eq)
+    documents = upload_service.get_documents('equipment_doc', id)
+    photos = upload_service.get_documents('equipment_photo', id)
+    links = equipment_service.get_equipment_links(id)
+    doc_form = DocumentUploadForm()
+    photo_form = PhotoUploadForm()
+    link_form = ExternalLinkForm()
+
+    return render_template(
+        'equipment/detail.html',
+        equipment=eq,
+        documents=documents,
+        photos=photos,
+        links=links,
+        doc_form=doc_form,
+        photo_form=photo_form,
+        link_form=link_form,
+    )
 
 
 @equipment_bp.route('/<int:id>/edit', methods=['GET', 'POST'])
@@ -130,3 +164,169 @@ def edit(id):
     return render_template(
         'equipment/form.html', form=form, title='Edit Equipment',
     )
+
+
+# --- Document upload/delete ---
+
+
+@equipment_bp.route('/<int:id>/documents', methods=['POST'])
+@role_required('staff')
+def upload_document(id):
+    """Handle document upload for an equipment item."""
+    try:
+        equipment_service.get_equipment(id)
+    except ValidationError:
+        abort(404)
+
+    form = DocumentUploadForm()
+    if form.validate_on_submit():
+        try:
+            upload_service.save_upload(
+                file=form.file.data,
+                parent_type='equipment_doc',
+                parent_id=id,
+                uploaded_by=current_user.username,
+                category=form.category.data,
+            )
+            flash('Document uploaded successfully.', 'success')
+        except ValidationError as e:
+            flash(str(e), 'danger')
+    else:
+        for field, errors in form.errors.items():
+            for error in errors:
+                flash(f'{error}', 'danger')
+    return redirect(url_for('equipment.detail', id=id))
+
+
+@equipment_bp.route('/<int:id>/documents/<int:doc_id>/delete', methods=['POST'])
+@role_required('staff')
+def delete_document(id, doc_id):
+    """Delete a document from an equipment item."""
+    try:
+        equipment_service.get_equipment(id)
+    except ValidationError:
+        abort(404)
+
+    try:
+        upload_service.delete_upload(doc_id, current_user.username)
+        flash('Document deleted.', 'success')
+    except ValidationError as e:
+        flash(str(e), 'danger')
+    return redirect(url_for('equipment.detail', id=id))
+
+
+# --- Photo upload/delete ---
+
+
+@equipment_bp.route('/<int:id>/photos', methods=['POST'])
+@role_required('staff')
+def upload_photo(id):
+    """Handle photo upload for an equipment item."""
+    try:
+        equipment_service.get_equipment(id)
+    except ValidationError:
+        abort(404)
+
+    form = PhotoUploadForm()
+    if form.validate_on_submit():
+        try:
+            upload_service.save_upload(
+                file=form.file.data,
+                parent_type='equipment_photo',
+                parent_id=id,
+                uploaded_by=current_user.username,
+            )
+            flash('Photo uploaded successfully.', 'success')
+        except ValidationError as e:
+            flash(str(e), 'danger')
+    else:
+        for field, errors in form.errors.items():
+            for error in errors:
+                flash(f'{error}', 'danger')
+    return redirect(url_for('equipment.detail', id=id))
+
+
+@equipment_bp.route('/<int:id>/photos/<int:photo_id>/delete', methods=['POST'])
+@role_required('staff')
+def delete_photo(id, photo_id):
+    """Delete a photo from an equipment item."""
+    try:
+        equipment_service.get_equipment(id)
+    except ValidationError:
+        abort(404)
+
+    try:
+        upload_service.delete_upload(photo_id, current_user.username)
+        flash('Photo deleted.', 'success')
+    except ValidationError as e:
+        flash(str(e), 'danger')
+    return redirect(url_for('equipment.detail', id=id))
+
+
+# --- External link add/delete ---
+
+
+@equipment_bp.route('/<int:id>/links', methods=['POST'])
+@role_required('staff')
+def add_link(id):
+    """Add an external link to an equipment item."""
+    try:
+        equipment_service.get_equipment(id)
+    except ValidationError:
+        abort(404)
+
+    form = ExternalLinkForm()
+    if form.validate_on_submit():
+        try:
+            equipment_service.add_equipment_link(
+                equipment_id=id,
+                title=form.title.data,
+                url=form.url.data,
+                created_by=current_user.username,
+            )
+            flash('Link added successfully.', 'success')
+        except ValidationError as e:
+            flash(str(e), 'danger')
+    else:
+        for field, errors in form.errors.items():
+            for error in errors:
+                flash(f'{error}', 'danger')
+    return redirect(url_for('equipment.detail', id=id))
+
+
+@equipment_bp.route('/<int:id>/links/<int:link_id>/delete', methods=['POST'])
+@role_required('staff')
+def delete_link(id, link_id):
+    """Delete an external link from an equipment item."""
+    try:
+        equipment_service.get_equipment(id)
+    except ValidationError:
+        abort(404)
+
+    try:
+        equipment_service.delete_equipment_link(link_id, current_user.username)
+        flash('Link deleted.', 'success')
+    except ValidationError as e:
+        flash(str(e), 'danger')
+    return redirect(url_for('equipment.detail', id=id))
+
+
+# --- File serving ---
+
+
+@equipment_bp.route('/<int:id>/files/docs/<path:filename>')
+@login_required
+def serve_document(id, filename):
+    """Serve an uploaded document file."""
+    upload_path = current_app.config['UPLOAD_PATH']
+    directory = os.path.join(upload_path, 'equipment', str(id), 'docs')
+    return send_from_directory(directory, filename)
+
+
+@equipment_bp.route('/<int:id>/files/photos/<path:filename>')
+@login_required
+def serve_photo(id, filename):
+    """Serve an uploaded photo file."""
+    upload_path = current_app.config['UPLOAD_PATH']
+    directory = os.path.join(upload_path, 'equipment', str(id), 'photos')
+    return send_from_directory(directory, filename)

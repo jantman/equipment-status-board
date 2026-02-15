@@ -14,6 +14,7 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     UPLOAD_PATH = os.environ.get('UPLOAD_PATH', 'uploads')
     UPLOAD_MAX_SIZE_MB = int(os.environ.get('UPLOAD_MAX_SIZE_MB', '500'))
+    MAX_CONTENT_LENGTH = UPLOAD_MAX_SIZE_MB * 1024 * 1024
     PERMANENT_SESSION_LIFETIME = timedelta(hours=12)
     SLACK_BOT_TOKEN = os.environ.get('SLACK_BOT_TOKEN', '')
     SLACK_SIGNING_SECRET = os.environ.get('SLACK_SIGNING_SECRET', '')

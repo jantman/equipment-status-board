@@ -635,3 +635,153 @@ class TestUpdateEquipment:
         changes = updated_entries[0]['data']['changes']
         assert changes['acquisition_date'] == [None, '2025-06-15']
         assert changes['acquisition_cost'] == [None, '1234.56']
+
+
+# --- External Link Service Tests ---
+
+
+class TestAddEquipmentLink:
+    """Tests for equipment_service.add_equipment_link()."""
+
+    def test_add_link_success(self, app, make_equipment, capture):
+        """add_equipment_link() creates link and returns it."""
+        from esb.services.equipment_service import add_equipment_link
+
+        eq = make_equipment('Laser', 'Epilog', 'Zing')
+        link = add_equipment_link(eq.id, 'Manual', 'https://example.com/manual', 'staffuser')
+        assert link.id is not None
+        assert link.equipment_id == eq.id
+        assert link.title == 'Manual'
+        assert link.url == 'https://example.com/manual'
+        assert link.created_by == 'staffuser'
+
+    def test_add_link_strips_whitespace(self, app, make_equipment):
+        """add_equipment_link() strips title and URL whitespace."""
+        from esb.services.equipment_service import add_equipment_link
+
+        eq = make_equipment()
+        link = add_equipment_link(eq.id, '  Manual  ', '  https://example.com  ', 'staffuser')
+        assert link.title == 'Manual'
+        assert link.url == 'https://example.com'
+
+    def test_add_link_invalid_equipment_raises(self, app):
+        """add_equipment_link() raises ValidationError for invalid equipment_id."""
+        from esb.services.equipment_service import add_equipment_link
+
+        with pytest.raises(ValidationError, match='not found'):
+            add_equipment_link(99999, 'Title', 'https://example.com', 'staffuser')
+
+    def test_add_link_empty_title_raises(self, app, make_equipment):
+        """add_equipment_link() raises ValidationError when title is empty."""
+        from esb.services.equipment_service import add_equipment_link
+
+        eq = make_equipment()
+        with pytest.raises(ValidationError, match='Title is required'):
+            add_equipment_link(eq.id, '', 'https://example.com', 'staffuser')
+
+    def test_add_link_empty_url_raises(self, app, make_equipment):
+        """add_equipment_link() raises ValidationError when URL is empty."""
+        from esb.services.equipment_service import add_equipment_link
+
+        eq = make_equipment()
+        with pytest.raises(ValidationError, match='URL is required'):
+            add_equipment_link(eq.id, 'Title', '', 'staffuser')
+
+    def test_add_link_logs_mutation(self, app, capture, make_equipment):
+        """add_equipment_link() logs an equipment_link.created mutation."""
+        from esb.services.equipment_service import add_equipment_link
+
+        eq = make_equipment()
+        capture.records.clear()
+        add_equipment_link(eq.id, 'Support', 'https://support.example.com', 'staffuser')
+        entries = [
+            json.loads(r.message) for r in capture.records
+            if 'equipment_link.created' in r.message
+        ]
+        assert len(entries) == 1
+        entry = entries[0]
+        assert entry['event'] == 'equipment_link.created'
+        assert entry['user'] == 'staffuser'
+        assert entry['data']['title'] == 'Support'
+        assert entry['data']['url'] == 'https://support.example.com'
+
+
+class TestDeleteEquipmentLink:
+    """Tests for equipment_service.delete_equipment_link()."""
+
+    def test_delete_link_success(self, app, make_equipment, capture):
+        """delete_equipment_link() removes link from database."""
+        from esb.services.equipment_service import add_equipment_link, delete_equipment_link
+
+        eq = make_equipment()
+        link = add_equipment_link(eq.id, 'Link', 'https://example.com', 'staffuser')
+        link_id = link.id
+        capture.records.clear()
+
+        delete_equipment_link(link_id, 'staffuser')
+
+        from esb.models.external_link import ExternalLink
+        assert _db.session.get(ExternalLink, link_id) is None
+
+    def test_delete_link_not_found_raises(self, app):
+        """delete_equipment_link() raises ValidationError when link not found."""
+        from esb.services.equipment_service import delete_equipment_link
+
+        with pytest.raises(ValidationError, match='not found'):
+            delete_equipment_link(99999, 'staffuser')
+
+    def test_delete_link_logs_mutation(self, app, capture, make_equipment):
+        """delete_equipment_link() logs an equipment_link.deleted mutation."""
+        from esb.services.equipment_service import add_equipment_link, delete_equipment_link
+
+        eq = make_equipment()
+        link = add_equipment_link(eq.id, 'To Delete', 'https://example.com', 'staffuser')
+        capture.records.clear()
+
+        delete_equipment_link(link.id, 'staffuser')
+
+        entries = [
+            json.loads(r.message) for r in capture.records
+            if 'equipment_link.deleted' in r.message
+        ]
+        assert len(entries) == 1
+        entry = entries[0]
+        assert entry['event'] == 'equipment_link.deleted'
+        assert entry['data']['title'] == 'To Delete'
+
+
+class TestGetEquipmentLinks:
+    """Tests for equipment_service.get_equipment_links()."""
+
+    def test_returns_links_for_equipment(self, app, make_equipment):
+        """get_equipment_links() returns links for the given equipment."""
+        from esb.services.equipment_service import add_equipment_link, get_equipment_links
+
+        eq = make_equipment()
+        add_equipment_link(eq.id, 'Link 1', 'https://example.com/1', 'staffuser')
+        add_equipment_link(eq.id, 'Link 2', 'https://example.com/2', 'staffuser')
+
+        result = get_equipment_links(eq.id)
+        assert len(result) == 2
+
+    def test_does_not_return_other_equipment_links(self, app, make_equipment, make_area):
+        """get_equipment_links() only returns links for the specified equipment."""
+        from esb.services.equipment_service import add_equipment_link, get_equipment_links
+
+        area = make_area('Shop', '#shop')
+        eq1 = make_equipment('Eq1', 'Co', 'M', area=area)
+        eq2 = make_equipment('Eq2', 'Co', 'M', area=area)
+        add_equipment_link(eq1.id, 'Link 1', 'https://example.com/1', 'staffuser')
+        add_equipment_link(eq2.id, 'Link 2', 'https://example.com/2', 'staffuser')
+
+        result = get_equipment_links(eq1.id)
+        assert len(result) == 1
+        assert result[0].title == 'Link 1'
+
+    def test_returns_empty_list_when_none(self, app, make_equipment):
+        """get_equipment_links() returns empty list when no links exist."""
+        from esb.services.equipment_service import get_equipment_links
+
+        eq = make_equipment()
+        result = get_equipment_links(eq.id)
+        assert result == []

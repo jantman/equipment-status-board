@@ -1,6 +1,7 @@
 """Equipment forms for area and equipment management."""
 
 from flask_wtf import FlaskForm
+from flask_wtf.file import FileAllowed, FileField, FileRequired
 from wtforms import (
     DateField,
     DecimalField,
@@ -9,7 +10,18 @@ from wtforms import (
     SubmitField,
     TextAreaField,
 )
-from wtforms.validators import DataRequired, Length, Optional
+from wtforms.validators import URL, DataRequired, Length, Optional
+
+DOCUMENT_CATEGORIES = [
+    ('', '-- Select Category --'),
+    ('owners_manual', "Owner's Manual"),
+    ('service_manual', 'Service Manual'),
+    ('quick_start', 'Quick Start Guide'),
+    ('training_video', 'Training Video'),
+    ('manufacturer_page', 'Manufacturer Product Page'),
+    ('manufacturer_support', 'Manufacturer Support'),
+    ('other', 'Other'),
+]
 
 
 class AreaCreateForm(FlaskForm):
@@ -58,3 +70,38 @@ class EquipmentEditForm(FlaskForm):
     warranty_expiration = DateField('Warranty Expiration', validators=[Optional()])
     description = TextAreaField('Description')
     submit = SubmitField('Save Changes')
+
+
+class DocumentUploadForm(FlaskForm):
+    """Form for uploading a document to an equipment record."""
+
+    file = FileField('Document', validators=[
+        FileRequired('Please select a file to upload.'),
+        FileAllowed(
+            ['pdf', 'doc', 'docx', 'txt', 'rtf', 'odt', 'xls', 'xlsx', 'csv', 'ppt', 'pptx'],
+            'Only document files are allowed.',
+        ),
+    ])
+    category = SelectField('Category', choices=DOCUMENT_CATEGORIES, validators=[DataRequired()])
+    submit = SubmitField('Upload Document')
+
+
+class PhotoUploadForm(FlaskForm):
+    """Form for uploading a photo/video to an equipment record."""
+
+    file = FileField('Photo/Video', validators=[
+        FileRequired('Please select a file to upload.'),
+        FileAllowed(
+            ['jpg', 'jpeg', 'png', 'gif', 'webp', 'mp4', 'mov', 'avi', 'webm'],
+            'Only image and video files are allowed.',
+        ),
+    ])
+    submit = SubmitField('Upload Photo')
+
+
+class ExternalLinkForm(FlaskForm):
+    """Form for adding an external link to an equipment record."""
+
+    title = StringField('Title', validators=[DataRequired(), Length(max=200)])
+    url = StringField('URL', validators=[DataRequired(), Length(max=2000), URL()])
+    submit = SubmitField('Add Link')

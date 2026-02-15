@@ -1,6 +1,6 @@
 """ESB application package."""
 
-from flask import Flask, redirect, render_template, session, url_for
+from flask import Flask, flash, redirect, render_template, request, session, url_for
 
 from esb.config import config
 from esb.extensions import csrf, db, login_manager, migrate
@@ -52,6 +52,14 @@ def create_app(config_name='default'):
     @app.errorhandler(404)
     def not_found(e):
         return render_template('errors/404.html'), 404
+
+    @app.errorhandler(413)
+    def request_entity_too_large(e):
+        flash(
+            f'File is too large. Maximum size is {app.config["UPLOAD_MAX_SIZE_MB"]} MB.',
+            'danger',
+        )
+        return redirect(request.referrer or url_for('equipment.index')), 302
 
     @app.errorhandler(500)
     def internal_error(e):
