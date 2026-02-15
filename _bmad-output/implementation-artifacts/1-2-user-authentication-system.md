@@ -12,7 +12,7 @@ So that I can access role-appropriate functionality securely.
 
 ## Acceptance Criteria
 
-1. **Given** the User model exists with username, email, password_hash, role, slack_handle, and is_active fields **When** Alembic migration is run **Then** the users table is created in MySQL
+1. **Given** the User model exists with username, email, password_hash, role, slack_handle, and is_active fields **When** Alembic migration is run **Then** the users table is created in MariaDB
 
 2. **Given** I am on the login page **When** I submit valid credentials (username + password) **Then** I am authenticated via Flask-Login and redirected to a placeholder landing page
 
@@ -326,7 +326,7 @@ Claude Opus 4.6
 
 - Flask-Login 0.6.3 `UserMixin.is_authenticated` delegates to `self.is_active`; SQLAlchemy column default not applied until flush, so tests must commit before checking `is_authenticated`
 - Alembic autogenerate requires model imports in app factory; added `import esb.models` in `create_app()`
-- Migration generated with SQLite (`DATABASE_URL=sqlite:///dev.db`) since MySQL not available locally
+- Migration generated with SQLite (`DATABASE_URL=sqlite:///dev.db`) since MariaDB not available locally
 
 ### Completion Notes List
 

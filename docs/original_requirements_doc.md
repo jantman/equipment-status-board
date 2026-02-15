@@ -190,7 +190,7 @@ The following technical decisions have been made and should guide implementation
 ### Deployment
 
 - The application will be deployed as a Docker container
-- MySQL will be used as the database backend
+- MariaDB will be used as the database backend
 
 ### Build and Test
 

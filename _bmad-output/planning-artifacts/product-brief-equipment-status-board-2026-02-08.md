@@ -187,7 +187,7 @@ N/A -- To be defined post-launch.
 
 **Technical & Operational**
 - All mutation requests logged in JSON to STDOUT for data reconstruction
-- Docker container deployment with MySQL backend
+- Docker container deployment with MariaDB backend
 - Responsive modern frontend for all device sizes
 - Modern browser support only
 - Accessibility follows best practices

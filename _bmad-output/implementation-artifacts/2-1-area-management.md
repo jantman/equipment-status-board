@@ -12,7 +12,7 @@ so that equipment can be organized by physical location and notifications routed
 
 ## Acceptance Criteria
 
-1. **Database Model:** Given the Area model exists with `name`, `slack_channel`, and `is_archived` fields, when Alembic migration is run, then the `areas` table is created in MySQL.
+1. **Database Model:** Given the Area model exists with `name`, `slack_channel`, and `is_archived` fields, when Alembic migration is run, then the `areas` table is created in MariaDB.
 
 2. **Area listing:** Given I am logged in as Staff, when I navigate to Area Management (`/admin/areas`), then I see a list of all active areas with their Slack channel mappings.
 
@@ -341,12 +341,11 @@ Claude Opus 4.6
 
 ### Debug Log References
 
-- Required `docker compose up -d db` for Alembic migration generation (MySQL needed for auto-generation)
-- Installed `cryptography` package for MySQL caching_sha2_password auth during migration generation (not a runtime dependency -- only needed for dev DB connection)
+- Required `docker compose up -d db` for Alembic migration generation (MariaDB needed for auto-generation)
 
 ### Completion Notes List
 
-- Task 1: Area model created following exact User model patterns (timestamps, column types, `__repr__`). Alembic migration auto-generated against live MySQL. 5 model unit tests.
+- Task 1: Area model created following exact User model patterns (timestamps, column types, `__repr__`). Alembic migration auto-generated against live MariaDB. 5 model unit tests.
 - Task 2: Equipment service with 5 functions (`list_areas`, `get_area`, `create_area`, `update_area`, `archive_area`). Case-insensitive duplicate name validation. Mutation logging for all write operations. 22 service unit tests.
 - Task 3: `AreaCreateForm` and `AreaEditForm` with DataRequired + Length validators. Labels without asterisks per code review convention.
 - Task 4: 4 area routes added to existing admin blueprint. Thin controller pattern with `try/except ValidationError`. 30 view integration tests covering CRUD, RBAC, error handling, and mutation logging.
@@ -378,7 +377,7 @@ Claude Opus 4.6
 - `esb/templates/admin/users.html` (MODIFIED -- added admin nav include)
 - `esb/templates/admin/user_create.html` (MODIFIED -- added admin nav include)
 - `tests/conftest.py` (MODIFIED -- added `make_area` factory fixture)
-- `requirements.txt` (MODIFIED -- added cryptography for MySQL 8.4 auth)
+- `requirements.txt` (MODIFIED)
 - `_bmad-output/implementation-artifacts/sprint-status.yaml` (MODIFIED -- story status synced)
 
 ## Change Log

@@ -106,7 +106,7 @@ documentsIncluded:
 
 **System & Operations (FR52-FR55)**
 - FR52: The system logs all mutation requests in JSON to STDOUT for data reconstruction
-- FR53: The system deploys as a Docker container with MySQL backend
+- FR53: The system deploys as a Docker container with MariaDB backend
 - FR54: The system supports CI/CD via GitHub Actions with locally runnable builds and tests
 - FR55: The system includes comprehensive unit tests and Playwright browser tests covering all user flows
 
@@ -160,7 +160,7 @@ documentsIncluded:
 
 **Constraints & Assumptions:**
 - On-premises deployment on local servers within the makerspace (no cloud for core app)
-- Python backend with MySQL database
+- Python backend with MariaDB database
 - Docker container deployment
 - No public internet exposure for main application; remote access via static page and Slack only
 - Modern browsers only (current and previous major versions of Chrome, Firefox, Safari, Edge)
@@ -242,7 +242,7 @@ The PRD is thorough and well-structured. Requirements are clearly numbered (FR1-
 | FR50 | Local account authentication with abstracted auth layer | Epic 1, Story 1.2 | Covered |
 | FR51 | 12-hour authenticated sessions | Epic 1, Story 1.2 | Covered |
 | FR52 | JSON mutation logging to STDOUT | Epic 1, Story 1.1 | Covered |
-| FR53 | Docker container deployment with MySQL | Epic 1, Story 1.1 | Covered |
+| FR53 | Docker container deployment with MariaDB | Epic 1, Story 1.1 | Covered |
 | FR54 | CI/CD via GitHub Actions | Epic 1, Story 1.1 | Covered |
 | FR55 | Comprehensive unit tests and Playwright browser tests | Epic 1 (cross-cutting, each epic adds tests) | Covered |
 
@@ -313,7 +313,7 @@ Architecture fully supports all UX requirements:
 
 Architecture addresses all PRD constraints and requirements:
 
-- Python backend (Flask 3.1.x) with MySQL database
+- Python backend (Flask 3.1.x) with MariaDB database
 - Docker container deployment with Docker Compose
 - Server-rendered HTML, no SPA
 - GitHub Actions CI/CD with locally runnable builds

@@ -12,14 +12,14 @@ services:
     restart: unless-stopped
 
   db:
-    image: mysql:8.4
+    image: mariadb:12.2.2
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-esb_dev_password}
-      MYSQL_DATABASE: esb
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:-esb_dev_password}
+      MARIADB_DATABASE: esb
     volumes:
-      - mysql_data:/var/lib/mysql
+      - mariadb_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      test: ["CMD", "mariadb-admin", "ping", "-h", "localhost"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -35,4 +35,4 @@ services:
     restart: unless-stopped
 
 volumes:
-  mysql_data:
+  mariadb_data:

@@ -35,7 +35,7 @@ _This document builds collaboratively through step-by-step discovery. Sections a
 | Role-Based Experiences | FR34-FR37 | Three distinct default landing pages; role determines UI surface, not just permissions |
 | Slack Integration | FR38-FR44 | Full Slack App: outbound notifications (configurable triggers), inbound forms (reports, records), status bot |
 | User Management & Auth | FR45-FR51 | Local accounts with abstracted auth layer; role assignment; 12-hour sessions; temp password delivery via Slack |
-| System & Operations | FR52-FR55 | JSON mutation logging to STDOUT; Docker/MySQL deployment; GitHub Actions CI/CD; unit + Playwright tests |
+| System & Operations | FR52-FR55 | JSON mutation logging to STDOUT; Docker/MariaDB deployment; GitHub Actions CI/CD; unit + Playwright tests |
 
 **Stretch goals (data model accommodated, UI deferred):** Parts inventory (FR56-FR60), Technician-Area assignment (FR61-FR63), consumable workflow (FR64), notification preferences (FR65-FR66), auth providers (FR67-FR68), reporting/analytics (FR69-FR71).
 
@@ -51,7 +51,7 @@ _This document builds collaboratively through step-by-step discovery. Sections a
 
 **Scale & Complexity:**
 
-- Primary domain: Full-stack server-rendered web application (Python + MySQL + Docker)
+- Primary domain: Full-stack server-rendered web application (Python + MariaDB + Docker)
 - Complexity level: Medium
 - Estimated architectural components: ~12-15 (web framework, ORM/data layer, auth module, repair workflow engine, file upload handler, QR code generator, static page generator, Slack App client, notification queue, template rendering, kiosk view, admin views, API layer for Slack)
 
@@ -59,7 +59,7 @@ _This document builds collaboratively through step-by-step discovery. Sections a
 
 **Hard constraints from PRD and stakeholder requirements:**
 - Python backend (framework TBD -- this is an architecture decision)
-- MySQL database
+- MariaDB database
 - Docker container deployment on local servers within the makerspace
 - No public internet exposure for the main application
 - Server-rendered HTML multi-page application (no SPA, no JS framework)
@@ -98,11 +98,11 @@ _This document builds collaboratively through step-by-step discovery. Sections a
 
 ### Primary Technology Domain
 
-Full-stack server-rendered web application (Python + MySQL + Docker), based on project requirements analysis. The ESB is a multi-page application with server-rendered HTML -- not an API, not an SPA, not a mobile app.
+Full-stack server-rendered web application (Python + MariaDB + Docker), based on project requirements analysis. The ESB is a multi-page application with server-rendered HTML -- not an API, not an SPA, not a mobile app.
 
 ### Technical Preferences Established
 
-**From PRD (hard constraints):** Python backend, MySQL database, Docker deployment, server-rendered HTML, Bootstrap 5, GitHub Actions CI/CD, Playwright browser tests.
+**From PRD (hard constraints):** Python backend, MariaDB database, Docker deployment, server-rendered HTML, Bootstrap 5, GitHub Actions CI/CD, Playwright browser tests.
 
 **From user (confirmed):** Flask framework -- existing team familiarity from other projects.
 
@@ -128,7 +128,7 @@ Full-stack server-rendered web application (Python + MySQL + Docker), based on p
 | Component | Package | Version | Purpose |
 |-----------|---------|---------|---------|
 | Web framework | Flask | 3.1.x | Request handling, routing, Jinja2 templates |
-| ORM | Flask-SQLAlchemy | 3.1.x | SQLAlchemy integration, MySQL support |
+| ORM | Flask-SQLAlchemy | 3.1.x | SQLAlchemy integration, MariaDB support |
 | Migrations | Alembic (via Flask-Migrate) | Latest | Database schema migrations |
 | Auth/Sessions | Flask-Login | 0.7.x | Session management, login/logout, role checking |
 | Forms/CSRF | Flask-WTF | 1.2.x | Form validation, CSRF protection |
@@ -138,7 +138,7 @@ Full-stack server-rendered web application (Python + MySQL + Docker), based on p
 
 - **Language & Runtime:** Python 3.14
 - **Templating:** Jinja2 (Flask built-in) with Bootstrap 5
-- **ORM:** SQLAlchemy via Flask-SQLAlchemy, MySQL backend
+- **ORM:** SQLAlchemy via Flask-SQLAlchemy, MariaDB backend
 - **Routing:** Flask decorator-based routes with Blueprints for modular organization
 - **Session management:** Flask-Login with server-side sessions, 12-hour expiry
 - **Form handling:** Flask-WTF for CSRF protection and validation
@@ -177,7 +177,7 @@ Full-stack server-rendered web application (Python + MySQL + Docker), based on p
 
 ### Data Architecture
 
-**Database:** MySQL (PRD constraint) accessed via SQLAlchemy ORM (Flask-SQLAlchemy 3.1.x).
+**Database:** MariaDB (PRD constraint) accessed via SQLAlchemy ORM (Flask-SQLAlchemy 3.1.x).
 
 **Core Entities:**
 - `Area` -- organizational grouping with Slack channel mapping
@@ -225,8 +225,8 @@ Role is stored on the User model. Decorators check `current_user.role` and retur
 **Service Layer Pattern:** No separate REST API. Business logic lives in service modules (`equipment_service`, `repair_service`, `notification_service`, `user_service`). Flask views (web UI) and Slack handlers both call the same service functions. This ensures identical behavior regardless of entry point and prevents logic duplication.
 
 ```
-Web View (Flask route) ──→ Service Layer ──→ SQLAlchemy Models ──→ MySQL
-Slack Handler (Bolt)   ──→ Service Layer ──→ SQLAlchemy Models ──→ MySQL
+Web View (Flask route) ──→ Service Layer ──→ SQLAlchemy Models ──→ MariaDB
+Slack Handler (Bolt)   ──→ Service Layer ──→ SQLAlchemy Models ──→ MariaDB
 ```
 
 **Slack SDK:** `slack_bolt` -- Slack's official modern framework for Slack Apps. Handles event subscriptions, interactive components (modals, forms), and slash commands with a decorator-based API. Integrates with Flask via Bolt's Flask adapter.
@@ -265,10 +265,10 @@ Slack Handler (Bolt)   ──→ Service Layer ──→ SQLAlchemy Models ─�
 
 **Docker Compose Topology:** Two primary containers:
 - `app` -- Flask application served by Gunicorn
-- `db` -- MySQL 8.x
+- `db` -- MariaDB 12.x
 
 Volumes:
-- `mysql_data` -- database persistence
+- `mariadb_data` -- database persistence
 - `uploads` -- file upload storage (bind mount to host path)
 
 Optional: `nginx` container as reverse proxy (recommended for production, serves static files and uploads directly).
@@ -276,7 +276,7 @@ Optional: `nginx` container as reverse proxy (recommended for production, serves
 **Background Worker:** A separate process (same Docker image, different entrypoint) running a Flask CLI command (`flask worker run`) that polls the `PendingNotification` table every 30 seconds. Handles Slack notification delivery and static page generation/push. Runs as a separate container in Docker Compose or as a second process in the app container via a process manager.
 
 **Environment Configuration:** 12-factor style. All configuration via environment variables:
-- `DATABASE_URL` -- MySQL connection string
+- `DATABASE_URL` -- MariaDB connection string
 - `SECRET_KEY` -- Flask session signing key
 - `UPLOAD_PATH` -- local filesystem path for uploads
 - `UPLOAD_MAX_SIZE_MB` -- configurable upload size limit (default 500)
@@ -329,7 +329,7 @@ Optional: `nginx` container as reverse proxy (recommended for production, serves
 - Foreign keys: `{referenced_table_singular}_id` (`equipment_id`, `user_id`, `area_id`)
 - Indexes: `ix_{table}_{column}` (`ix_repair_records_equipment_id`)
 - Boolean columns: `is_` or `has_` prefix (`is_archived`, `is_consumable`, `has_safety_risk`)
-- Timestamps: `created_at`, `updated_at` on all tables. UTC always. MySQL `DATETIME` type.
+- Timestamps: `created_at`, `updated_at` on all tables. UTC always. MariaDB `DATETIME` type.
 
 **Python Code Naming (PEP 8):**
 - Modules/packages: snake_case (`equipment_service.py`, `repair_routes.py`)
@@ -868,7 +868,7 @@ Technician updates repair → repairs view → repair_service.update → notific
 **Local Development:**
 ```bash
 make setup          # Create .env from .env.example, install dependencies
-make db-up          # Start MySQL via docker-compose (db only)
+make db-up          # Start MariaDB via docker-compose (db only)
 make migrate        # Run Alembic migrations
 make run            # Flask dev server with hot reload
 make worker         # Run background worker
@@ -883,13 +883,13 @@ make docker-up      # Full docker-compose up (app + db + worker)
 1. Checkout + Python setup
 2. Install dependencies
 3. Lint (flake8/ruff)
-4. Unit + service + view tests (pytest with MySQL service container)
+4. Unit + service + view tests (pytest with MariaDB service container)
 5. Playwright browser tests (with live Flask server)
 6. Docker image build (verify it builds successfully)
 
 **Deployment:**
 - `docker-compose up -d` on the makerspace server
-- Volumes: `mysql_data` (named volume), `./uploads` (bind mount)
+- Volumes: `mariadb_data` (named volume), `./uploads` (bind mount)
 - Environment variables via `.env` file or Docker Compose `env_file`
 - Migrations: `docker-compose exec app flask db upgrade`
 
@@ -897,7 +897,7 @@ make docker-up      # Full docker-compose up (app + db + worker)
 
 ### Coherence Validation
 
-**Decision Compatibility:** All technology choices are compatible. Flask 3.1.x + standard extensions (SQLAlchemy, Login, WTF, Migrate) are a well-tested combination. slack_bolt integrates via official Flask adapter. Python 3.14 + Gunicorn + MySQL 8.x is a standard production stack. Bootstrap 5 bundled locally with Jinja2 requires no build tooling. No version conflicts or contradictory decisions found.
+**Decision Compatibility:** All technology choices are compatible. Flask 3.1.x + standard extensions (SQLAlchemy, Login, WTF, Migrate) are a well-tested combination. slack_bolt integrates via official Flask adapter. Python 3.14 + Gunicorn + MariaDB 12.x is a standard production stack. Bootstrap 5 bundled locally with Jinja2 requires no build tooling. No version conflicts or contradictory decisions found.
 
 **Pattern Consistency:** PEP 8 naming applied consistently across all layers (models, services, views, templates, routes). Service layer pattern enforced uniformly with one-directional dependency flow. Blueprint organization mirrors template and test directories. Mutation logging format uses consistent `entity.action` naming.
 
@@ -932,11 +932,11 @@ make docker-up      # Full docker-compose up (app + db + worker)
 **Requirements Analysis**
 - [x] Project context thoroughly analyzed
 - [x] Scale and complexity assessed (medium complexity, ~600 users)
-- [x] Technical constraints identified (Python, MySQL, Docker, on-premises)
+- [x] Technical constraints identified (Python, MariaDB, Docker, on-premises)
 - [x] Cross-cutting concerns mapped (8 concerns identified)
 
 **Architectural Decisions**
-- [x] Critical decisions documented with versions (Flask 3.1.x, Python 3.14, MySQL 8.x)
+- [x] Critical decisions documented with versions (Flask 3.1.x, Python 3.14, MariaDB 12.x)
 - [x] Technology stack fully specified (framework + 5 extensions + Slack SDK)
 - [x] Integration patterns defined (service layer, notification queue, Slack adapter)
 - [x] Performance considerations addressed (LAN deployment, no caching needed)

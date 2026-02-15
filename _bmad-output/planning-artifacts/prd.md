@@ -40,7 +40,7 @@ The ESB provides a centralized system for tracking equipment status, coordinatin
 - **Volunteer Technicians (handful):** Manage repair queue; log diagnostic work; coordinate via Slack
 - **Staff/Makerspace Manager (4):** Kanban overview of all repairs; equipment registry management; user provisioning
 
-**Project context:** Open-source volunteer project. Python backend, MySQL database, Docker deployment. Greenfield build with defined stakeholder requirements.
+**Project context:** Open-source volunteer project. Python backend, MariaDB database, Docker deployment. Greenfield build with defined stakeholder requirements.
 
 ## Success Criteria
 
@@ -128,7 +128,7 @@ Each journey maps to specific functional requirement areas:
 
 - Multi-page application with server-rendered HTML
 - Python backend (framework TBD during architecture phase)
-- MySQL database
+- MariaDB database
 - Docker container deployment on local servers within the makerspace
 - No public internet exposure for the main application; remote access via static page and Slack only
 
@@ -171,7 +171,7 @@ All three user journeys fully supported:
 - Marcus (Technician): repair queue, mobile-friendly record updates, diagnostic notes
 - Dana (Staff/Manager): Kanban board, equipment registry, user management, parts workflow
 
-Complete capability set: equipment registry, 10-status repair workflow, QR code pages, kiosk display, static status page, role-based experiences, full Slack App, local auth, Docker/MySQL deployment, CI/CD with comprehensive tests.
+Complete capability set: equipment registry, 10-status repair workflow, QR code pages, kiosk display, static status page, role-based experiences, full Slack App, local auth, Docker/MariaDB deployment, CI/CD with comprehensive tests.
 
 ### Phase 2 (Growth)
 
@@ -278,7 +278,7 @@ Complete capability set: equipment registry, 10-status repair workflow, QR code 
 ### System & Operations
 
 - **FR52:** The system logs all mutation requests in JSON to STDOUT for data reconstruction
-- **FR53:** The system deploys as a Docker container with MySQL backend
+- **FR53:** The system deploys as a Docker container with MariaDB backend
 - **FR54:** The system supports CI/CD via GitHub Actions with locally runnable builds and tests
 - **FR55:** The system includes comprehensive unit tests and Playwright browser tests covering all user flows
 

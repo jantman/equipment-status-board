@@ -5,7 +5,7 @@ FROM python:3.14-slim
 
 WORKDIR /app
 
-# Install system dependencies for MySQL client
+# Install system dependencies for MariaDB client
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     && rm -rf /var/lib/apt/lists/*

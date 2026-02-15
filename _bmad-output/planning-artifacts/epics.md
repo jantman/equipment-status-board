@@ -83,7 +83,7 @@ This document provides the complete epic and story breakdown for Equipment Statu
 
 **System & Operations (FR52-FR55):**
 - FR52: The system logs all mutation requests in JSON to STDOUT for data reconstruction
-- FR53: The system deploys as a Docker container with MySQL backend
+- FR53: The system deploys as a Docker container with MariaDB backend
 - FR54: The system supports CI/CD via GitHub Actions with locally runnable builds and tests
 - FR55: The system includes comprehensive unit tests and Playwright browser tests covering all user flows
 
@@ -124,7 +124,7 @@ This document provides the complete epic and story breakdown for Equipment Statu
 
 **From Architecture:**
 - Starter template: Flask 3.1.x with extensions (Flask-SQLAlchemy, Alembic/Flask-Migrate, Flask-Login, Flask-WTF). Project scaffolding is the first implementation step.
-- Python 3.14, Gunicorn WSGI server, Docker Compose (app + db containers)
+- Python 3.14, Gunicorn WSGI server, Docker Compose (app + db containers with MariaDB)
 - Service layer pattern: business logic in service modules, shared by web views and Slack handlers. Dependency flow: views/slack -> services -> models.
 - Database-backed notification queue (PendingNotification table) with background worker polling every 30 seconds, exponential backoff on failure
 - File upload storage: organized local filesystem under configurable UPLOAD_PATH (uploads/equipment/{id}/docs/, uploads/equipment/{id}/photos/, uploads/repairs/{id}/)
@@ -206,7 +206,7 @@ This document provides the complete epic and story breakdown for Equipment Statu
 - FR50: Epic 1 - Local account authentication with abstracted auth layer
 - FR51: Epic 1 - 12-hour authenticated sessions
 - FR52: Epic 1 - JSON mutation logging to STDOUT
-- FR53: Epic 1 - Docker container deployment with MySQL
+- FR53: Epic 1 - Docker container deployment with MariaDB
 - FR54: Epic 1 - CI/CD via GitHub Actions
 - FR55: Epic 1 - Comprehensive unit tests and Playwright browser tests (cross-cutting, each epic adds tests)
 
@@ -220,7 +220,7 @@ This document provides the complete epic and story breakdown for Equipment Statu
 ## Epic List
 
 ### Epic 1: Project Foundation, Authentication & User Management
-Staff can deploy the system, log in, create and manage user accounts, assign roles, and manage passwords. Core infrastructure (Docker, MySQL, CI/CD, mutation logging, RBAC framework) is in place.
+Staff can deploy the system, log in, create and manage user accounts, assign roles, and manage passwords. Core infrastructure (Docker, MariaDB, CI/CD, mutation logging, RBAC framework) is in place.
 **FRs covered:** FR45-FR51, FR52-FR55
 
 ### Epic 2: Equipment Registry & Area Management
@@ -245,7 +245,7 @@ Full Slack App: outbound notifications to area channels with safety risk highlig
 
 ## Epic 1: Project Foundation, Authentication & User Management
 
-Staff can deploy the system, log in, create and manage user accounts, assign roles, and manage passwords. Core infrastructure (Docker, MySQL, CI/CD, mutation logging, RBAC framework) is in place.
+Staff can deploy the system, log in, create and manage user accounts, assign roles, and manage passwords. Core infrastructure (Docker, MariaDB, CI/CD, mutation logging, RBAC framework) is in place.
 
 ### Story 1.1: Project Scaffolding & Docker Deployment
 
@@ -257,7 +257,7 @@ So that the team has a deployable foundation to build features on.
 
 **Given** a fresh repository checkout
 **When** I run `docker-compose up`
-**Then** the Flask app container and MySQL container start successfully
+**Then** the Flask app container and MariaDB container start successfully
 **And** the app serves a basic page on localhost
 
 **Given** the Flask app factory
@@ -302,7 +302,7 @@ So that I can access role-appropriate functionality securely.
 
 **Given** the User model exists with username, email, password_hash, role, slack_handle, and is_active fields
 **When** Alembic migration is run
-**Then** the users table is created in MySQL
+**Then** the users table is created in MariaDB
 
 **Given** I am on the login page
 **When** I submit valid credentials (username + password)
@@ -414,7 +414,7 @@ So that equipment can be organized by physical location and notifications routed
 
 **Given** the Area model exists with name, slack_channel, and is_archived fields
 **When** Alembic migration is run
-**Then** the areas table is created in MySQL
+**Then** the areas table is created in MariaDB
 
 **Given** I am logged in as Staff
 **When** I navigate to Area Management (/admin/areas)
@@ -484,7 +484,7 @@ So that members and technicians can find manuals, reference materials, and visua
 
 **Given** the Document model exists with fields for original_filename, stored_filename, content_type, size_bytes, category, parent_type, parent_id, uploaded_by, and created_at
 **When** Alembic migration is run
-**Then** the documents table is created in MySQL
+**Then** the documents table is created in MariaDB
 
 **Given** the upload_service module
 **When** a file is uploaded
@@ -533,7 +533,7 @@ So that retired equipment is preserved historically and documentation editing is
 
 **Given** the AppConfig model exists with key-value pairs for runtime settings
 **When** Alembic migration is run
-**Then** the app_config table is created in MySQL
+**Then** the app_config table is created in MariaDB
 
 **Given** Technician edit rights are enabled globally
 **When** a Technician views an equipment detail page
@@ -968,7 +968,7 @@ So that outbound notifications and static page pushes are delivered even when ex
 
 **Given** the PendingNotification model exists with fields for notification_type (slack_message, static_page_push), target (channel or push destination), payload (JSON), status (pending, delivered, failed), created_at, next_retry_at, retry_count, delivered_at, error_message
 **When** Alembic migration is run
-**Then** the pending_notifications table is created in MySQL
+**Then** the pending_notifications table is created in MariaDB
 
 **Given** the notification_service module
 **When** a service function calls notification_service.queue_notification(type, target, payload)

@@ -10,7 +10,7 @@ So that the team has a deployable foundation to build features on.
 
 ## Acceptance Criteria
 
-1. **Given** a fresh repository checkout **When** I run `docker-compose up` **Then** the Flask app container and MySQL container start successfully **And** the app serves a basic page on localhost
+1. **Given** a fresh repository checkout **When** I run `docker-compose up` **Then** the Flask app container and MariaDB container start successfully **And** the app serves a basic page on localhost
 
 2. **Given** the Flask app factory **When** I inspect the project structure **Then** it follows the Blueprint-based organization defined in the architecture doc (`esb/` package with `models/`, `services/`, `views/`, `templates/`, `static/`, `utils/` directories)
 
@@ -87,8 +87,8 @@ So that the team has a deployable foundation to build features on.
 
 - [x] Task 9: Docker and Docker Compose configuration (AC: #1)
   - [x] 9.1: Create `Dockerfile` (Python 3.14-slim base, Gunicorn entrypoint, production-ready)
-  - [x] 9.2: Create `docker-compose.yml` with `app`, `db` (MySQL 8.4), and `worker` containers
-  - [x] 9.3: Configure volumes: `mysql_data` (named volume), `./uploads` (bind mount)
+  - [x] 9.2: Create `docker-compose.yml` with `app`, `db` (MariaDB 12.2.2), and `worker` containers
+  - [x] 9.3: Configure volumes: `mariadb_data` (named volume), `./uploads` (bind mount)
   - [x] 9.4: Configure `app` to depend on `db` with health check
   - [x] 9.5: Worker container: same image, different entrypoint (`flask worker run` placeholder)
 
@@ -106,7 +106,7 @@ So that the team has a deployable foundation to build features on.
 
 - [x] Task 13: GitHub Actions CI pipeline (AC: #4)
   - [x] 13.1: Create `.github/workflows/ci.yml`
-  - [x] 13.2: Stages: checkout, Python setup, install dependencies, lint, pytest (with MySQL service container), Docker build
+  - [x] 13.2: Stages: checkout, Python setup, install dependencies, lint, pytest (with MariaDB service container), Docker build
   - [x] 13.3: Playwright stage can be placeholder (no e2e tests yet)
 
 - [x] Task 14: Test infrastructure (AC: #5)
@@ -144,9 +144,9 @@ So that the team has a deployable foundation to build features on.
 | Forms/CSRF | Flask-WTF | 1.2.x | CSRF protection on all forms |
 | Password hashing | Werkzeug | Built-in | `generate_password_hash` / `check_password_hash` |
 | WSGI Server | Gunicorn | Latest | 2-4 workers default |
-| Database | MySQL | 8.4.x LTS | Docker image `mysql:8.4` |
+| Database | MariaDB | 12.2.2 | Docker image `mariadb:12.2.2` |
 | CSS Framework | Bootstrap | 5.3.x (latest: 5.3.8) | Bundled locally, NO CDN |
-| MySQL driver | PyMySQL or mysqlclient | Latest | For SQLAlchemy MySQL connection |
+| MariaDB driver | PyMySQL or mysqlclient | Latest | For SQLAlchemy MariaDB connection |
 
 **IMPORTANT -- Gunicorn/Python 3.14 Compatibility:**
 Gunicorn may not yet officially support Python 3.14. If compatibility issues arise during Docker build or runtime, the developer should:
@@ -307,14 +307,14 @@ services:
       - ./uploads:/app/uploads
 
   db:
-    image: mysql:8.4
+    image: mariadb:12.2.2
     environment:
-      MYSQL_ROOT_PASSWORD: ...
-      MYSQL_DATABASE: esb
+      MARIADB_ROOT_PASSWORD: ...
+      MARIADB_DATABASE: esb
     volumes:
-      - mysql_data:/var/lib/mysql
+      - mariadb_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      test: ["CMD", "mariadb-admin", "ping", "-h", "localhost"]
       interval: 10s
       retries: 5
 
@@ -327,7 +327,7 @@ services:
     env_file: .env
 
 volumes:
-  mysql_data:
+  mariadb_data:
 ```
 
 ### Configuration Classes Pattern
