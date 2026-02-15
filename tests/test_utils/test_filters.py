@@ -17,7 +17,7 @@ class TestFormatDate:
 
     def test_default_format(self):
         dt = datetime(2026, 2, 14, 10, 30, 0)
-        assert format_date(dt) == '2026-02-14'
+        assert format_date(dt) == 'Feb 14, 2026'
 
     def test_custom_format(self):
         dt = datetime(2026, 2, 14, 10, 30, 0)

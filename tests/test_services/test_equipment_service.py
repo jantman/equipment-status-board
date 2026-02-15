@@ -583,3 +583,55 @@ class TestUpdateEquipment:
         )
         assert result.serial_number == 'SN-NEW'
         assert result.description == 'Updated description'
+
+    def test_empty_name_raises(self, app, make_equipment):
+        """update_equipment() raises ValidationError when name set to empty."""
+        from esb.services.equipment_service import update_equipment
+
+        eq = make_equipment('Item', 'Co', 'M')
+        with pytest.raises(ValidationError, match='Name is required'):
+            update_equipment(eq.id, updated_by='staffuser', name='')
+
+    def test_empty_manufacturer_raises(self, app, make_equipment):
+        """update_equipment() raises ValidationError when manufacturer set to empty."""
+        from esb.services.equipment_service import update_equipment
+
+        eq = make_equipment('Item', 'Co', 'M')
+        with pytest.raises(ValidationError, match='Manufacturer is required'):
+            update_equipment(eq.id, updated_by='staffuser', manufacturer='')
+
+    def test_empty_model_raises(self, app, make_equipment):
+        """update_equipment() raises ValidationError when model set to empty."""
+        from esb.services.equipment_service import update_equipment
+
+        eq = make_equipment('Item', 'Co', 'M')
+        with pytest.raises(ValidationError, match='Model is required'):
+            update_equipment(eq.id, updated_by='staffuser', model='')
+
+    def test_whitespace_only_name_raises(self, app, make_equipment):
+        """update_equipment() raises ValidationError when name is whitespace only."""
+        from esb.services.equipment_service import update_equipment
+
+        eq = make_equipment('Item', 'Co', 'M')
+        with pytest.raises(ValidationError, match='Name is required'):
+            update_equipment(eq.id, updated_by='staffuser', name='   ')
+
+    def test_mutation_log_serializes_date_fields(self, app, capture, make_equipment):
+        """update_equipment() serializes date/Decimal in mutation log without crash."""
+        from esb.services.equipment_service import update_equipment
+
+        eq = make_equipment('Item', 'Co', 'M')
+        capture.records.clear()
+        update_equipment(
+            eq.id, updated_by='staffuser',
+            acquisition_date=date(2025, 6, 15),
+            acquisition_cost=Decimal('1234.56'),
+        )
+        updated_entries = [
+            json.loads(r.message) for r in capture.records
+            if 'equipment.updated' in r.message
+        ]
+        assert len(updated_entries) == 1
+        changes = updated_entries[0]['data']['changes']
+        assert changes['acquisition_date'] == [None, '2025-06-15']
+        assert changes['acquisition_cost'] == [None, '1234.56']

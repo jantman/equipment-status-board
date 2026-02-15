@@ -3,7 +3,7 @@
 from datetime import datetime, timezone
 
 
-def format_date(value, fmt='%Y-%m-%d'):
+def format_date(value, fmt='%b %d, %Y'):
     """Format a datetime object as a date string.
 
     Args:

@@ -247,6 +247,13 @@ def update_equipment(
     if equipment is None:
         raise ValidationError(f'Equipment with id {equipment_id} not found')
 
+    # Validate required fields if being changed
+    for required_field in ('name', 'manufacturer', 'model'):
+        if required_field in fields:
+            value = fields[required_field]
+            if not value or not str(value).strip():
+                raise ValidationError(f'{required_field.capitalize()} is required')
+
     # Validate area_id if being changed
     if 'area_id' in fields:
         new_area_id = fields['area_id']
@@ -270,10 +277,17 @@ def update_equipment(
     db.session.commit()
 
     if changes:
+        # Serialize non-JSON-safe types (date, Decimal) for mutation log
+        serialized_changes = {}
+        for field_name, (old_val, new_val) in changes.items():
+            serialized_changes[field_name] = [
+                str(old_val) if isinstance(old_val, (date, Decimal)) else old_val,
+                str(new_val) if isinstance(new_val, (date, Decimal)) else new_val,
+            ]
         log_mutation('equipment.updated', updated_by, {
             'id': equipment.id,
             'name': equipment.name,
-            'changes': changes,
+            'changes': serialized_changes,
         })
 
     return equipment

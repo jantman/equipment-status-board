@@ -1,6 +1,6 @@
 """Equipment registry routes."""
 
-from flask import Blueprint, flash, redirect, render_template, request, url_for
+from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
 from esb.forms.equipment_forms import EquipmentCreateForm, EquipmentEditForm
@@ -77,7 +77,6 @@ def detail(id):
     try:
         eq = equipment_service.get_equipment(id)
     except ValidationError:
-        from flask import abort
         abort(404)
 
     return render_template('equipment/detail.html', equipment=eq)
@@ -90,7 +89,6 @@ def edit(id):
     try:
         eq = equipment_service.get_equipment(id)
     except ValidationError:
-        from flask import abort
         abort(404)
 
     form = EquipmentEditForm(obj=eq)
@@ -100,6 +98,11 @@ def edit(id):
     ]
 
     if form.validate_on_submit():
+        if form.area_id.data == 0:
+            flash('Please select an area.', 'danger')
+            return render_template(
+                'equipment/form.html', form=form, title='Edit Equipment',
+            )
         try:
             equipment_service.update_equipment(
                 equipment_id=id,

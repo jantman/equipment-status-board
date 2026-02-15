@@ -131,6 +131,34 @@ class TestCreateEquipment:
         })
         assert resp.status_code == 200
 
+    def test_creates_equipment_with_optional_fields(self, staff_client, make_area):
+        """Staff can create equipment with optional fields populated."""
+        area = make_area('Woodshop', '#wood')
+        resp = staff_client.post('/equipment/new', data={
+            'name': 'CNC Router',
+            'manufacturer': 'ShopBot',
+            'model': 'Desktop',
+            'area_id': area.id,
+            'serial_number': 'SN-99887',
+            'acquisition_date': '2024-06-15',
+            'acquisition_source': 'Direct purchase',
+            'acquisition_cost': '4999.99',
+            'warranty_expiration': '2026-06-15',
+            'description': 'Desktop CNC for woodworking',
+        }, follow_redirects=False)
+        assert resp.status_code == 302
+
+        eq = _db.session.execute(
+            _db.select(Equipment).filter_by(name='CNC Router')
+        ).scalar_one_or_none()
+        assert eq is not None
+        assert eq.serial_number == 'SN-99887'
+        assert str(eq.acquisition_date) == '2024-06-15'
+        assert eq.acquisition_source == 'Direct purchase'
+        assert str(eq.acquisition_cost) == '4999.99'
+        assert str(eq.warranty_expiration) == '2026-06-15'
+        assert eq.description == 'Desktop CNC for woodworking'
+
     def test_unauthenticated_redirects(self, client):
         """Unauthenticated users are redirected to login."""
         resp = client.get('/equipment/new')

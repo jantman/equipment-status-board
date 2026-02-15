@@ -1,6 +1,6 @@
 # Story 2.2: Equipment Registry CRUD
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -516,7 +516,12 @@ Claude Opus 4.6
 - `tests/conftest.py` (added make_equipment fixture)
 - `tests/test_services/test_equipment_service.py` (added equipment service tests)
 
+**Already configured (no changes needed):**
+- `esb/views/__init__.py` (equipment_bp import already present from placeholder setup)
+- `esb/templates/base.html` (Equipment nav link already present from previous story)
+
 ### Change Log
 
 - 2026-02-15: Implemented Story 2.2 Equipment Registry CRUD - model, service, forms, views, templates, tests (311 total tests passing, lint clean)
+- 2026-02-15: Code review fixes (9 issues: 3 HIGH, 3 MEDIUM, 3 LOW) - Fixed update_equipment mutation log serialization for date/Decimal types, moved abort import to module top, added required field validation to update_equipment, added detail page placeholder sections for Documents/Photos/Links, added area_id=0 validation to edit view, updated File List documentation. Replaced table row onclick with proper anchor links for accessibility, added view-level test for optional field creation, changed format_date default to user-friendly format (e.g., "Feb 14, 2026"). Added 6 new tests (317 total passing, lint clean)
 

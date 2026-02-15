@@ -43,8 +43,8 @@
         </thead>
         <tbody>
             {% for eq in equipment %}
-            <tr onclick="window.location='{{ url_for('equipment.detail', id=eq.id) }}'" style="cursor: pointer;">
-                <td>{{ eq.name }}</td>
+            <tr>
+                <td><a href="{{ url_for('equipment.detail', id=eq.id) }}">{{ eq.name }}</a></td>
                 <td>{{ eq.manufacturer }}</td>
                 <td>{{ eq.model }}</td>
                 <td>{{ eq.area.name }}</td>
