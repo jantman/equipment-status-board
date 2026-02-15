@@ -4,7 +4,8 @@ from flask import Blueprint, flash, redirect, render_template, session, url_for
 from flask_login import current_user
 
 from esb.forms.admin_forms import ResetPasswordForm, RoleChangeForm, UserCreateForm
-from esb.services import user_service
+from esb.forms.equipment_forms import AreaCreateForm, AreaEditForm
+from esb.services import equipment_service, user_service
 from esb.utils.decorators import role_required
 from esb.utils.exceptions import ValidationError
 
@@ -124,3 +125,82 @@ def reset_password(id):
 
     flash('Invalid request.', 'danger')
     return redirect(url_for('admin.list_users'))
+
+
+# --- Area Management Routes ---
+
+
+@admin_bp.route('/areas')
+@role_required('staff')
+def list_areas():
+    """Area management table listing all active areas."""
+    areas = equipment_service.list_areas()
+    return render_template('admin/areas.html', areas=areas)
+
+
+@admin_bp.route('/areas/new', methods=['GET', 'POST'])
+@role_required('staff')
+def create_area():
+    """Area creation form and handler."""
+    form = AreaCreateForm()
+    if form.validate_on_submit():
+        try:
+            equipment_service.create_area(
+                name=form.name.data,
+                slack_channel=form.slack_channel.data,
+                created_by=current_user.username,
+            )
+        except ValidationError as e:
+            flash(str(e), 'danger')
+            return render_template('admin/area_form.html', form=form, title='Add Area')
+
+        flash('Area created successfully.', 'success')
+        return redirect(url_for('admin.list_areas'))
+
+    return render_template('admin/area_form.html', form=form, title='Add Area')
+
+
+@admin_bp.route('/areas/<int:id>/edit', methods=['GET', 'POST'])
+@role_required('staff')
+def edit_area(id):
+    """Area edit form and handler."""
+    try:
+        area = equipment_service.get_area(id)
+    except ValidationError as e:
+        flash(str(e), 'danger')
+        return redirect(url_for('admin.list_areas'))
+
+    form = AreaEditForm(obj=area)
+    if form.validate_on_submit():
+        try:
+            equipment_service.update_area(
+                area_id=id,
+                name=form.name.data,
+                slack_channel=form.slack_channel.data,
+                updated_by=current_user.username,
+            )
+        except ValidationError as e:
+            flash(str(e), 'danger')
+            return render_template(
+                'admin/area_form.html', form=form, title='Edit Area',
+            )
+
+        flash('Area updated successfully.', 'success')
+        return redirect(url_for('admin.list_areas'))
+
+    return render_template('admin/area_form.html', form=form, title='Edit Area')
+
+
+@admin_bp.route('/areas/<int:id>/archive', methods=['POST'])
+@role_required('staff')
+def archive_area(id):
+    """Archive an area (soft delete)."""
+    try:
+        equipment_service.archive_area(
+            area_id=id,
+            archived_by=current_user.username,
+        )
+        flash('Area archived successfully.', 'success')
+    except ValidationError as e:
+        flash(str(e), 'danger')
+    return redirect(url_for('admin.list_areas'))

@@ -50,7 +50,7 @@ development_status:
 
   # Epic 2: Equipment Registry & Area Management
   epic-2: in-progress
-  2-1-area-management: ready-for-dev
+  2-1-area-management: review
   2-2-equipment-registry-crud: backlog
   2-3-equipment-documentation-media: backlog
   2-4-equipment-archiving-technician-permissions: backlog

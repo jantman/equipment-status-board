@@ -1,6 +1,6 @@
 # Story 2.1: Area Management
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -26,46 +26,46 @@ so that equipment can be organized by physical location and notifications routed
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Create Area model and migration (AC: #1)
-  - [ ] 1.1 Create `esb/models/area.py` with Area model
-  - [ ] 1.2 Register Area model in `esb/models/__init__.py`
-  - [ ] 1.3 Generate and apply Alembic migration
-  - [ ] 1.4 Write model unit tests
+- [x] Task 1: Create Area model and migration (AC: #1)
+  - [x] 1.1 Create `esb/models/area.py` with Area model
+  - [x] 1.2 Register Area model in `esb/models/__init__.py`
+  - [x] 1.3 Generate and apply Alembic migration
+  - [x] 1.4 Write model unit tests
 
-- [ ] Task 2: Create area service layer (AC: #2, #3, #4, #5, #6)
-  - [ ] 2.1 Create `esb/services/equipment_service.py` with area management functions
-  - [ ] 2.2 Implement `list_areas()` -- returns active (non-archived) areas
-  - [ ] 2.3 Implement `create_area(name, slack_channel, created_by)` with validation and mutation logging
-  - [ ] 2.4 Implement `get_area(area_id)` for single area retrieval
-  - [ ] 2.5 Implement `update_area(area_id, name, slack_channel, updated_by)` with validation and mutation logging
-  - [ ] 2.6 Implement `archive_area(area_id, archived_by)` with mutation logging
-  - [ ] 2.7 Write service unit tests
+- [x] Task 2: Create area service layer (AC: #2, #3, #4, #5, #6)
+  - [x] 2.1 Create `esb/services/equipment_service.py` with area management functions
+  - [x] 2.2 Implement `list_areas()` -- returns active (non-archived) areas
+  - [x] 2.3 Implement `create_area(name, slack_channel, created_by)` with validation and mutation logging
+  - [x] 2.4 Implement `get_area(area_id)` for single area retrieval
+  - [x] 2.5 Implement `update_area(area_id, name, slack_channel, updated_by)` with validation and mutation logging
+  - [x] 2.6 Implement `archive_area(area_id, archived_by)` with mutation logging
+  - [x] 2.7 Write service unit tests
 
-- [ ] Task 3: Create area forms (AC: #3, #4)
-  - [ ] 3.1 Create `esb/forms/equipment_forms.py` with `AreaCreateForm` and `AreaEditForm`
-  - [ ] 3.2 Name field: required, max length
-  - [ ] 3.3 Slack channel field: required, max length
+- [x] Task 3: Create area forms (AC: #3, #4)
+  - [x] 3.1 Create `esb/forms/equipment_forms.py` with `AreaCreateForm` and `AreaEditForm`
+  - [x] 3.2 Name field: required, max length
+  - [x] 3.3 Slack channel field: required, max length
 
-- [ ] Task 4: Create area admin views (AC: #2, #3, #4, #5)
-  - [ ] 4.1 Add area routes to `esb/views/admin.py`: list, create, edit, archive
-  - [ ] 4.2 `GET /admin/areas` -- list active areas
-  - [ ] 4.3 `GET/POST /admin/areas/new` -- create area form
-  - [ ] 4.4 `GET/POST /admin/areas/<int:id>/edit` -- edit area form
-  - [ ] 4.5 `POST /admin/areas/<int:id>/archive` -- archive area (with confirmation)
-  - [ ] 4.6 Write view integration tests
+- [x] Task 4: Create area admin views (AC: #2, #3, #4, #5)
+  - [x] 4.1 Add area routes to `esb/views/admin.py`: list, create, edit, archive
+  - [x] 4.2 `GET /admin/areas` -- list active areas
+  - [x] 4.3 `GET/POST /admin/areas/new` -- create area form
+  - [x] 4.4 `GET/POST /admin/areas/<int:id>/edit` -- edit area form
+  - [x] 4.5 `POST /admin/areas/<int:id>/archive` -- archive area (with confirmation)
+  - [x] 4.6 Write view integration tests
 
-- [ ] Task 5: Create area templates (AC: #2, #3, #4, #5)
-  - [ ] 5.1 Create `esb/templates/admin/areas.html` -- area list page
-  - [ ] 5.2 Create `esb/templates/admin/area_form.html` -- shared create/edit form
-  - [ ] 5.3 Include confirmation modal for archive action
-  - [ ] 5.4 Empty state when no areas exist
+- [x] Task 5: Create area templates (AC: #2, #3, #4, #5)
+  - [x] 5.1 Create `esb/templates/admin/areas.html` -- area list page
+  - [x] 5.2 Create `esb/templates/admin/area_form.html` -- shared create/edit form
+  - [x] 5.3 Include confirmation modal for archive action
+  - [x] 5.4 Empty state when no areas exist
 
-- [ ] Task 6: RBAC and edge case testing (AC: #2, #3, #4, #5, #6)
-  - [ ] 6.1 Verify `@role_required('staff')` on all area routes
-  - [ ] 6.2 Verify technician users get 403 on area routes
-  - [ ] 6.3 Verify unauthenticated users get redirected to login
-  - [ ] 6.4 Verify duplicate area name validation
-  - [ ] 6.5 Verify archived areas excluded from listings
+- [x] Task 6: RBAC and edge case testing (AC: #2, #3, #4, #5, #6)
+  - [x] 6.1 Verify `@role_required('staff')` on all area routes
+  - [x] 6.2 Verify technician users get 403 on area routes
+  - [x] 6.3 Verify unauthenticated users get redirected to login
+  - [x] 6.4 Verify duplicate area name validation
+  - [x] 6.5 Verify archived areas excluded from listings
 
 ## Dev Notes
 
@@ -337,10 +337,44 @@ def _create_area(name='Test Area', slack_channel='#test-area'):
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+Claude Opus 4.6
 
 ### Debug Log References
 
+- Required `docker compose up -d db` for Alembic migration generation (MySQL needed for auto-generation)
+- Installed `cryptography` package for MySQL caching_sha2_password auth during migration generation (not a runtime dependency -- only needed for dev DB connection)
+
 ### Completion Notes List
 
+- Task 1: Area model created following exact User model patterns (timestamps, column types, `__repr__`). Alembic migration auto-generated against live MySQL. 5 model unit tests.
+- Task 2: Equipment service with 5 functions (`list_areas`, `get_area`, `create_area`, `update_area`, `archive_area`). Case-insensitive duplicate name validation. Mutation logging for all write operations. 22 service unit tests.
+- Task 3: `AreaCreateForm` and `AreaEditForm` with DataRequired + Length validators. Labels without asterisks per code review convention.
+- Task 4: 4 area routes added to existing admin blueprint. Thin controller pattern with `try/except ValidationError`. 30 view integration tests covering CRUD, RBAC, error handling, and mutation logging.
+- Task 5: `areas.html` list page with table, empty state, and archive confirmation modals. `area_form.html` shared create/edit form with inline validation. Asterisks added in templates only.
+- Task 6: All RBAC tests pass -- `@role_required('staff')` on all routes, tech gets 403, anon redirected to login. Duplicate name validation and archived area exclusion tested.
+
+### Implementation Plan
+
+- Followed service layer pattern: views → services → models
+- All business logic in `equipment_service.py`, views are thin controllers
+- Case-insensitive duplicate name check using `db.func.lower()`
+- Archive confirmation via Bootstrap modal with CSRF token
+- `_create_area()` helper defined locally in test files (not in conftest)
+
 ### File List
+
+- `esb/models/area.py` (NEW)
+- `esb/models/__init__.py` (MODIFIED -- added Area import)
+- `esb/services/equipment_service.py` (NEW)
+- `esb/forms/equipment_forms.py` (NEW)
+- `esb/views/admin.py` (MODIFIED -- added area routes)
+- `esb/templates/admin/areas.html` (NEW)
+- `esb/templates/admin/area_form.html` (NEW)
+- `migrations/versions/2e0d6d8be171_add_areas_table.py` (NEW)
+- `tests/test_models/test_area.py` (NEW)
+- `tests/test_services/test_equipment_service.py` (NEW)
+- `tests/test_views/test_admin_views.py` (MODIFIED -- added area view tests)
+
+## Change Log
+
+- 2026-02-15: Story 2.1 implemented -- Area model, service layer, forms, views, templates, and comprehensive tests (241 total tests, all passing)

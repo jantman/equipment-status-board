@@ -1,10 +1,19 @@
-"""Tests for admin views (user management)."""
+"""Tests for admin views (user management, area management)."""
 
 import json
 from unittest.mock import MagicMock, patch
 
 from esb.extensions import db as _db
+from esb.models.area import Area
 from esb.models.user import User
+
+
+def _create_area(name='Test Area', slack_channel='#test-area'):
+    """Helper to create an area in the test database."""
+    area = Area(name=name, slack_channel=slack_channel)
+    _db.session.add(area)
+    _db.session.commit()
+    return area
 
 
 class TestListUsers:
@@ -408,3 +417,288 @@ class TestAdminIndex:
         """Technician gets 403 on admin index."""
         resp = tech_client.get('/admin/')
         assert resp.status_code == 403
+
+
+# --- Area Management View Tests ---
+
+
+class TestListAreas:
+    """Tests for GET /admin/areas."""
+
+    def test_staff_sees_area_table(self, staff_client, staff_user):
+        """Staff user sees area management page."""
+        _create_area('Woodshop', '#woodshop')
+        _create_area('Metal Shop', '#metal')
+        resp = staff_client.get('/admin/areas')
+        assert resp.status_code == 200
+        assert b'Area Management' in resp.data
+        assert b'Woodshop' in resp.data
+        assert b'Metal Shop' in resp.data
+
+    def test_technician_gets_403(self, tech_client):
+        """Technician gets 403 on area management page."""
+        resp = tech_client.get('/admin/areas')
+        assert resp.status_code == 403
+
+    def test_unauthenticated_redirects_to_login(self, client, app):
+        """Unauthenticated user redirected to login."""
+        resp = client.get('/admin/areas')
+        assert resp.status_code == 302
+        assert '/auth/login' in resp.headers['Location']
+
+    def test_area_table_shows_columns(self, staff_client, staff_user):
+        """Area table shows Name, Slack Channel, Actions columns."""
+        _create_area('Woodshop', '#woodshop')
+        resp = staff_client.get('/admin/areas')
+        assert b'Name' in resp.data
+        assert b'Slack Channel' in resp.data
+        assert b'Actions' in resp.data
+
+    def test_add_area_button_visible(self, staff_client, staff_user):
+        """Add Area button is visible on the area list."""
+        resp = staff_client.get('/admin/areas')
+        assert b'Add Area' in resp.data
+
+    def test_empty_state_when_no_areas(self, staff_client, staff_user):
+        """Shows empty state message when no areas exist."""
+        resp = staff_client.get('/admin/areas')
+        assert b'No areas have been added yet' in resp.data
+
+    def test_archived_areas_not_shown(self, staff_client, staff_user):
+        """Archived areas do not appear in the list."""
+        area = _create_area('Archived Area', '#archived')
+        area.is_archived = True
+        _db.session.commit()
+        _create_area('Active Area', '#active')
+
+        resp = staff_client.get('/admin/areas')
+        assert b'Active Area' in resp.data
+        assert b'Archived Area' not in resp.data
+
+
+class TestCreateAreaForm:
+    """Tests for GET /admin/areas/new."""
+
+    def test_renders_creation_form(self, staff_client, staff_user):
+        """Staff user sees area creation form."""
+        resp = staff_client.get('/admin/areas/new')
+        assert resp.status_code == 200
+        assert b'Add Area' in resp.data
+        assert b'Name' in resp.data
+        assert b'Slack Channel' in resp.data
+
+    def test_technician_gets_403(self, tech_client):
+        """Technician gets 403 on creation form."""
+        resp = tech_client.get('/admin/areas/new')
+        assert resp.status_code == 403
+
+
+class TestCreateAreaPost:
+    """Tests for POST /admin/areas/new."""
+
+    def test_creates_area_with_valid_data(self, staff_client, staff_user):
+        """Valid submission creates area and redirects to area list."""
+        resp = staff_client.post('/admin/areas/new', data={
+            'name': 'Woodshop',
+            'slack_channel': '#woodshop',
+        })
+        assert resp.status_code == 302
+        assert '/admin/areas' in resp.headers['Location']
+
+        area = _db.session.execute(
+            _db.select(Area).filter_by(name='Woodshop')
+        ).scalar_one_or_none()
+        assert area is not None
+        assert area.slack_channel == '#woodshop'
+
+    def test_duplicate_name_shows_error(self, staff_client, staff_user):
+        """Duplicate area name shows danger flash."""
+        _create_area('Woodshop', '#woodshop')
+        resp = staff_client.post('/admin/areas/new', data={
+            'name': 'Woodshop',
+            'slack_channel': '#woodshop2',
+        })
+        assert resp.status_code == 200
+        assert b'already exists' in resp.data
+
+    def test_missing_name_shows_validation(self, staff_client, staff_user):
+        """Missing name shows validation error."""
+        resp = staff_client.post('/admin/areas/new', data={
+            'name': '',
+            'slack_channel': '#channel',
+        })
+        assert resp.status_code == 200
+
+    def test_missing_slack_channel_shows_validation(self, staff_client, staff_user):
+        """Missing slack channel shows validation error."""
+        resp = staff_client.post('/admin/areas/new', data={
+            'name': 'Woodshop',
+            'slack_channel': '',
+        })
+        assert resp.status_code == 200
+
+    def test_success_flash_message(self, staff_client, staff_user):
+        """Successful creation shows success flash."""
+        resp = staff_client.post('/admin/areas/new', data={
+            'name': 'Woodshop',
+            'slack_channel': '#woodshop',
+        }, follow_redirects=True)
+        assert b'Area created successfully' in resp.data
+
+
+class TestEditArea:
+    """Tests for GET/POST /admin/areas/<id>/edit."""
+
+    def test_renders_edit_form(self, staff_client, staff_user):
+        """Staff user sees area edit form with existing data."""
+        area = _create_area('Woodshop', '#woodshop')
+        resp = staff_client.get(f'/admin/areas/{area.id}/edit')
+        assert resp.status_code == 200
+        assert b'Edit Area' in resp.data
+        assert b'Woodshop' in resp.data
+        assert b'#woodshop' in resp.data
+
+    def test_updates_area_with_valid_data(self, staff_client, staff_user):
+        """Valid edit submission updates area and redirects."""
+        area = _create_area('Old Name', '#old')
+        resp = staff_client.post(f'/admin/areas/{area.id}/edit', data={
+            'name': 'New Name',
+            'slack_channel': '#new',
+        })
+        assert resp.status_code == 302
+        assert '/admin/areas' in resp.headers['Location']
+
+        updated = _db.session.get(Area, area.id)
+        assert updated.name == 'New Name'
+        assert updated.slack_channel == '#new'
+
+    def test_not_found_redirects_with_error(self, staff_client, staff_user):
+        """Editing nonexistent area redirects with error flash."""
+        resp = staff_client.get('/admin/areas/99999/edit', follow_redirects=True)
+        assert resp.status_code == 200
+        assert b'not found' in resp.data
+
+    def test_name_conflict_shows_error(self, staff_client, staff_user):
+        """Name conflict with another area shows error."""
+        _create_area('Existing', '#existing')
+        area = _create_area('Other', '#other')
+        resp = staff_client.post(f'/admin/areas/{area.id}/edit', data={
+            'name': 'Existing',
+            'slack_channel': '#other',
+        })
+        assert resp.status_code == 200
+        assert b'already exists' in resp.data
+
+    def test_success_flash_message(self, staff_client, staff_user):
+        """Successful edit shows success flash."""
+        area = _create_area('Woodshop', '#woodshop')
+        resp = staff_client.post(f'/admin/areas/{area.id}/edit', data={
+            'name': 'Woodshop Updated',
+            'slack_channel': '#woodshop',
+        }, follow_redirects=True)
+        assert b'Area updated successfully' in resp.data
+
+    def test_technician_gets_403(self, tech_client):
+        """Technician gets 403 on area edit."""
+        resp = tech_client.get('/admin/areas/1/edit')
+        assert resp.status_code == 403
+
+
+class TestArchiveArea:
+    """Tests for POST /admin/areas/<id>/archive."""
+
+    def test_archives_area_successfully(self, staff_client, staff_user):
+        """Staff can archive an area."""
+        area = _create_area('Woodshop', '#woodshop')
+        resp = staff_client.post(f'/admin/areas/{area.id}/archive')
+        assert resp.status_code == 302
+        assert '/admin/areas' in resp.headers['Location']
+
+        updated = _db.session.get(Area, area.id)
+        assert updated.is_archived is True
+
+    def test_not_found_shows_error(self, staff_client, staff_user):
+        """Archiving nonexistent area flashes error."""
+        resp = staff_client.post('/admin/areas/99999/archive', follow_redirects=True)
+        assert resp.status_code == 200
+        assert b'not found' in resp.data
+
+    def test_already_archived_shows_error(self, staff_client, staff_user):
+        """Archiving already-archived area flashes error."""
+        area = _create_area('Woodshop', '#woodshop')
+        area.is_archived = True
+        _db.session.commit()
+
+        resp = staff_client.post(f'/admin/areas/{area.id}/archive', follow_redirects=True)
+        assert resp.status_code == 200
+        assert b'already archived' in resp.data
+
+    def test_success_flash_message(self, staff_client, staff_user):
+        """Successful archive shows success flash."""
+        area = _create_area('Woodshop', '#woodshop')
+        resp = staff_client.post(f'/admin/areas/{area.id}/archive', follow_redirects=True)
+        assert b'Area archived successfully' in resp.data
+
+    def test_technician_gets_403(self, tech_client):
+        """Technician gets 403 on archive."""
+        resp = tech_client.post('/admin/areas/1/archive')
+        assert resp.status_code == 403
+
+    def test_unauthenticated_redirects_to_login(self, client, app):
+        """Unauthenticated user redirected to login."""
+        resp = client.post('/admin/areas/1/archive')
+        assert resp.status_code == 302
+        assert '/auth/login' in resp.headers['Location']
+
+
+class TestAreaMutationLogging:
+    """Tests for mutation logging in area admin views."""
+
+    def test_area_created_event_logged(self, staff_client, staff_user, capture):
+        """Area creation logs area.created mutation event."""
+        capture.records.clear()
+        staff_client.post('/admin/areas/new', data={
+            'name': 'Woodshop',
+            'slack_channel': '#woodshop',
+        })
+        created_entries = [
+            json.loads(r.message) for r in capture.records
+            if 'area.created' in r.message
+        ]
+        assert len(created_entries) == 1
+        entry = created_entries[0]
+        assert entry['event'] == 'area.created'
+        assert entry['user'] == 'staffuser'
+        assert entry['data']['name'] == 'Woodshop'
+
+    def test_area_updated_event_logged(self, staff_client, staff_user, capture):
+        """Area edit logs area.updated mutation event."""
+        area = _create_area('Old Name', '#old')
+        capture.records.clear()
+        staff_client.post(f'/admin/areas/{area.id}/edit', data={
+            'name': 'New Name',
+            'slack_channel': '#new',
+        })
+        updated_entries = [
+            json.loads(r.message) for r in capture.records
+            if 'area.updated' in r.message
+        ]
+        assert len(updated_entries) == 1
+        entry = updated_entries[0]
+        assert entry['event'] == 'area.updated'
+        assert entry['user'] == 'staffuser'
+
+    def test_area_archived_event_logged(self, staff_client, staff_user, capture):
+        """Area archive logs area.archived mutation event."""
+        area = _create_area('Woodshop', '#woodshop')
+        capture.records.clear()
+        staff_client.post(f'/admin/areas/{area.id}/archive')
+        archived_entries = [
+            json.loads(r.message) for r in capture.records
+            if 'area.archived' in r.message
+        ]
+        assert len(archived_entries) == 1
+        entry = archived_entries[0]
+        assert entry['event'] == 'area.archived'
+        assert entry['user'] == 'staffuser'
+        assert entry['data']['name'] == 'Woodshop'

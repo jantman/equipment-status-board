@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block title %}Area Management - Equipment Status Board{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1>Area Management</h1>
+    <a href="{{ url_for('admin.create_area') }}" class="btn btn-primary">Add Area</a>
+</div>
+
+{% if areas %}
+<div class="table-responsive">
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Slack Channel</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for area in areas %}
+            <tr>
+                <td>{{ area.name }}</td>
+                <td>{{ area.slack_channel or '—' }}</td>
+                <td>
+                    <a href="{{ url_for('admin.edit_area', id=area.id) }}" class="btn btn-sm btn-outline-secondary">Edit</a>
+                    <button type="button" class="btn btn-sm btn-danger" data-bs-toggle="modal" data-bs-target="#archiveModal{{ area.id }}">Archive</button>
+
+                    <!-- Archive Confirmation Modal -->
+                    <div class="modal fade" id="archiveModal{{ area.id }}" tabindex="-1" aria-labelledby="archiveModalLabel{{ area.id }}" aria-hidden="true">
+                        <div class="modal-dialog">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title" id="archiveModalLabel{{ area.id }}">Archive Area</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                </div>
+                                <div class="modal-body">
+                                    Are you sure you want to archive <strong>{{ area.name }}</strong>? This area will no longer appear in active area lists or dropdowns.
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                    <form method="POST" action="{{ url_for('admin.archive_area', id=area.id) }}" class="d-inline">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        <button type="submit" class="btn btn-danger">Archive</button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="text-center py-5">
+    <p class="text-muted mb-3">No areas have been added yet.</p>
+    <a href="{{ url_for('admin.create_area') }}" class="btn btn-primary">Add Area</a>
+</div>
+{% endif %}
+{% endblock %}
