@@ -41,6 +41,8 @@ def create_area(name: str, slack_channel: str, created_by: str) -> Area:
         db.select(Area).filter(db.func.lower(Area.name) == name.lower())
     ).scalar_one_or_none()
     if existing is not None:
+        if existing.is_archived:
+            raise ValidationError(f'An archived area with name {name!r} already exists')
         raise ValidationError(f'An area with name {name!r} already exists')
 
     area = Area(name=name, slack_channel=slack_channel)
@@ -73,6 +75,8 @@ def update_area(area_id: int, name: str, slack_channel: str, updated_by: str) ->
         )
     ).scalar_one_or_none()
     if existing is not None:
+        if existing.is_archived:
+            raise ValidationError(f'An archived area with name {name!r} already exists')
         raise ValidationError(f'An area with name {name!r} already exists')
 
     changes = {}

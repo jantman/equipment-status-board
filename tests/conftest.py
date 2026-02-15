@@ -6,6 +6,7 @@ import pytest
 
 from esb import create_app
 from esb.extensions import db as _db
+from esb.models.area import Area
 from esb.models.user import User
 from esb.utils.logging import mutation_logger
 
@@ -65,6 +66,20 @@ def _create_user(role, username=None, password='testpass'):
     _db.session.add(user)
     _db.session.commit()
     return user
+
+
+def _create_area(name='Test Area', slack_channel='#test-area'):
+    """Helper to create an area in the test database."""
+    area = Area(name=name, slack_channel=slack_channel)
+    _db.session.add(area)
+    _db.session.commit()
+    return area
+
+
+@pytest.fixture
+def make_area(app):
+    """Factory fixture to create test areas."""
+    return _create_area
 
 
 @pytest.fixture

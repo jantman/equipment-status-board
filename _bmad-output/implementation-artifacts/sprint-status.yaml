@@ -41,7 +41,7 @@ story_location: _bmad-output/implementation-artifacts
 
 development_status:
   # Epic 1: Project Foundation, Authentication & User Management
-  epic-1: in-progress
+  epic-1: done
   1-1-project-scaffolding-docker-deployment: done
   1-2-user-authentication-system: done
   1-3-user-account-provisioning-role-management: done
@@ -50,7 +50,7 @@ development_status:
 
   # Epic 2: Equipment Registry & Area Management
   epic-2: in-progress
-  2-1-area-management: review
+  2-1-area-management: done
   2-2-equipment-registry-crud: backlog
   2-3-equipment-documentation-media: backlog
   2-4-equipment-archiving-technician-permissions: backlog

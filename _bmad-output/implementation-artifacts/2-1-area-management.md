@@ -1,6 +1,6 @@
 # Story 2.1: Area Management
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -359,7 +359,7 @@ Claude Opus 4.6
 - All business logic in `equipment_service.py`, views are thin controllers
 - Case-insensitive duplicate name check using `db.func.lower()`
 - Archive confirmation via Bootstrap modal with CSRF token
-- `_create_area()` helper defined locally in test files (not in conftest)
+- `_create_area()` helper centralized in `tests/conftest.py` as `make_area` factory fixture
 
 ### File List
 
@@ -374,7 +374,12 @@ Claude Opus 4.6
 - `tests/test_models/test_area.py` (NEW)
 - `tests/test_services/test_equipment_service.py` (NEW)
 - `tests/test_views/test_admin_views.py` (MODIFIED -- added area view tests)
+- `esb/templates/components/_admin_nav.html` (NEW -- admin sub-navigation tabs)
+- `esb/templates/admin/users.html` (MODIFIED -- added admin nav include)
+- `tests/conftest.py` (MODIFIED -- added `make_area` factory fixture)
+- `requirements.txt` (MODIFIED -- added cryptography for MySQL 8.4 auth)
 
 ## Change Log
 
 - 2026-02-15: Story 2.1 implemented -- Area model, service layer, forms, views, templates, and comprehensive tests (241 total tests, all passing)
+- 2026-02-15: Code review completed -- 7 findings (1 HIGH, 3 MEDIUM, 3 LOW). All HIGH/MEDIUM fixed: added admin sub-navigation tabs, differentiated archived vs active area name conflict errors, centralized `_create_area` helper in conftest as `make_area` fixture, updated File List. 4 new tests added (245 total, all passing).

@@ -8,14 +8,6 @@ from esb.models.area import Area
 from esb.models.user import User
 
 
-def _create_area(name='Test Area', slack_channel='#test-area'):
-    """Helper to create an area in the test database."""
-    area = Area(name=name, slack_channel=slack_channel)
-    _db.session.add(area)
-    _db.session.commit()
-    return area
-
-
 class TestListUsers:
     """Tests for GET /admin/users."""
 
@@ -56,6 +48,11 @@ class TestListUsers:
         resp = staff_client.get('/admin/users')
         assert b'Update' in resp.data
         assert b'select' in resp.data
+
+    def test_admin_nav_shows_areas_link(self, staff_client, staff_user):
+        """Admin sub-navigation includes Areas link on users page."""
+        resp = staff_client.get('/admin/users')
+        assert b'/admin/areas' in resp.data
 
 
 class TestCreateUserForm:
@@ -425,10 +422,10 @@ class TestAdminIndex:
 class TestListAreas:
     """Tests for GET /admin/areas."""
 
-    def test_staff_sees_area_table(self, staff_client, staff_user):
+    def test_staff_sees_area_table(self, staff_client, staff_user, make_area):
         """Staff user sees area management page."""
-        _create_area('Woodshop', '#woodshop')
-        _create_area('Metal Shop', '#metal')
+        make_area('Woodshop', '#woodshop')
+        make_area('Metal Shop', '#metal')
         resp = staff_client.get('/admin/areas')
         assert resp.status_code == 200
         assert b'Area Management' in resp.data
@@ -446,9 +443,9 @@ class TestListAreas:
         assert resp.status_code == 302
         assert '/auth/login' in resp.headers['Location']
 
-    def test_area_table_shows_columns(self, staff_client, staff_user):
+    def test_area_table_shows_columns(self, staff_client, staff_user, make_area):
         """Area table shows Name, Slack Channel, Actions columns."""
-        _create_area('Woodshop', '#woodshop')
+        make_area('Woodshop', '#woodshop')
         resp = staff_client.get('/admin/areas')
         assert b'Name' in resp.data
         assert b'Slack Channel' in resp.data
@@ -464,16 +461,21 @@ class TestListAreas:
         resp = staff_client.get('/admin/areas')
         assert b'No areas have been added yet' in resp.data
 
-    def test_archived_areas_not_shown(self, staff_client, staff_user):
+    def test_archived_areas_not_shown(self, staff_client, staff_user, make_area):
         """Archived areas do not appear in the list."""
-        area = _create_area('Archived Area', '#archived')
+        area = make_area('Archived Area', '#archived')
         area.is_archived = True
         _db.session.commit()
-        _create_area('Active Area', '#active')
+        make_area('Active Area', '#active')
 
         resp = staff_client.get('/admin/areas')
         assert b'Active Area' in resp.data
         assert b'Archived Area' not in resp.data
+
+    def test_admin_nav_shows_users_link(self, staff_client, staff_user):
+        """Admin sub-navigation includes Users link on areas page."""
+        resp = staff_client.get('/admin/areas')
+        assert b'/admin/users' in resp.data
 
 
 class TestCreateAreaForm:
@@ -511,9 +513,9 @@ class TestCreateAreaPost:
         assert area is not None
         assert area.slack_channel == '#woodshop'
 
-    def test_duplicate_name_shows_error(self, staff_client, staff_user):
+    def test_duplicate_name_shows_error(self, staff_client, staff_user, make_area):
         """Duplicate area name shows danger flash."""
-        _create_area('Woodshop', '#woodshop')
+        make_area('Woodshop', '#woodshop')
         resp = staff_client.post('/admin/areas/new', data={
             'name': 'Woodshop',
             'slack_channel': '#woodshop2',
@@ -549,18 +551,18 @@ class TestCreateAreaPost:
 class TestEditArea:
     """Tests for GET/POST /admin/areas/<id>/edit."""
 
-    def test_renders_edit_form(self, staff_client, staff_user):
+    def test_renders_edit_form(self, staff_client, staff_user, make_area):
         """Staff user sees area edit form with existing data."""
-        area = _create_area('Woodshop', '#woodshop')
+        area = make_area('Woodshop', '#woodshop')
         resp = staff_client.get(f'/admin/areas/{area.id}/edit')
         assert resp.status_code == 200
         assert b'Edit Area' in resp.data
         assert b'Woodshop' in resp.data
         assert b'#woodshop' in resp.data
 
-    def test_updates_area_with_valid_data(self, staff_client, staff_user):
+    def test_updates_area_with_valid_data(self, staff_client, staff_user, make_area):
         """Valid edit submission updates area and redirects."""
-        area = _create_area('Old Name', '#old')
+        area = make_area('Old Name', '#old')
         resp = staff_client.post(f'/admin/areas/{area.id}/edit', data={
             'name': 'New Name',
             'slack_channel': '#new',
@@ -578,10 +580,10 @@ class TestEditArea:
         assert resp.status_code == 200
         assert b'not found' in resp.data
 
-    def test_name_conflict_shows_error(self, staff_client, staff_user):
+    def test_name_conflict_shows_error(self, staff_client, staff_user, make_area):
         """Name conflict with another area shows error."""
-        _create_area('Existing', '#existing')
-        area = _create_area('Other', '#other')
+        make_area('Existing', '#existing')
+        area = make_area('Other', '#other')
         resp = staff_client.post(f'/admin/areas/{area.id}/edit', data={
             'name': 'Existing',
             'slack_channel': '#other',
@@ -589,9 +591,9 @@ class TestEditArea:
         assert resp.status_code == 200
         assert b'already exists' in resp.data
 
-    def test_success_flash_message(self, staff_client, staff_user):
+    def test_success_flash_message(self, staff_client, staff_user, make_area):
         """Successful edit shows success flash."""
-        area = _create_area('Woodshop', '#woodshop')
+        area = make_area('Woodshop', '#woodshop')
         resp = staff_client.post(f'/admin/areas/{area.id}/edit', data={
             'name': 'Woodshop Updated',
             'slack_channel': '#woodshop',
@@ -607,9 +609,9 @@ class TestEditArea:
 class TestArchiveArea:
     """Tests for POST /admin/areas/<id>/archive."""
 
-    def test_archives_area_successfully(self, staff_client, staff_user):
+    def test_archives_area_successfully(self, staff_client, staff_user, make_area):
         """Staff can archive an area."""
-        area = _create_area('Woodshop', '#woodshop')
+        area = make_area('Woodshop', '#woodshop')
         resp = staff_client.post(f'/admin/areas/{area.id}/archive')
         assert resp.status_code == 302
         assert '/admin/areas' in resp.headers['Location']
@@ -623,9 +625,9 @@ class TestArchiveArea:
         assert resp.status_code == 200
         assert b'not found' in resp.data
 
-    def test_already_archived_shows_error(self, staff_client, staff_user):
+    def test_already_archived_shows_error(self, staff_client, staff_user, make_area):
         """Archiving already-archived area flashes error."""
-        area = _create_area('Woodshop', '#woodshop')
+        area = make_area('Woodshop', '#woodshop')
         area.is_archived = True
         _db.session.commit()
 
@@ -633,9 +635,9 @@ class TestArchiveArea:
         assert resp.status_code == 200
         assert b'already archived' in resp.data
 
-    def test_success_flash_message(self, staff_client, staff_user):
+    def test_success_flash_message(self, staff_client, staff_user, make_area):
         """Successful archive shows success flash."""
-        area = _create_area('Woodshop', '#woodshop')
+        area = make_area('Woodshop', '#woodshop')
         resp = staff_client.post(f'/admin/areas/{area.id}/archive', follow_redirects=True)
         assert b'Area archived successfully' in resp.data
 
@@ -671,9 +673,9 @@ class TestAreaMutationLogging:
         assert entry['user'] == 'staffuser'
         assert entry['data']['name'] == 'Woodshop'
 
-    def test_area_updated_event_logged(self, staff_client, staff_user, capture):
+    def test_area_updated_event_logged(self, staff_client, staff_user, capture, make_area):
         """Area edit logs area.updated mutation event."""
-        area = _create_area('Old Name', '#old')
+        area = make_area('Old Name', '#old')
         capture.records.clear()
         staff_client.post(f'/admin/areas/{area.id}/edit', data={
             'name': 'New Name',
@@ -688,9 +690,9 @@ class TestAreaMutationLogging:
         assert entry['event'] == 'area.updated'
         assert entry['user'] == 'staffuser'
 
-    def test_area_archived_event_logged(self, staff_client, staff_user, capture):
+    def test_area_archived_event_logged(self, staff_client, staff_user, capture, make_area):
         """Area archive logs area.archived mutation event."""
-        area = _create_area('Woodshop', '#woodshop')
+        area = make_area('Woodshop', '#woodshop')
         capture.records.clear()
         staff_client.post(f'/admin/areas/{area.id}/archive')
         archived_entries = [
