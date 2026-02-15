@@ -517,3 +517,103 @@ class TestServePhoto:
         """Serving file for non-existent repair record returns 404."""
         resp = staff_client.get('/repairs/9999/files/test.jpg')
         assert resp.status_code == 404
+
+
+class TestRepairQueue:
+    """Tests for GET /repairs/queue and related redirect behavior."""
+
+    def test_queue_loads_200_for_technician(self, tech_client):
+        """Technician gets 200 on the queue page."""
+        resp = tech_client.get('/repairs/queue')
+        assert resp.status_code == 200
+        assert b'Repair Queue' in resp.data
+
+    def test_queue_loads_200_for_staff(self, staff_client):
+        """Staff gets 200 on the queue page."""
+        resp = staff_client.get('/repairs/queue')
+        assert resp.status_code == 200
+        assert b'Repair Queue' in resp.data
+
+    def test_queue_redirects_unauthenticated(self, client):
+        """Unauthenticated users are redirected to login."""
+        resp = client.get('/repairs/queue')
+        assert resp.status_code == 302
+        assert '/auth/login' in resp.headers['Location']
+
+    def test_queue_displays_records_with_columns(self, tech_client, make_area, make_equipment, make_repair_record):
+        """Queue shows equipment name, severity, area, status."""
+        area = make_area('Woodshop')
+        eq = make_equipment('Table Saw', area=area)
+        make_repair_record(equipment=eq, description='Blade dull', severity='Degraded')
+        resp = tech_client.get('/repairs/queue')
+        assert resp.status_code == 200
+        assert b'Table Saw' in resp.data
+        assert b'Degraded' in resp.data
+        assert b'Woodshop' in resp.data
+        assert b'New' in resp.data
+
+    def test_queue_severity_badge_down(self, tech_client, make_area, make_equipment, make_repair_record):
+        """Down severity gets bg-danger badge."""
+        area = make_area('Metalshop')
+        eq = make_equipment('Welder', area=area)
+        make_repair_record(equipment=eq, description='Broken', severity='Down')
+        resp = tech_client.get('/repairs/queue')
+        assert b'bg-danger' in resp.data
+
+    def test_queue_severity_badge_degraded(self, tech_client, make_area, make_equipment, make_repair_record):
+        """Degraded severity gets bg-warning badge."""
+        area = make_area('Woodshop')
+        eq = make_equipment('Table Saw', area=area)
+        make_repair_record(equipment=eq, description='Dull', severity='Degraded')
+        resp = tech_client.get('/repairs/queue')
+        assert b'bg-warning' in resp.data
+
+    def test_queue_empty_state(self, tech_client):
+        """Shows empty state message when no open records."""
+        resp = tech_client.get('/repairs/queue')
+        assert b'No open repair records' in resp.data
+        assert b'All equipment is operational' in resp.data
+
+    def test_queue_area_filter(self, tech_client, make_area, make_equipment, make_repair_record):
+        """Area filter param returns only matching records."""
+        area1 = make_area('Woodshop')
+        area2 = make_area('Metalshop', slack_channel='#metalshop')
+        eq1 = make_equipment('Table Saw', area=area1)
+        eq2 = make_equipment('Welder', area=area2)
+        make_repair_record(equipment=eq1, description='Saw issue')
+        make_repair_record(equipment=eq2, description='Welder issue')
+        resp = tech_client.get(f'/repairs/queue?area={area1.id}')
+        assert b'Table Saw' in resp.data
+        assert b'Welder' not in resp.data
+
+    def test_queue_status_filter(self, tech_client, make_area, make_equipment, make_repair_record):
+        """Status filter param returns only matching records."""
+        area = make_area('Shop')
+        eq = make_equipment('Laser', area=area)
+        make_repair_record(equipment=eq, description='new issue', status='New')
+        make_repair_record(equipment=eq, description='assigned issue', status='Assigned')
+        resp = tech_client.get('/repairs/queue?status=Assigned')
+        assert b'assigned issue' not in resp.data  # description not shown in queue table
+        # But the filtered table should contain only the Assigned record
+        assert resp.data.count(b'data-status="Assigned"') == 2  # table row + mobile card
+        assert resp.data.count(b'data-status="New"') == 0
+
+    def test_index_redirects_to_queue(self, tech_client):
+        """GET /repairs/ redirects to /repairs/queue."""
+        resp = tech_client.get('/repairs/')
+        assert resp.status_code == 302
+        assert '/repairs/queue' in resp.headers['Location']
+
+    def test_login_redirects_technician_to_queue(self, client, tech_user):
+        """Technician login without next param redirects to /repairs/queue."""
+        resp = client.post('/auth/login', data={
+            'username': 'techuser',
+            'password': 'testpass',
+        }, follow_redirects=False)
+        assert resp.status_code == 302
+        assert '/repairs/queue' in resp.headers['Location']
+
+    def test_navbar_contains_queue_link(self, tech_client):
+        """Navbar Repairs link points to queue."""
+        resp = tech_client.get('/repairs/queue')
+        assert b'/repairs/queue' in resp.data

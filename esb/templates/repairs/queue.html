@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+
+{% block title %}Repair Queue - Equipment Status Board{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/">Home</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Repair Queue</li>
+    </ol>
+</nav>
+
+<h1 class="mb-3">Repair Queue</h1>
+
+{# --- Filter Controls --- #}
+<div class="row g-2 mb-3">
+    <div class="col-auto">
+        <select id="area-filter" class="form-select form-select-sm">
+            <option value="">All Areas</option>
+            {% for area in areas %}
+            <option value="{{ area.id }}" {% if active_area == area.id %}selected{% endif %}>{{ area.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-auto">
+        <select id="status-filter" class="form-select form-select-sm">
+            <option value="">All Statuses</option>
+            {% for s in statuses %}
+            <option value="{{ s }}" {% if active_status == s %}selected{% endif %}>{{ s }}</option>
+            {% endfor %}
+        </select>
+    </div>
+</div>
+
+{# --- Desktop Table (>=768px) --- #}
+<div id="queue-table-wrapper" class="d-none d-md-block">
+    <table class="table table-hover" id="queue-table">
+        <thead>
+            <tr>
+                <th data-sort="equipment-name" role="button" class="sortable">Equipment Name <span class="sort-indicator"></span></th>
+                <th data-sort="severity" role="button" class="sortable">Severity <span class="sort-indicator"></span></th>
+                <th data-sort="area" role="button" class="sortable">Area <span class="sort-indicator"></span></th>
+                <th data-sort="age" role="button" class="sortable">Age <span class="sort-indicator"></span></th>
+                <th data-sort="status" role="button" class="sortable">Status <span class="sort-indicator"></span></th>
+                <th data-sort="assignee" role="button" class="sortable">Assignee <span class="sort-indicator"></span></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for record in records %}
+            <tr class="queue-row" role="button"
+                data-href="{{ url_for('repairs.detail', id=record.id) }}"
+                data-equipment-name="{{ record.equipment.name }}"
+                data-severity-priority="{{ '0' if record.severity == 'Down' else ('1' if record.severity == 'Degraded' else ('2' if record.severity == 'Not Sure' else '3')) }}"
+                data-area-id="{{ record.equipment.area_id }}"
+                data-area="{{ record.equipment.area.name }}"
+                data-age-seconds="{{ (now_utc - record.created_at).total_seconds()|int }}"
+                data-status="{{ record.status }}"
+                data-assignee="{{ record.assignee.username if record.assignee else '' }}">
+                <td>{{ record.equipment.name }}</td>
+                <td>
+                    {% if record.severity == 'Down' %}
+                    <span class="badge bg-danger">Down</span>
+                    {% elif record.severity in ['Degraded', 'Not Sure'] %}
+                    <span class="badge bg-warning text-dark">{{ record.severity }}</span>
+                    {% elif record.severity %}
+                    <span class="badge bg-secondary">{{ record.severity }}</span>
+                    {% else %}
+                    <span class="badge bg-secondary">None</span>
+                    {% endif %}
+                </td>
+                <td>{{ record.equipment.area.name }}</td>
+                <td title="{{ record.created_at|format_datetime }}">{{ record.created_at|relative_time }}</td>
+                <td>{{ record.status }}</td>
+                <td>{{ record.assignee.username if record.assignee else '' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{# --- Mobile Cards (<768px) --- #}
+<div id="queue-cards-wrapper" class="d-md-none">
+    {% for record in records %}
+    <a href="{{ url_for('repairs.detail', id=record.id) }}" class="text-decoration-none text-body">
+        <div class="card mb-2 queue-card"
+             data-equipment-name="{{ record.equipment.name }}"
+             data-severity-priority="{{ '0' if record.severity == 'Down' else ('1' if record.severity == 'Degraded' else ('2' if record.severity == 'Not Sure' else '3')) }}"
+             data-area-id="{{ record.equipment.area_id }}"
+             data-area="{{ record.equipment.area.name }}"
+             data-age-seconds="{{ (now_utc - record.created_at).total_seconds()|int }}"
+             data-status="{{ record.status }}"
+             data-assignee="{{ record.assignee.username if record.assignee else '' }}">
+            <div class="card-body py-2 px-3">
+                <div class="d-flex justify-content-between align-items-center">
+                    <strong>{{ record.equipment.name }}</strong>
+                    {% if record.severity == 'Down' %}
+                    <span class="badge bg-danger">Down</span>
+                    {% elif record.severity in ['Degraded', 'Not Sure'] %}
+                    <span class="badge bg-warning text-dark">{{ record.severity }}</span>
+                    {% elif record.severity %}
+                    <span class="badge bg-secondary">{{ record.severity }}</span>
+                    {% else %}
+                    <span class="badge bg-secondary">None</span>
+                    {% endif %}
+                </div>
+                <div class="small text-muted mt-1">
+                    <span class="badge bg-info text-dark">{{ record.status }}</span>
+                    &middot; {{ record.equipment.area.name }}
+                    &middot; {{ record.created_at|relative_time }}
+                </div>
+            </div>
+        </div>
+    </a>
+    {% endfor %}
+</div>
+
+{# --- Empty State --- #}
+<div id="queue-empty" class="text-center py-5 {% if records %}d-none{% endif %}">
+    <p class="text-muted fs-5">No open repair records. All equipment is operational.</p>
+</div>
+{% endblock %}

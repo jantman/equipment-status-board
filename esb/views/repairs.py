@@ -1,6 +1,7 @@
 """Repair record routes."""
 
 import os
+from datetime import UTC, datetime
 
 from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, send_from_directory, url_for
 from flask_login import current_user
@@ -9,6 +10,7 @@ from esb.forms.repair_forms import RepairNoteForm, RepairPhotoUploadForm, Repair
 from esb.models.repair_record import REPAIR_STATUSES
 from esb.models.repair_timeline_entry import RepairTimelineEntry
 from esb.services import equipment_service, repair_service, upload_service
+from esb.services.repair_service import CLOSED_STATUSES
 from esb.utils.decorators import role_required
 from esb.utils.exceptions import ValidationError
 
@@ -18,8 +20,30 @@ repairs_bp = Blueprint('repairs', __name__, url_prefix='/repairs')
 @repairs_bp.route('/')
 @role_required('technician')
 def index():
-    """Repair records list page (placeholder - redirects to create)."""
-    return redirect(url_for('repairs.create'))
+    """Repair records list page - redirects to queue."""
+    return redirect(url_for('repairs.queue'))
+
+
+@repairs_bp.route('/queue')
+@role_required('technician')
+def queue():
+    """Technician repair queue page."""
+    area_id = request.args.get('area', type=int)
+    status_filter = request.args.get('status')
+
+    areas = equipment_service.list_areas()
+    open_statuses = [s for s in REPAIR_STATUSES if s not in CLOSED_STATUSES]
+    records = repair_service.get_repair_queue(area_id=area_id, status=status_filter)
+
+    return render_template(
+        'repairs/queue.html',
+        records=records,
+        areas=areas,
+        statuses=open_statuses,
+        active_area=area_id,
+        active_status=status_filter,
+        now_utc=datetime.now(UTC).replace(tzinfo=None),
+    )
 
 
 @repairs_bp.route('/new', methods=['GET', 'POST'])

@@ -1,6 +1,6 @@
 # Story 3.4: Technician Repair Queue
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -32,82 +32,82 @@ so that I can quickly find the highest-impact repair to work on.
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Add queue service function (AC: #2, #4, #5)
-  - [ ] 1.1 Add `get_repair_queue()` function to `esb/services/repair_service.py` that returns open repair records (all statuses except "Resolved", "Closed - No Issue Found", "Closed - Duplicate") with eager-loaded equipment and area relationships
-  - [ ] 1.2 Support optional `area_id` filter parameter
-  - [ ] 1.3 Support optional `status` filter parameter
-  - [ ] 1.4 Default ordering: severity (Down=0, Degraded=1, Not Sure=2, NULL=3) then age (oldest first via `created_at` ASC)
-  - [ ] 1.5 Return list of dicts or model instances with computed `age` field (timedelta from `created_at` to now)
+- [x] Task 1: Add queue service function (AC: #2, #4, #5)
+  - [x] 1.1 Add `get_repair_queue()` function to `esb/services/repair_service.py` that returns open repair records (all statuses except "Resolved", "Closed - No Issue Found", "Closed - Duplicate") with eager-loaded equipment and area relationships
+  - [x] 1.2 Support optional `area_id` filter parameter
+  - [x] 1.3 Support optional `status` filter parameter
+  - [x] 1.4 Default ordering: severity (Down=0, Degraded=1, Not Sure=2, NULL=3) then age (oldest first via `created_at` ASC)
+  - [x] 1.5 Return list of dicts or model instances with computed `age` field (timedelta from `created_at` to now)
 
-- [ ] Task 2: Add queue route and view function (AC: #1, #2, #4, #5, #8, #9)
-  - [ ] 2.1 Add `queue()` route at `GET /repairs/queue` in `esb/views/repairs.py` with `@role_required('technician')`
-  - [ ] 2.2 Query all areas for the area filter dropdown
-  - [ ] 2.3 Query statuses for the status filter dropdown (use `REPAIR_STATUSES` constant, exclude closed statuses from default)
-  - [ ] 2.4 Call `repair_service.get_repair_queue()` with filter params from query string (`?area=<id>&status=<value>`)
-  - [ ] 2.5 Pass repair records, areas, statuses, and active filters to template
-  - [ ] 2.6 Update `index()` to redirect to `repairs.queue` instead of `repairs.create`
+- [x] Task 2: Add queue route and view function (AC: #1, #2, #4, #5, #8, #9)
+  - [x] 2.1 Add `queue()` route at `GET /repairs/queue` in `esb/views/repairs.py` with `@role_required('technician')`
+  - [x] 2.2 Query all areas for the area filter dropdown
+  - [x] 2.3 Query statuses for the status filter dropdown (use `REPAIR_STATUSES` constant, exclude closed statuses from default)
+  - [x] 2.4 Call `repair_service.get_repair_queue()` with filter params from query string (`?area=<id>&status=<value>`)
+  - [x] 2.5 Pass repair records, areas, statuses, and active filters to template
+  - [x] 2.6 Update `index()` to redirect to `repairs.queue` instead of `repairs.create`
 
-- [ ] Task 3: Update login redirect for technicians (AC: #1)
-  - [ ] 3.1 In the login view (`esb/views/auth.py`), after successful login, redirect Technician-role users to `/repairs/queue` instead of the default
-  - [ ] 3.2 Staff users should also be able to access the queue but their default landing can remain unchanged
-  - [ ] 3.3 Respect `next` parameter in URL if present (existing Flask-Login behavior)
+- [x] Task 3: Update login redirect for technicians (AC: #1)
+  - [x] 3.1 In the login view (`esb/views/auth.py`), after successful login, redirect Technician-role users to `/repairs/queue` instead of the default
+  - [x] 3.2 Staff users should also be able to access the queue but their default landing can remain unchanged
+  - [x] 3.3 Respect `next` parameter in URL if present (existing Flask-Login behavior)
 
-- [ ] Task 4: Update navbar (AC: #1)
-  - [ ] 4.1 In `esb/templates/base.html`, change the "Repairs" navbar link from `url_for('repairs.create')` to `url_for('repairs.queue')`
-  - [ ] 4.2 Keep the active class logic: `{% if request.endpoint and request.endpoint.startswith('repairs.') %}`
+- [x] Task 4: Update navbar (AC: #1)
+  - [x] 4.1 In `esb/templates/base.html`, change the "Repairs" navbar link from `url_for('repairs.create')` to `url_for('repairs.queue')`
+  - [x] 4.2 Keep the active class logic: `{% if request.endpoint and request.endpoint.startswith('repairs.') %}`
 
-- [ ] Task 5: Create queue template with responsive table/cards (AC: #2, #6, #7, #8, #9)
-  - [ ] 5.1 Create `esb/templates/repairs/queue.html` extending `base.html`
-  - [ ] 5.2 Add breadcrumb: Home > Repair Queue
-  - [ ] 5.3 Add filter dropdowns (area, status) at top, styled with Bootstrap `form-select` inline in a row
-  - [ ] 5.4 Create responsive table (`d-none d-md-block`) with columns: Equipment Name, Severity, Area, Age, Status, Assignee
-  - [ ] 5.5 Add severity color indicators: `bg-danger` badge for Down, `bg-warning text-dark` badge for Degraded/Not Sure, `bg-secondary` if null
-  - [ ] 5.6 Display age as human-readable relative time using `relative_time` Jinja2 filter
-  - [ ] 5.7 Make each row a clickable link to `url_for('repairs.detail', id=record.id)`
-  - [ ] 5.8 Create mobile card layout (`d-md-none`) showing equipment name, severity badge, status badge, area, and age per card
-  - [ ] 5.9 Make each card a clickable link to detail page
-  - [ ] 5.10 Add empty state message when no records exist
-  - [ ] 5.11 Add `data-*` attributes on table headers for JS sort functionality
-  - [ ] 5.12 Add `data-*` attributes on rows/cards for JS filter functionality
+- [x] Task 5: Create queue template with responsive table/cards (AC: #2, #6, #7, #8, #9)
+  - [x] 5.1 Create `esb/templates/repairs/queue.html` extending `base.html`
+  - [x] 5.2 Add breadcrumb: Home > Repair Queue
+  - [x] 5.3 Add filter dropdowns (area, status) at top, styled with Bootstrap `form-select` inline in a row
+  - [x] 5.4 Create responsive table (`d-none d-md-block`) with columns: Equipment Name, Severity, Area, Age, Status, Assignee
+  - [x] 5.5 Add severity color indicators: `bg-danger` badge for Down, `bg-warning text-dark` badge for Degraded/Not Sure, `bg-secondary` if null
+  - [x] 5.6 Display age as human-readable relative time using `relative_time` Jinja2 filter
+  - [x] 5.7 Make each row a clickable link to `url_for('repairs.detail', id=record.id)`
+  - [x] 5.8 Create mobile card layout (`d-md-none`) showing equipment name, severity badge, status badge, area, and age per card
+  - [x] 5.9 Make each card a clickable link to detail page
+  - [x] 5.10 Add empty state message when no records exist
+  - [x] 5.11 Add `data-*` attributes on table headers for JS sort functionality
+  - [x] 5.12 Add `data-*` attributes on rows/cards for JS filter functionality
 
-- [ ] Task 6: Add client-side sorting JavaScript (AC: #3)
-  - [ ] 6.1 Add table sorting logic to `esb/static/js/app.js`
-  - [ ] 6.2 Click column header toggles ascending/descending sort
-  - [ ] 6.3 Add visual sort direction indicator (arrow/caret) on active sort column
-  - [ ] 6.4 Sorting works on: equipment name (alpha), severity (numeric priority), area (alpha), age (numeric), status (alpha), assignee (alpha)
-  - [ ] 6.5 Default sort on page load: severity desc (Down first) then age asc (oldest first)
+- [x] Task 6: Add client-side sorting JavaScript (AC: #3)
+  - [x] 6.1 Add table sorting logic to `esb/static/js/app.js`
+  - [x] 6.2 Click column header toggles ascending/descending sort
+  - [x] 6.3 Add visual sort direction indicator (arrow/caret) on active sort column
+  - [x] 6.4 Sorting works on: equipment name (alpha), severity (numeric priority), area (alpha), age (numeric), status (alpha), assignee (alpha)
+  - [x] 6.5 Default sort on page load: severity desc (Down first) then age asc (oldest first)
 
-- [ ] Task 7: Add client-side filtering JavaScript (AC: #4, #5)
-  - [ ] 7.1 Add filter logic to `esb/static/js/app.js` that hides/shows table rows and cards based on selected area and status
-  - [ ] 7.2 Area filter dropdown shows all areas, "All Areas" as default
-  - [ ] 7.3 Status filter dropdown shows open statuses, "All Statuses" as default
-  - [ ] 7.4 Filters work together (AND logic: area AND status)
-  - [ ] 7.5 Update empty state if all rows filtered out
-  - [ ] 7.6 Filters work on both desktop table and mobile cards
+- [x] Task 7: Add client-side filtering JavaScript (AC: #4, #5)
+  - [x] 7.1 Add filter logic to `esb/static/js/app.js` that hides/shows table rows and cards based on selected area and status
+  - [x] 7.2 Area filter dropdown shows all areas, "All Areas" as default
+  - [x] 7.3 Status filter dropdown shows open statuses, "All Statuses" as default
+  - [x] 7.4 Filters work together (AND logic: area AND status)
+  - [x] 7.5 Update empty state if all rows filtered out
+  - [x] 7.6 Filters work on both desktop table and mobile cards
 
-- [ ] Task 8: Service tests (AC: #2, #4, #5)
-  - [ ] 8.1 Add `TestGetRepairQueue` class to `tests/test_services/test_repair_service.py`
-  - [ ] 8.2 Test returns only open records (excludes Resolved, Closed statuses)
-  - [ ] 8.3 Test default sort order: severity priority then age
-  - [ ] 8.4 Test area_id filter
-  - [ ] 8.5 Test status filter
-  - [ ] 8.6 Test combined area + status filter
-  - [ ] 8.7 Test empty result set
-  - [ ] 8.8 Test includes equipment name, area name, assignee username via relationships
+- [x] Task 8: Service tests (AC: #2, #4, #5)
+  - [x] 8.1 Add `TestGetRepairQueue` class to `tests/test_services/test_repair_service.py`
+  - [x] 8.2 Test returns only open records (excludes Resolved, Closed statuses)
+  - [x] 8.3 Test default sort order: severity priority then age
+  - [x] 8.4 Test area_id filter
+  - [x] 8.5 Test status filter
+  - [x] 8.6 Test combined area + status filter
+  - [x] 8.7 Test empty result set
+  - [x] 8.8 Test includes equipment name, area name, assignee username via relationships
 
-- [ ] Task 9: View tests (AC: #1, #2, #4, #5, #8, #9)
-  - [ ] 9.1 Add `TestRepairQueue` class to `tests/test_views/test_repair_views.py`
-  - [ ] 9.2 Test queue page loads with 200 for technician
-  - [ ] 9.3 Test queue page loads with 200 for staff
-  - [ ] 9.4 Test queue page redirects unauthenticated to login
-  - [ ] 9.5 Test queue displays repair records with correct columns
-  - [ ] 9.6 Test queue shows severity badges with correct CSS classes
-  - [ ] 9.7 Test queue shows empty state message when no open records
-  - [ ] 9.8 Test area filter parameter works
-  - [ ] 9.9 Test status filter parameter works
-  - [ ] 9.10 Test index route redirects to queue
-  - [ ] 9.11 Test login redirects technician to repair queue
-  - [ ] 9.12 Test navbar contains link to repair queue
+- [x] Task 9: View tests (AC: #1, #2, #4, #5, #8, #9)
+  - [x] 9.1 Add `TestRepairQueue` class to `tests/test_views/test_repair_views.py`
+  - [x] 9.2 Test queue page loads with 200 for technician
+  - [x] 9.3 Test queue page loads with 200 for staff
+  - [x] 9.4 Test queue page redirects unauthenticated to login
+  - [x] 9.5 Test queue displays repair records with correct columns
+  - [x] 9.6 Test queue shows severity badges with correct CSS classes
+  - [x] 9.7 Test queue shows empty state message when no open records
+  - [x] 9.8 Test area filter parameter works
+  - [x] 9.9 Test status filter parameter works
+  - [x] 9.10 Test index route redirects to queue
+  - [x] 9.11 Test login redirects technician to repair queue
+  - [x] 9.12 Test navbar contains link to repair queue
 
 ## Dev Notes
 
@@ -276,10 +276,38 @@ def queue():
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+Claude Opus 4.6
 
 ### Debug Log References
 
+- Fixed timezone mismatch: `now_utc` passed to template as naive datetime (`.replace(tzinfo=None)`) to match naive `created_at` column values from SQLite test DB.
+
 ### Completion Notes List
 
+- Task 1+8: Added `get_repair_queue()` service function with SQL CASE severity sort, CLOSED_STATUSES constant, area_id/status filters. 7 service tests pass.
+- Task 2: Added `queue()` route with `@role_required('technician')`, updated `index()` redirect to queue.
+- Task 3: Updated `auth.py` login redirect — technicians go to `/repairs/queue`, staff keeps default. `next` param preserved.
+- Task 4: Updated navbar Repairs link from `repairs.create` to `repairs.queue`. Active class logic unchanged.
+- Task 5: Created `queue.html` with responsive table (desktop) + cards (mobile), severity badges, age via `relative_time` filter, empty state, data-* attributes for JS.
+- Task 6: Added client-side table sorting JS with click-to-toggle asc/desc, sort indicators, severity numeric priority support.
+- Task 7: Added client-side filtering JS for area/status dropdowns with AND logic, works on both table rows and mobile cards, updates empty state.
+- Task 9: 12 view tests covering access control, display, filters, redirects, navbar link.
+- All 584 tests pass, 0 ruff lint errors.
+
+### Change Log
+
+- 2026-02-15: Implemented Story 3.4 — Technician Repair Queue (all 9 tasks, 19 new tests)
+
 ### File List
+
+- `esb/services/repair_service.py` (modified) — Added `CLOSED_STATUSES`, `_SEVERITY_PRIORITY`, `get_repair_queue()`
+- `esb/views/repairs.py` (modified) — Added `queue()` route, updated `index()` redirect, added datetime import
+- `esb/views/auth.py` (modified) — Added technician role-based redirect to `/repairs/queue` after login
+- `esb/templates/base.html` (modified) — Changed Repairs navbar link to `repairs.queue`
+- `esb/templates/repairs/queue.html` (new) — Repair queue page with responsive table/cards
+- `esb/static/js/app.js` (modified) — Added table sorting and filtering JavaScript
+- `esb/static/css/app.css` (modified) — Added sortable header styles
+- `tests/test_services/test_repair_service.py` (modified) — Added `TestGetRepairQueue` (7 tests)
+- `tests/test_views/test_repair_views.py` (modified) — Added `TestRepairQueue` (12 tests)
+- `_bmad-output/implementation-artifacts/sprint-status.yaml` (modified) — Story status updated
+- `_bmad-output/implementation-artifacts/3-4-technician-repair-queue.md` (modified) — Story file updated

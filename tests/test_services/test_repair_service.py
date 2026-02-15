@@ -1,7 +1,7 @@
 """Tests for repair service layer."""
 
 import json
-from datetime import date
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 
@@ -612,3 +612,127 @@ class TestAddRepairPhoto:
         )
         with pytest.raises(ValidationError, match='Repair record with id 9999 not found'):
             repair_service.add_repair_photo(9999, fake_file, 'staffuser')
+
+
+class TestGetRepairQueue:
+    """Tests for get_repair_queue()."""
+
+    def test_returns_only_open_records(self, app, make_area, make_equipment):
+        """Excludes Resolved, Closed - No Issue Found, Closed - Duplicate."""
+        area = make_area()
+        eq = make_equipment('Printer', area=area)
+        open_statuses = ['New', 'Assigned', 'In Progress', 'Parts Needed']
+        closed_statuses = ['Resolved', 'Closed - No Issue Found', 'Closed - Duplicate']
+        for s in open_statuses + closed_statuses:
+            _db.session.add(RepairRecord(
+                equipment_id=eq.id, description=f'{s} record', status=s,
+            ))
+        _db.session.commit()
+
+        results = repair_service.get_repair_queue()
+        result_statuses = {r.status for r in results}
+        assert len(results) == len(open_statuses)
+        for s in closed_statuses:
+            assert s not in result_statuses
+
+    def test_default_sort_severity_then_age(self, app, make_area, make_equipment):
+        """Default order: severity priority (Down=0, Degraded=1, Not Sure=2, NULL=3) then oldest first."""
+        area = make_area()
+        eq = make_equipment('Router', area=area)
+        now = datetime.now(UTC)
+        # Create records with different severities and ages
+        r_null_old = RepairRecord(
+            equipment_id=eq.id, description='null old', severity=None,
+            created_at=now - timedelta(days=5),
+        )
+        r_down_new = RepairRecord(
+            equipment_id=eq.id, description='down new', severity='Down',
+            created_at=now - timedelta(days=1),
+        )
+        r_down_old = RepairRecord(
+            equipment_id=eq.id, description='down old', severity='Down',
+            created_at=now - timedelta(days=3),
+        )
+        r_degraded = RepairRecord(
+            equipment_id=eq.id, description='degraded', severity='Degraded',
+            created_at=now - timedelta(days=2),
+        )
+        r_not_sure = RepairRecord(
+            equipment_id=eq.id, description='not sure', severity='Not Sure',
+            created_at=now - timedelta(days=4),
+        )
+        _db.session.add_all([r_null_old, r_down_new, r_down_old, r_degraded, r_not_sure])
+        _db.session.commit()
+
+        results = repair_service.get_repair_queue()
+        descriptions = [r.description for r in results]
+        # Down (oldest first): down_old, down_new; Degraded; Not Sure; NULL
+        assert descriptions == ['down old', 'down new', 'degraded', 'not sure', 'null old']
+
+    def test_area_id_filter(self, app, make_area, make_equipment):
+        """Filters by equipment's area_id."""
+        area1 = make_area('Woodshop')
+        area2 = make_area('Metalshop', slack_channel='#metalshop')
+        eq1 = make_equipment('Table Saw', area=area1)
+        eq2 = make_equipment('Welder', area=area2)
+        _db.session.add_all([
+            RepairRecord(equipment_id=eq1.id, description='saw issue'),
+            RepairRecord(equipment_id=eq2.id, description='welder issue'),
+        ])
+        _db.session.commit()
+
+        results = repair_service.get_repair_queue(area_id=area1.id)
+        assert len(results) == 1
+        assert results[0].description == 'saw issue'
+
+    def test_status_filter(self, app, make_area, make_equipment):
+        """Filters by status."""
+        area = make_area()
+        eq = make_equipment('Laser', area=area)
+        _db.session.add_all([
+            RepairRecord(equipment_id=eq.id, description='new', status='New'),
+            RepairRecord(equipment_id=eq.id, description='assigned', status='Assigned'),
+        ])
+        _db.session.commit()
+
+        results = repair_service.get_repair_queue(status='Assigned')
+        assert len(results) == 1
+        assert results[0].status == 'Assigned'
+
+    def test_combined_area_and_status_filter(self, app, make_area, make_equipment):
+        """Area + status filters work together (AND logic)."""
+        area1 = make_area('Woodshop')
+        area2 = make_area('Metalshop', slack_channel='#metalshop')
+        eq1 = make_equipment('Table Saw', area=area1)
+        eq2 = make_equipment('Welder', area=area2)
+        _db.session.add_all([
+            RepairRecord(equipment_id=eq1.id, description='saw new', status='New'),
+            RepairRecord(equipment_id=eq1.id, description='saw assigned', status='Assigned'),
+            RepairRecord(equipment_id=eq2.id, description='welder new', status='New'),
+        ])
+        _db.session.commit()
+
+        results = repair_service.get_repair_queue(area_id=area1.id, status='New')
+        assert len(results) == 1
+        assert results[0].description == 'saw new'
+
+    def test_empty_result_set(self, app):
+        """Returns empty list when no open records exist."""
+        results = repair_service.get_repair_queue()
+        assert results == []
+
+    def test_includes_equipment_and_area_relationships(self, app, make_area, make_equipment, tech_user):
+        """Returned records have accessible equipment name, area name, and assignee username."""
+        area = make_area('Woodshop')
+        eq = make_equipment('Table Saw', area=area)
+        _db.session.add(RepairRecord(
+            equipment_id=eq.id, description='issue',
+            assignee_id=tech_user.id,
+        ))
+        _db.session.commit()
+
+        results = repair_service.get_repair_queue()
+        assert len(results) == 1
+        assert results[0].equipment.name == 'Table Saw'
+        assert results[0].equipment.area.name == 'Woodshop'
+        assert results[0].assignee.username == 'techuser'

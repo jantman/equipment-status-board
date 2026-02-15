@@ -23,7 +23,7 @@
                     {% if current_user.is_authenticated %}
                     <li class="nav-item">
                         <a class="nav-link {% if request.endpoint and request.endpoint.startswith('repairs.') %}active{% endif %}"
-                           href="{{ url_for('repairs.create') }}">Repairs</a>
+                           href="{{ url_for('repairs.queue') }}">Repairs</a>
                     </li>
                     {% endif %}
                     {% if current_user.is_authenticated and current_user.role == 'staff' %}

@@ -1,5 +1,7 @@
 """Repair record lifecycle management."""
 
+from sqlalchemy import case
+
 from esb.extensions import db
 from esb.models.audit_log import AuditLog
 from esb.models.document import Document
@@ -155,6 +157,49 @@ def list_repair_records(
     if status is not None:
         query = query.filter_by(status=status)
     return list(db.session.execute(query).scalars().all())
+
+
+CLOSED_STATUSES = ['Resolved', 'Closed - No Issue Found', 'Closed - Duplicate']
+
+_SEVERITY_PRIORITY = case(
+    (RepairRecord.severity == 'Down', 0),
+    (RepairRecord.severity == 'Degraded', 1),
+    (RepairRecord.severity == 'Not Sure', 2),
+    else_=3,
+)
+
+
+def get_repair_queue(
+    area_id: int | None = None,
+    status: str | None = None,
+) -> list[RepairRecord]:
+    """Get open repair records for the technician queue.
+
+    Returns records whose status is not in CLOSED_STATUSES, with eager-loaded
+    equipment and area relationships. Default sort: severity priority (Down
+    first) then age (oldest first via created_at ASC).
+
+    Args:
+        area_id: Optional filter by equipment's area ID.
+        status: Optional filter by repair record status.
+
+    Returns:
+        List of RepairRecord instances.
+    """
+    query = (
+        db.select(RepairRecord)
+        .join(RepairRecord.equipment)
+        .join(Equipment.area)
+        .filter(RepairRecord.status.notin_(CLOSED_STATUSES))
+        .order_by(_SEVERITY_PRIORITY, RepairRecord.created_at.asc())
+    )
+    if area_id is not None:
+        query = query.filter(Equipment.area_id == area_id)
+    if status is not None:
+        query = query.filter(RepairRecord.status == status)
+    return list(
+        db.session.execute(query).scalars().unique().all()
+    )
 
 
 def update_repair_record(
