@@ -1,6 +1,6 @@
 # Story 3.1: Repair Record Creation & Data Model
 
-Status: review
+Status: done
 
 ## Story
 
@@ -954,6 +954,7 @@ Claude Opus 4.6
 ### Change Log
 
 - 2026-02-15: Implemented Story 3.1 — RepairRecord, RepairTimelineEntry, AuditLog models + migration + service + forms + views + templates + tests
+- 2026-02-15: Code review fixes — navbar auth guard + active class, repairs.index auth + redirect, status filter test, order assertion fix
 
 ### File List
 
@@ -963,6 +964,7 @@ Claude Opus 4.6
 - esb/models/audit_log.py
 - esb/services/repair_service.py
 - esb/forms/repair_forms.py
+- esb/views/repairs.py
 - esb/templates/repairs/create.html
 - esb/templates/repairs/detail.html
 - esb/templates/components/_timeline_entry.html
@@ -975,6 +977,7 @@ Claude Opus 4.6
 
 **Modified files:**
 - esb/models/__init__.py
-- esb/views/repairs.py
+- esb/views/__init__.py
+- esb/templates/base.html
 - esb/templates/equipment/detail.html
 - tests/conftest.py

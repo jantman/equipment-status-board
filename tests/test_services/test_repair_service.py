@@ -185,7 +185,7 @@ class TestListRepairRecords:
         records = repair_service.list_repair_records()
         assert len(records) == 2
         # Most recent first
-        assert records[0].id >= records[1].id
+        assert records[0].created_at >= records[1].created_at
 
     def test_filters_by_equipment_id(self, app, make_area, make_equipment):
         """Filters records by equipment_id."""
@@ -201,6 +201,18 @@ class TestListRepairRecords:
         records = repair_service.list_repair_records(equipment_id=eq1.id)
         assert len(records) == 1
         assert records[0].equipment_id == eq1.id
+
+    def test_filters_by_status(self, app, make_equipment):
+        """Filters records by status."""
+        eq = make_equipment()
+        r1 = RepairRecord(equipment_id=eq.id, description='First', status='New')
+        r2 = RepairRecord(equipment_id=eq.id, description='Second', status='Assigned')
+        _db.session.add_all([r1, r2])
+        _db.session.commit()
+
+        records = repair_service.list_repair_records(status='New')
+        assert len(records) == 1
+        assert records[0].status == 'New'
 
     def test_returns_empty_list_when_none_exist(self, app):
         """Returns empty list when no records exist."""

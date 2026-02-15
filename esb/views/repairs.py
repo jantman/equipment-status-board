@@ -13,9 +13,10 @@ repairs_bp = Blueprint('repairs', __name__, url_prefix='/repairs')
 
 
 @repairs_bp.route('/')
+@role_required('technician')
 def index():
-    """Repair records list page (placeholder)."""
-    return 'Repair records'
+    """Repair records list page (placeholder - redirects to create)."""
+    return redirect(url_for('repairs.create'))
 
 
 @repairs_bp.route('/new', methods=['GET', 'POST'])
