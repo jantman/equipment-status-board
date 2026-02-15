@@ -52,7 +52,7 @@ development_status:
   epic-2: in-progress
   2-1-area-management: done
   2-2-equipment-registry-crud: done
-  2-3-equipment-documentation-media: backlog
+  2-3-equipment-documentation-media: ready-for-dev
   2-4-equipment-archiving-technician-permissions: backlog
   epic-2-retrospective: optional
 
