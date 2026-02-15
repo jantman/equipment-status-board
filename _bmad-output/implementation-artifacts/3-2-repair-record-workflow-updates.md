@@ -1,6 +1,6 @@
 # Story 3.2: Repair Record Workflow & Updates
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -623,20 +623,31 @@ None needed -- clean implementation with no blockers.
 - Task 3: Added `GET/POST /repairs/<int:id>/edit` route to `esb/views/repairs.py` with dynamic choice population, sentinel handling (0 for unassigned, '' for no severity), PRG redirect pattern, and error handling.
 - Task 4: Created `esb/templates/repairs/edit.html` following create.html pattern -- breadcrumbs, centered form, all fields, native date input, validation error display.
 - Task 5: Added "Edit" button to detail page header and specialist_description display field.
-- Task 6: Added 17 service tests covering all AC scenarios: status/assignee/eta/note timeline entries, batch changes, severity updates, specialist_description, audit log, mutation log, validation errors, no-op updates, any-to-any status transitions.
-- Task 7: Added 10 view tests covering GET/POST for staff/technician/unauthenticated, 404, status changes, multiple changes, specialist description.
-- All 535 tests pass (27 new + 508 existing), ruff lint clean.
+- Task 6: Added 18 service tests covering all AC scenarios: status/assignee/eta/note timeline entries, batch changes, severity updates, specialist_description (with audit+mutation assertions), audit log, mutation log, validation errors, unknown field validation, no-op updates, any-to-any status transitions.
+- Task 7: Added 11 view tests covering GET/POST for staff/technician/unauthenticated, 404, status changes, multiple changes, specialist description, and service validation error flash.
+- All 537 tests pass (29 new + 508 existing), ruff lint clean.
+
+### Code Review Fixes Applied
+
+- [M1] Added unknown kwargs validation in `update_repair_record()` -- raises `ValidationError` for unrecognized field names
+- [M2] Added defensive null check in assignee username resolution -- prevents `AttributeError` if user record missing
+- [M3] Added view test for service `ValidationError` flash on edit POST
+- [L1] Changed `_REPAIR_UPDATABLE_FIELDS` from set to tuple for deterministic iteration order
+- [L2] Standardized audit log note format to `[None, note_text]` matching field change format
+- [L3] Added audit log and mutation log assertions to `test_specialist_description_saved`
+- [L4] Added clarifying comment that `specialist_description` is intentionally saved regardless of status
 
 ### Change Log
 
 - 2026-02-15: Implemented Story 3.2 -- repair record update workflow with edit form, service function, timeline entries, audit/mutation logging, and comprehensive tests.
+- 2026-02-15: Code review fixes -- unknown kwargs validation, defensive assignee resolution, consistent audit format, deterministic field ordering, expanded test coverage (537 total).
 
 ### File List
 
 - `esb/forms/repair_forms.py` (MODIFIED) -- Added RepairRecordUpdateForm class, imported DateField
-- `esb/services/repair_service.py` (MODIFIED) -- Added update_repair_record(), _serialize(), _REPAIR_UPDATABLE_FIELDS, imported REPAIR_STATUSES
+- `esb/services/repair_service.py` (MODIFIED) -- Added update_repair_record(), _serialize(), _REPAIR_UPDATABLE_FIELDS (tuple), imported REPAIR_STATUSES; code review: unknown kwargs validation, defensive assignee resolution, consistent audit note format
 - `esb/views/repairs.py` (MODIFIED) -- Added edit() route (GET/POST), imported RepairRecordUpdateForm and REPAIR_STATUSES
 - `esb/templates/repairs/edit.html` (NEW) -- Edit form template
 - `esb/templates/repairs/detail.html` (MODIFIED) -- Added Edit button and specialist_description display
-- `tests/test_services/test_repair_service.py` (MODIFIED) -- Added TestUpdateRepairRecord class with 17 tests
-- `tests/test_views/test_repair_views.py` (MODIFIED) -- Added TestEditRepairRecord class with 10 tests
+- `tests/test_services/test_repair_service.py` (MODIFIED) -- Added TestUpdateRepairRecord class with 18 tests (code review: +1 unknown field test, expanded specialist_description assertions)
+- `tests/test_views/test_repair_views.py` (MODIFIED) -- Added TestEditRepairRecord class with 11 tests (code review: +1 validation error flash test)

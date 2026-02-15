@@ -1,8 +1,11 @@
 """Tests for repair record views."""
 
+from unittest.mock import patch
+
 from esb.extensions import db as _db
 from esb.models.repair_record import RepairRecord
 from esb.models.repair_timeline_entry import RepairTimelineEntry
+from esb.utils.exceptions import ValidationError
 
 
 class TestCreateRepairRecord:
@@ -250,6 +253,21 @@ class TestEditRepairRecord:
         updated = _db.session.get(RepairRecord, record.id)
         assert updated.status == 'Needs Specialist'
         assert updated.specialist_description == 'Need licensed electrician'
+
+    def test_edit_post_validation_error_shows_flash(self, staff_client, make_repair_record):
+        """Service ValidationError is caught and displayed as flash message."""
+        record = make_repair_record(status='New')
+        with patch('esb.services.repair_service.update_repair_record') as mock_update:
+            mock_update.side_effect = ValidationError('Test validation error')
+            resp = staff_client.post(f'/repairs/{record.id}/edit', data={
+                'status': 'New',
+                'severity': '',
+                'assignee_id': '0',
+                'specialist_description': '',
+                'note': '',
+            })
+        assert resp.status_code == 200
+        assert b'Test validation error' in resp.data
 
     def test_edit_post_unauthenticated_redirects(self, client, make_repair_record):
         """Unauthenticated POST redirects to login."""

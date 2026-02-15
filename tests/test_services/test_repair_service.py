@@ -344,13 +344,22 @@ class TestUpdateRepairRecord:
         assert len(entries) == 0
 
     def test_specialist_description_saved(self, app, make_repair_record, staff_user, capture):
-        """Specialist description is persisted on the record."""
+        """Specialist description is persisted with audit log and mutation log."""
         record = make_repair_record()
         updated = repair_service.update_repair_record(
             record.id, 'staffuser', author_id=staff_user.id,
             specialist_description='Needs electrician for high-voltage panel',
         )
         assert updated.specialist_description == 'Needs electrician for high-voltage panel'
+        audit = _db.session.execute(
+            _db.select(AuditLog).filter_by(
+                entity_type='repair_record', entity_id=record.id, action='updated',
+            )
+        ).scalar_one()
+        assert 'specialist_description' in audit.changes
+        assert len(capture.records) == 1
+        log_data = json.loads(capture.records[0].message)
+        assert 'specialist_description' in log_data['data']['changes']
 
     def test_audit_log_created_with_changes(self, app, make_repair_record, staff_user, capture):
         """Audit log entry created with all changes as JSON."""
@@ -430,6 +439,14 @@ class TestUpdateRepairRecord:
         ).scalars().all()
         assert len(audits) == 0
         assert len(capture.records) == 0
+
+    def test_unknown_field_raises(self, app, make_repair_record, staff_user):
+        """Raises ValidationError for unknown field names."""
+        record = make_repair_record()
+        with pytest.raises(ValidationError, match='Unknown fields'):
+            repair_service.update_repair_record(
+                record.id, 'staffuser', author_id=staff_user.id, bogus_field='value',
+            )
 
     def test_any_to_any_status_transition(self, app, make_repair_record, staff_user, capture):
         """Can transition from any status to any other status."""

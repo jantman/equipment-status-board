@@ -10,7 +10,10 @@ from esb.utils.exceptions import ValidationError
 from esb.utils.logging import log_mutation
 
 
-_REPAIR_UPDATABLE_FIELDS = {'status', 'severity', 'assignee_id', 'eta', 'specialist_description'}
+# Ordered tuple for deterministic timeline entry creation order.
+# specialist_description is intentionally saved regardless of status -- the AC
+# requires it available when status is "Needs Specialist", not restricted to it.
+_REPAIR_UPDATABLE_FIELDS = ('status', 'severity', 'assignee_id', 'eta', 'specialist_description')
 
 
 def _serialize(value):
@@ -195,6 +198,11 @@ def update_repair_record(
     # Extract note separately (not a model field)
     note = changes.pop('note', None)
 
+    # Validate no unknown keys were passed
+    unknown_keys = set(changes.keys()) - set(_REPAIR_UPDATABLE_FIELDS)
+    if unknown_keys:
+        raise ValidationError(f'Unknown fields: {", ".join(sorted(unknown_keys))}')
+
     # Detect changes and create timeline entries
     audit_changes = {}
     for field_name in _REPAIR_UPDATABLE_FIELDS:
@@ -220,15 +228,15 @@ def update_repair_record(
                 new_value=str(new_value),
             ))
         elif field_name == 'assignee_id':
-            old_name = db.session.get(User, old_value).username if old_value else None
-            new_name = db.session.get(User, new_value).username if new_value else None
+            old_user = db.session.get(User, old_value) if old_value else None
+            new_user = db.session.get(User, new_value) if new_value else None
             db.session.add(RepairTimelineEntry(
                 repair_record_id=record.id,
                 entry_type='assignee_change',
                 author_id=author_id,
                 author_name=updated_by,
-                old_value=old_name,
-                new_value=new_name,
+                old_value=old_user.username if old_user else None,
+                new_value=new_user.username if new_user else None,
             ))
         elif field_name == 'eta':
             db.session.add(RepairTimelineEntry(
@@ -249,7 +257,7 @@ def update_repair_record(
             author_name=updated_by,
             content=note.strip(),
         ))
-        audit_changes['note'] = note.strip()
+        audit_changes['note'] = [None, note.strip()]
 
     # Create audit log entry
     if audit_changes:
