@@ -1,0 +1,25 @@
+"""Repair record forms."""
+
+from flask_wtf import FlaskForm
+from wtforms import BooleanField, SelectField, SubmitField, TextAreaField
+from wtforms.validators import DataRequired, Length, Optional
+
+from esb.models.repair_record import REPAIR_SEVERITIES
+
+
+class RepairRecordCreateForm(FlaskForm):
+    """Form for creating a new repair record."""
+
+    equipment_id = SelectField('Equipment *', coerce=int)
+    description = TextAreaField(
+        'Description *', validators=[DataRequired(), Length(max=5000)],
+    )
+    severity = SelectField(
+        'Severity',
+        choices=[('', '-- Select Severity --')] + [(s, s) for s in REPAIR_SEVERITIES],
+        validators=[Optional()],
+    )
+    assignee_id = SelectField('Assignee', coerce=int, validators=[Optional()])
+    has_safety_risk = BooleanField('Safety Risk')
+    is_consumable = BooleanField('Consumable Issue')
+    submit = SubmitField('Create Repair Record')

@@ -18,13 +18,16 @@
 
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h1>{{ equipment.name }}</h1>
-    {% if current_user.role == 'staff' and not equipment.is_archived %}
+    {% if not equipment.is_archived %}
     <div class="d-flex gap-2">
+        <a href="{{ url_for('repairs.create', equipment_id=equipment.id) }}" class="btn btn-outline-primary btn-sm">Report Issue</a>
+        {% if current_user.role == 'staff' %}
         <a href="{{ url_for('equipment.edit', id=equipment.id) }}" class="btn btn-outline-secondary">Edit</a>
         <form method="post" action="{{ url_for('equipment.archive', id=equipment.id) }}" class="d-inline">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="btn btn-danger" onclick="return confirm('Are you sure you want to archive this equipment? It will be removed from active lists.')">Archive</button>
         </form>
+        {% endif %}
     </div>
     {% endif %}
 </div>

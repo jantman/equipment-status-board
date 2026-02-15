@@ -8,6 +8,7 @@ from esb import create_app
 from esb.extensions import db as _db
 from esb.models.area import Area
 from esb.models.equipment import Equipment
+from esb.models.repair_record import RepairRecord
 from esb.models.user import User
 from esb.utils.logging import mutation_logger
 
@@ -123,6 +124,28 @@ def staff_client(client, staff_user):
         'password': 'testpass',
     })
     return client
+
+
+def _create_repair_record(equipment=None, status='New', description='Test issue', **kwargs):
+    """Helper to create a repair record in the test database."""
+    if equipment is None:
+        area = _create_area()
+        equipment = _create_equipment(area=area)
+    record = RepairRecord(
+        equipment_id=equipment.id,
+        status=status,
+        description=description,
+        **kwargs,
+    )
+    _db.session.add(record)
+    _db.session.commit()
+    return record
+
+
+@pytest.fixture
+def make_repair_record(app):
+    """Factory fixture to create test repair records."""
+    return _create_repair_record
 
 
 @pytest.fixture

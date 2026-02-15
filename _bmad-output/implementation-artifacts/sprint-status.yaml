@@ -58,7 +58,7 @@ development_status:
 
   # Epic 3: Repair Tracking & Technician Workflow
   epic-3: in-progress
-  3-1-repair-record-creation-data-model: ready-for-dev
+  3-1-repair-record-creation-data-model: review
   3-2-repair-record-workflow-updates: backlog
   3-3-repair-timeline-notes-photos: backlog
   3-4-technician-repair-queue: backlog

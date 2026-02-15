@@ -1,6 +1,6 @@
 # Story 3.1: Repair Record Creation & Data Model
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -24,61 +24,61 @@ so that problems are tracked from discovery through resolution.
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Create RepairRecord model and migration (AC: #1)
-  - [ ] 1.1 Create `esb/models/repair_record.py` with RepairRecord model
-  - [ ] 1.2 Register RepairRecord in `esb/models/__init__.py`
-  - [ ] 1.3 Write model unit tests
+- [x] Task 1: Create RepairRecord model and migration (AC: #1)
+  - [x] 1.1 Create `esb/models/repair_record.py` with RepairRecord model
+  - [x] 1.2 Register RepairRecord in `esb/models/__init__.py`
+  - [x] 1.3 Write model unit tests
 
-- [ ] Task 2: Create RepairTimelineEntry model (AC: #2)
-  - [ ] 2.1 Create `esb/models/repair_timeline_entry.py` with RepairTimelineEntry model
-  - [ ] 2.2 Register RepairTimelineEntry in `esb/models/__init__.py`
-  - [ ] 2.3 Write model unit tests
+- [x] Task 2: Create RepairTimelineEntry model (AC: #2)
+  - [x] 2.1 Create `esb/models/repair_timeline_entry.py` with RepairTimelineEntry model
+  - [x] 2.2 Register RepairTimelineEntry in `esb/models/__init__.py`
+  - [x] 2.3 Write model unit tests
 
-- [ ] Task 3: Create AuditLog model (AC: #3)
-  - [ ] 3.1 Create `esb/models/audit_log.py` with AuditLog model
-  - [ ] 3.2 Register AuditLog in `esb/models/__init__.py`
-  - [ ] 3.3 Write model unit tests
+- [x] Task 3: Create AuditLog model (AC: #3)
+  - [x] 3.1 Create `esb/models/audit_log.py` with AuditLog model
+  - [x] 3.2 Register AuditLog in `esb/models/__init__.py`
+  - [x] 3.3 Write model unit tests
 
-- [ ] Task 4: Generate and apply Alembic migration for all three tables (AC: #1, #2, #3)
-  - [ ] 4.1 Generate migration with `flask db migrate -m "Add repair_records, repair_timeline_entries, and audit_log tables"`
-  - [ ] 4.2 Apply migration with `flask db upgrade`
-  - [ ] 4.3 Verify tables created correctly
+- [x] Task 4: Generate and apply Alembic migration for all three tables (AC: #1, #2, #3)
+  - [x] 4.1 Generate migration with `flask db migrate -m "Add repair_records, repair_timeline_entries, and audit_log tables"`
+  - [x] 4.2 Apply migration with `flask db upgrade`
+  - [x] 4.3 Verify tables created correctly
 
-- [ ] Task 5: Create repair service layer (AC: #4, #6)
-  - [ ] 5.1 Create `esb/services/repair_service.py` (NEW file)
-  - [ ] 5.2 Implement `create_repair_record()` -- creates record + timeline creation entry + audit log + mutation log
-  - [ ] 5.3 Implement `get_repair_record()` -- get by ID with validation
-  - [ ] 5.4 Implement `list_repair_records()` -- list with optional equipment_id filter
-  - [ ] 5.5 Write service unit tests
+- [x] Task 5: Create repair service layer (AC: #4, #6)
+  - [x] 5.1 Create `esb/services/repair_service.py` (NEW file)
+  - [x] 5.2 Implement `create_repair_record()` -- creates record + timeline creation entry + audit log + mutation log
+  - [x] 5.3 Implement `get_repair_record()` -- get by ID with validation
+  - [x] 5.4 Implement `list_repair_records()` -- list with optional equipment_id filter
+  - [x] 5.5 Write service unit tests
 
-- [ ] Task 6: Create repair forms (AC: #4)
-  - [ ] 6.1 Create `esb/forms/repair_forms.py` (NEW file)
-  - [ ] 6.2 Implement `RepairRecordCreateForm` with equipment selector, description, severity, safety risk, assignee
-  - [ ] 6.3 Write form validation tests (if needed)
+- [x] Task 6: Create repair forms (AC: #4)
+  - [x] 6.1 Create `esb/forms/repair_forms.py` (NEW file)
+  - [x] 6.2 Implement `RepairRecordCreateForm` with equipment selector, description, severity, safety risk, assignee
+  - [x] 6.3 Write form validation tests (if needed)
 
-- [ ] Task 7: Create repair views and routes (AC: #4, #5)
-  - [ ] 7.1 Create `esb/views/repairs.py` (NEW file) with repairs Blueprint
-  - [ ] 7.2 Implement `GET /repairs/new` -- create repair record form
-  - [ ] 7.3 Implement `POST /repairs/new` -- handle form submission
-  - [ ] 7.4 Implement `GET /repairs/<int:id>` -- repair record detail page
-  - [ ] 7.5 Register Blueprint in `esb/views/__init__.py`
-  - [ ] 7.6 Write view integration tests
+- [x] Task 7: Create repair views and routes (AC: #4, #5)
+  - [x] 7.1 Create `esb/views/repairs.py` (NEW file) with repairs Blueprint
+  - [x] 7.2 Implement `GET /repairs/new` -- create repair record form
+  - [x] 7.3 Implement `POST /repairs/new` -- handle form submission
+  - [x] 7.4 Implement `GET /repairs/<int:id>` -- repair record detail page
+  - [x] 7.5 Register Blueprint in `esb/views/__init__.py`
+  - [x] 7.6 Write view integration tests
 
-- [ ] Task 8: Create repair templates (AC: #4, #5)
-  - [ ] 8.1 Create `esb/templates/repairs/create.html` -- repair record creation form
-  - [ ] 8.2 Create `esb/templates/repairs/detail.html` -- repair record detail with timeline
-  - [ ] 8.3 Create `esb/templates/components/_timeline_entry.html` -- reusable timeline entry partial
+- [x] Task 8: Create repair templates (AC: #4, #5)
+  - [x] 8.1 Create `esb/templates/repairs/create.html` -- repair record creation form
+  - [x] 8.2 Create `esb/templates/repairs/detail.html` -- repair record detail with timeline
+  - [x] 8.3 Create `esb/templates/components/_timeline_entry.html` -- reusable timeline entry partial
 
-- [ ] Task 9: Add navigation links for repairs (AC: #5)
-  - [ ] 9.1 Add "Repairs" link to navbar in `base.html` for Technician and Staff users
-  - [ ] 9.2 Add "Create Repair Record" action link from equipment detail page
+- [x] Task 9: Add navigation links for repairs (AC: #5)
+  - [x] 9.1 Add "Repairs" link to navbar in `base.html` for Technician and Staff users
+  - [x] 9.2 Add "Create Repair Record" action link from equipment detail page
 
-- [ ] Task 10: Comprehensive testing (AC: #1-#6)
-  - [ ] 10.1 Model unit tests for all three models
-  - [ ] 10.2 Service tests for create, get, list with mutation log verification
-  - [ ] 10.3 View tests for access control, creation, detail view
-  - [ ] 10.4 Verify audit log entries created on repair record creation
-  - [ ] 10.5 Verify timeline entries created correctly
+- [x] Task 10: Comprehensive testing (AC: #1-#6)
+  - [x] 10.1 Model unit tests for all three models
+  - [x] 10.2 Service tests for create, get, list with mutation log verification
+  - [x] 10.3 View tests for access control, creation, detail view
+  - [x] 10.4 Verify audit log entries created on repair record creation
+  - [x] 10.5 Verify timeline entries created correctly
 
 ## Dev Notes
 
@@ -933,10 +933,48 @@ The container IP changes on restart, so always inspect it fresh. The DB port (33
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+Claude Opus 4.6
 
 ### Debug Log References
 
+- Fixed `DataRequired()` on `equipment_id` SelectField: `coerce=int` with `DataRequired` rejects sentinel value 0 (falsy). Removed validator; validation handled in view.
+- Fixed `selected` attribute assertion: WTForms renders `<option selected value="X">` not `<option value="X" selected>`.
+
 ### Completion Notes List
 
+- Task 1-3: Created RepairRecord, RepairTimelineEntry, AuditLog models with full field specs per AC #1-#3. Constants (REPAIR_STATUSES, REPAIR_SEVERITIES, TIMELINE_ENTRY_TYPES) defined as module-level lists.
+- Task 4: Generated and applied Alembic migration `7bd5caedf749`. All three tables verified in MariaDB.
+- Task 5: Implemented repair_service.py with create_repair_record (validates equipment, severity, assignee; creates timeline entry + audit log + mutation log), get_repair_record, list_repair_records.
+- Task 6: Created RepairRecordCreateForm with equipment selector, description, severity, assignee, safety risk, consumable fields.
+- Task 7: Implemented repairs Blueprint with /repairs/new (GET/POST) and /repairs/<id> (GET) routes. Pre-selected equipment via query param supported.
+- Task 8: Created create.html, detail.html, and _timeline_entry.html templates following existing Bootstrap patterns.
+- Task 9: Navbar already had Repairs link. Added "Report Issue" button on equipment detail page (visible to all authenticated users for non-archived equipment).
+- Task 10: 507 tests passing (0 failures). 55 new tests: 12 model (RepairRecord), 8 model (RepairTimelineEntry), 6 model (AuditLog), 15 service, 14 view. Ruff clean.
+
+### Change Log
+
+- 2026-02-15: Implemented Story 3.1 — RepairRecord, RepairTimelineEntry, AuditLog models + migration + service + forms + views + templates + tests
+
 ### File List
+
+**New files:**
+- esb/models/repair_record.py
+- esb/models/repair_timeline_entry.py
+- esb/models/audit_log.py
+- esb/services/repair_service.py
+- esb/forms/repair_forms.py
+- esb/templates/repairs/create.html
+- esb/templates/repairs/detail.html
+- esb/templates/components/_timeline_entry.html
+- tests/test_models/test_repair_record.py
+- tests/test_models/test_repair_timeline_entry.py
+- tests/test_models/test_audit_log.py
+- tests/test_services/test_repair_service.py
+- tests/test_views/test_repair_views.py
+- migrations/versions/7bd5caedf749_add_repair_records_repair_timeline_.py
+
+**Modified files:**
+- esb/models/__init__.py
+- esb/views/repairs.py
+- esb/templates/equipment/detail.html
+- tests/conftest.py

@@ -1,0 +1,27 @@
+<li class="list-group-item">
+    <div class="d-flex justify-content-between align-items-start">
+        <div>
+            {% if entry.entry_type == 'creation' %}
+            <strong>Repair record created</strong>
+            {% elif entry.entry_type == 'note' %}
+            <strong>Note added</strong>
+            {% elif entry.entry_type == 'status_change' %}
+            <strong>Status changed from {{ entry.old_value }} to {{ entry.new_value }}</strong>
+            {% elif entry.entry_type == 'assignee_change' %}
+            <strong>{% if entry.new_value %}Assigned to {{ entry.new_value }}{% else %}Unassigned{% endif %}</strong>
+            {% elif entry.entry_type == 'eta_update' %}
+            <strong>ETA {% if entry.new_value %}set to {{ entry.new_value }}{% else %}removed{% endif %}</strong>
+            {% elif entry.entry_type == 'photo' %}
+            <strong>Photo uploaded</strong>
+            {% endif %}
+            {% if entry.content %}
+            <p class="mb-0 mt-1">{{ entry.content }}</p>
+            {% endif %}
+        </div>
+        <small class="text-muted text-nowrap ms-2">
+            {{ entry.author_name or (entry.author.username if entry.author else 'System') }}
+            &middot;
+            {{ entry.created_at.strftime('%Y-%m-%d %H:%M') }}
+        </small>
+    </div>
+</li>

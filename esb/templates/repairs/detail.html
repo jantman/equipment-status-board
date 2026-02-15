@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}Repair #{{ record.id }} - Equipment Status Board{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{{ url_for('repairs.index') }}">Repairs</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Repair #{{ record.id }}</li>
+    </ol>
+</nav>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1>Repair #{{ record.id }}</h1>
+    <span class="badge bg-{{ 'danger' if record.severity == 'Down' else ('warning text-dark' if record.severity in ['Degraded', 'Not Sure'] else 'secondary') }}">
+        {{ record.severity or 'No Severity' }}
+    </span>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header"><h5 class="mb-0">Repair Information</h5></div>
+    <div class="card-body">
+        <dl class="row mb-0">
+            <dt class="col-sm-3">Equipment</dt>
+            <dd class="col-sm-9">
+                <a href="{{ url_for('equipment.detail', id=record.equipment.id) }}">
+                    {{ record.equipment.name }}
+                </a>
+                ({{ record.equipment.area.name }})
+            </dd>
+            <dt class="col-sm-3">Status</dt>
+            <dd class="col-sm-9"><span class="badge bg-info text-dark">{{ record.status }}</span></dd>
+            <dt class="col-sm-3">Severity</dt>
+            <dd class="col-sm-9">{{ record.severity or 'Not set' }}</dd>
+            <dt class="col-sm-3">Assignee</dt>
+            <dd class="col-sm-9">{{ record.assignee.username if record.assignee else 'Unassigned' }}</dd>
+            {% if record.eta %}
+            <dt class="col-sm-3">ETA</dt>
+            <dd class="col-sm-9">{{ record.eta.strftime('%Y-%m-%d') }}</dd>
+            {% endif %}
+            {% if record.has_safety_risk %}
+            <dt class="col-sm-3">Safety Risk</dt>
+            <dd class="col-sm-9"><span class="badge bg-danger">SAFETY RISK</span></dd>
+            {% endif %}
+            <dt class="col-sm-3">Description</dt>
+            <dd class="col-sm-9">{{ record.description }}</dd>
+            <dt class="col-sm-3">Created</dt>
+            <dd class="col-sm-9">{{ record.created_at.strftime('%Y-%m-%d %H:%M') }}</dd>
+        </dl>
+    </div>
+</div>
+
+<h3>Timeline</h3>
+<ol class="list-group mb-4">
+    {% for entry in timeline %}
+    {% include 'components/_timeline_entry.html' %}
+    {% endfor %}
+</ol>
+{% endblock %}
