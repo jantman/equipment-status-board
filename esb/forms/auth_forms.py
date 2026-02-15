@@ -16,9 +16,9 @@ class LoginForm(FlaskForm):
 class ChangePasswordForm(FlaskForm):
     """Form for changing the current user's password."""
 
-    current_password = PasswordField('Current Password *', validators=[DataRequired()])
-    new_password = PasswordField('New Password *', validators=[DataRequired()])
-    confirm_password = PasswordField('Confirm New Password *', validators=[
+    current_password = PasswordField('Current Password', validators=[DataRequired()])
+    new_password = PasswordField('New Password', validators=[DataRequired()])
+    confirm_password = PasswordField('Confirm New Password', validators=[
         DataRequired(),
         EqualTo('new_password', message='Passwords must match'),
     ])

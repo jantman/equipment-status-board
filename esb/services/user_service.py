@@ -1,4 +1,4 @@
-"""User service layer for account provisioning and role management.
+"""User service layer for account provisioning, role management, and password management.
 
 All user management business logic lives here. Views call these functions;
 they never query models directly.
@@ -187,7 +187,9 @@ def reset_password(user_id: int, reset_by: str) -> tuple[User, str, bool]:
     user.set_password(temp_password)
     db.session.commit()
 
-    slack_delivered = _deliver_temp_password_via_slack(user, temp_password)
+    slack_delivered = _deliver_temp_password_via_slack(
+        user, temp_password, action='reset',
+    )
 
     log_mutation('user.password_reset', reset_by, {
         'user_id': user.id,
@@ -199,8 +201,15 @@ def reset_password(user_id: int, reset_by: str) -> tuple[User, str, bool]:
     return user, temp_password, slack_delivered
 
 
-def _deliver_temp_password_via_slack(user: User, temp_password: str) -> bool:
+def _deliver_temp_password_via_slack(
+    user: User, temp_password: str, *, action: str = 'created',
+) -> bool:
     """Attempt to deliver temporary password via Slack DM.
+
+    Args:
+        user: The user to deliver the password to.
+        temp_password: The temporary password.
+        action: Context for the message -- 'created' or 'reset'.
 
     Returns True on success, False on any failure or if not configured.
     """
@@ -222,8 +231,13 @@ def _deliver_temp_password_via_slack(user: User, temp_password: str) -> bool:
         resp = client.conversations_open(users=[slack_user_id])
         dm_channel_id = resp['channel']['id']
 
+        if action == 'reset':
+            intro = 'Your Equipment Status Board password has been reset.'
+        else:
+            intro = 'Your Equipment Status Board account has been created.'
+
         message = (
-            f'Your Equipment Status Board account has been created.\n'
+            f'{intro}\n'
             f'Username: {user.username}\n'
             f'Temporary password: {temp_password}\n\n'
             f'Please log in and change your password as soon as possible.'

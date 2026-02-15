@@ -1,6 +1,6 @@
 # Story 1.4: Password Management
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -376,12 +376,20 @@ None
 ### Completion Notes List
 
 - All 9 tasks and 42 subtasks completed
-- 26 new tests added (183 total, all passing)
+- 28 new tests added (185 total, all passing)
 - Ruff lint clean
 - No new dependencies required
 - Reused existing `user_created` view/template for temp password display after reset
-- Reused existing `_deliver_temp_password_via_slack()` for password reset Slack delivery
+- Reused existing `_deliver_temp_password_via_slack()` for password reset Slack delivery (with action param for context-appropriate message)
 - Fixed mutation log test assertions to check `entry['data']` instead of full `entry` (event names contain "password")
+
+**Code review fixes (2026-02-14):**
+- [HIGH] Added try/except ValidationError around reset_password service call in admin view
+- [MEDIUM] Fixed duplicate asterisks on ChangePasswordForm labels (removed from Python, kept in template)
+- [MEDIUM] Implemented self-reset guard: staff cannot reset own password via admin route
+- [MEDIUM] Parameterized Slack DM message: "password has been reset" vs "account has been created"
+- [LOW] Added tests for nonexistent user reset and self-reset guard
+- [LOW] Updated user_service.py module docstring
 
 ### Change Log
 

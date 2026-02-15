@@ -100,12 +100,20 @@ def change_role(id):
 @role_required('staff')
 def reset_password(id):
     """Reset a user's password."""
+    if id == current_user.id:
+        flash('Use Change Password to change your own password.', 'danger')
+        return redirect(url_for('admin.list_users'))
+
     form = ResetPasswordForm()
     if form.validate_on_submit():
-        user, temp_password, slack_delivered = user_service.reset_password(
-            user_id=id,
-            reset_by=current_user.username,
-        )
+        try:
+            user, temp_password, slack_delivered = user_service.reset_password(
+                user_id=id,
+                reset_by=current_user.username,
+            )
+        except ValidationError as e:
+            flash(str(e), 'danger')
+            return redirect(url_for('admin.list_users'))
 
         if slack_delivered:
             flash('Password reset. New temporary password sent via Slack DM.', 'success')

@@ -295,6 +295,20 @@ class TestResetPassword:
         assert resp.status_code == 302
         assert '/admin/users' in resp.headers['Location']
 
+    def test_nonexistent_user_shows_error(self, staff_client, staff_user):
+        """Resetting nonexistent user flashes error and redirects."""
+        resp = staff_client.post('/admin/users/99999/reset-password', follow_redirects=True)
+        assert resp.status_code == 200
+        assert b'not found' in resp.data
+
+    def test_self_reset_blocked(self, staff_client, staff_user):
+        """Staff cannot reset their own password via this route."""
+        resp = staff_client.post(
+            f'/admin/users/{staff_user.id}/reset-password', follow_redirects=True,
+        )
+        assert resp.status_code == 200
+        assert b'Use Change Password' in resp.data
+
     def test_old_password_no_longer_works(self, staff_client, staff_user, tech_user):
         """After reset, the old password no longer works."""
         staff_client.post(f'/admin/users/{tech_user.id}/reset-password')
