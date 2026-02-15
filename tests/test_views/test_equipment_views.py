@@ -277,6 +277,237 @@ class TestEditEquipment:
         assert '/auth/login' in resp.headers['Location']
 
 
+class TestArchiveEquipment:
+    """Tests for POST /equipment/<id>/archive."""
+
+    def test_staff_can_archive(self, staff_client, make_equipment):
+        """Staff can archive equipment."""
+        eq = make_equipment('Laser', 'Epilog', 'Zing')
+        resp = staff_client.post(f'/equipment/{eq.id}/archive')
+        assert resp.status_code == 302
+
+        updated = _db.session.get(Equipment, eq.id)
+        assert updated.is_archived is True
+
+    def test_technician_gets_403(self, tech_client, make_equipment):
+        """Technicians cannot archive equipment."""
+        eq = make_equipment('Laser', 'Epilog', 'Zing')
+        resp = tech_client.post(f'/equipment/{eq.id}/archive')
+        assert resp.status_code == 403
+
+    def test_unauthenticated_redirects_to_login(self, client, make_equipment, app):
+        """Unauthenticated users are redirected to login."""
+        with app.app_context():
+            eq = make_equipment('Laser', 'Epilog', 'Zing')
+            resp = client.post(f'/equipment/{eq.id}/archive')
+            assert resp.status_code == 302
+            assert '/auth/login' in resp.headers['Location']
+
+    def test_archived_detail_shows_warning_banner(self, staff_client, make_equipment):
+        """Archived equipment detail page shows warning banner."""
+        eq = make_equipment('Laser', 'Epilog', 'Zing')
+        eq.is_archived = True
+        _db.session.commit()
+
+        resp = staff_client.get(f'/equipment/{eq.id}')
+        assert resp.status_code == 200
+        assert b'archived' in resp.data
+        assert b'alert-warning' in resp.data
+
+    def test_archived_hides_edit_archive_buttons(self, staff_client, make_equipment):
+        """Archived equipment hides Edit and Archive buttons."""
+        eq = make_equipment('Laser', 'Epilog', 'Zing')
+        eq.is_archived = True
+        _db.session.commit()
+
+        resp = staff_client.get(f'/equipment/{eq.id}')
+        assert b'btn btn-outline-secondary' not in resp.data  # Edit button
+        assert b'btn btn-danger' not in resp.data  # Archive button
+
+    def test_archived_hides_upload_add_controls(self, staff_client, make_equipment):
+        """Archived equipment hides upload/add/delete controls."""
+        eq = make_equipment('Laser', 'Epilog', 'Zing')
+        eq.is_archived = True
+        _db.session.commit()
+
+        resp = staff_client.get(f'/equipment/{eq.id}')
+        assert b'Upload Document' not in resp.data
+        assert b'Upload Photo' not in resp.data
+        assert b'Add Link' not in resp.data
+
+    def test_edit_route_blocked_for_archived(self, staff_client, make_equipment):
+        """Edit route redirects with warning for archived equipment."""
+        eq = make_equipment('Laser', 'Epilog', 'Zing')
+        eq.is_archived = True
+        _db.session.commit()
+
+        resp = staff_client.get(f'/equipment/{eq.id}/edit', follow_redirects=True)
+        assert resp.status_code == 200
+        assert b'Cannot edit archived equipment' in resp.data
+
+    def test_upload_blocked_for_archived(self, staff_client, make_equipment):
+        """Upload routes blocked for archived equipment."""
+        eq = make_equipment('Laser', 'Epilog', 'Zing')
+        eq.is_archived = True
+        _db.session.commit()
+
+        resp = staff_client.post(
+            f'/equipment/{eq.id}/documents',
+            data={'file': (io.BytesIO(b'content'), 'test.pdf'), 'category': 'other'},
+            content_type='multipart/form-data',
+            follow_redirects=True,
+        )
+        assert b'Cannot modify archived equipment' in resp.data
+
+    def test_add_link_blocked_for_archived(self, staff_client, make_equipment):
+        """Add link route blocked for archived equipment."""
+        eq = make_equipment('Laser', 'Epilog', 'Zing')
+        eq.is_archived = True
+        _db.session.commit()
+
+        resp = staff_client.post(
+            f'/equipment/{eq.id}/links',
+            data={'title': 'Test', 'url': 'https://example.com'},
+            follow_redirects=True,
+        )
+        assert b'Cannot modify archived equipment' in resp.data
+
+    def test_archived_excluded_from_list(self, staff_client, make_equipment, make_area):
+        """Archived equipment is excluded from list view."""
+        area = make_area('Shop', '#shop')
+        eq = make_equipment('Old Laser', 'Epilog', 'Zing', area=area)
+        eq.is_archived = True
+        _db.session.commit()
+        make_equipment('Active CNC', 'ShopBot', 'Desktop', area=area)
+
+        resp = staff_client.get('/equipment/')
+        assert b'Old Laser' not in resp.data
+        assert b'Active CNC' in resp.data
+
+    def test_archive_success_flash(self, staff_client, make_equipment):
+        """Successful archive shows success flash."""
+        eq = make_equipment('Laser', 'Epilog', 'Zing')
+        resp = staff_client.post(f'/equipment/{eq.id}/archive', follow_redirects=True)
+        assert b'Equipment archived successfully' in resp.data
+
+    def test_archive_mutation_logging(self, staff_client, make_equipment, capture):
+        """Archive logs equipment.archived mutation."""
+        eq = make_equipment('Laser', 'Epilog', 'Zing')
+        capture.records.clear()
+        staff_client.post(f'/equipment/{eq.id}/archive')
+        entries = [
+            json.loads(r.message) for r in capture.records
+            if 'equipment.archived' in r.message
+        ]
+        assert len(entries) == 1
+        assert entries[0]['data']['name'] == 'Laser'
+
+
+class TestTechnicianPermissions:
+    """Tests for technician doc edit permissions."""
+
+    def test_tech_can_upload_doc_when_enabled(self, tech_client, make_equipment, app, tmp_path):
+        """Technician can upload document when permission enabled."""
+        from esb.services import config_service
+        config_service.set_config('tech_doc_edit_enabled', 'true', 'test')
+
+        app.config['UPLOAD_PATH'] = str(tmp_path)
+        eq = make_equipment()
+        resp = tech_client.post(
+            f'/equipment/{eq.id}/documents',
+            data={
+                'file': (io.BytesIO(b'fake pdf'), 'manual.pdf'),
+                'category': 'other',
+            },
+            content_type='multipart/form-data',
+            follow_redirects=True,
+        )
+        assert resp.status_code == 200
+        assert b'Document uploaded successfully' in resp.data
+
+    def test_tech_can_upload_photo_when_enabled(self, tech_client, make_equipment, app, tmp_path):
+        """Technician can upload photo when permission enabled."""
+        from esb.services import config_service
+        config_service.set_config('tech_doc_edit_enabled', 'true', 'test')
+
+        app.config['UPLOAD_PATH'] = str(tmp_path)
+        eq = make_equipment()
+        resp = tech_client.post(
+            f'/equipment/{eq.id}/photos',
+            data={'file': (io.BytesIO(b'fake image'), 'photo.jpg')},
+            content_type='multipart/form-data',
+            follow_redirects=True,
+        )
+        assert resp.status_code == 200
+        assert b'Photo uploaded successfully' in resp.data
+
+    def test_tech_can_add_link_when_enabled(self, tech_client, make_equipment):
+        """Technician can add link when permission enabled."""
+        from esb.services import config_service
+        config_service.set_config('tech_doc_edit_enabled', 'true', 'test')
+
+        eq = make_equipment()
+        resp = tech_client.post(
+            f'/equipment/{eq.id}/links',
+            data={'title': 'Manual', 'url': 'https://example.com'},
+            follow_redirects=True,
+        )
+        assert resp.status_code == 200
+        assert b'Link added successfully' in resp.data
+
+    def test_tech_gets_403_upload_when_disabled(self, tech_client, make_equipment):
+        """Technician gets 403 on upload when permission disabled (default)."""
+        eq = make_equipment()
+        resp = tech_client.post(
+            f'/equipment/{eq.id}/documents',
+            data={
+                'file': (io.BytesIO(b'content'), 'test.pdf'),
+                'category': 'other',
+            },
+            content_type='multipart/form-data',
+        )
+        assert resp.status_code == 403
+
+    def test_tech_can_delete_doc_when_enabled(self, tech_client, make_equipment, db, tmp_path, app):
+        """Technician can delete document when permission enabled."""
+        from esb.services import config_service
+        config_service.set_config('tech_doc_edit_enabled', 'true', 'test')
+
+        app.config['UPLOAD_PATH'] = str(tmp_path)
+        eq = make_equipment()
+        doc_dir = tmp_path / 'equipment' / str(eq.id) / 'docs'
+        doc_dir.mkdir(parents=True)
+        (doc_dir / 'stored.pdf').write_bytes(b'content')
+        doc = Document(
+            original_filename='test.pdf', stored_filename='stored.pdf',
+            content_type='application/pdf', size_bytes=7,
+            parent_type='equipment_doc', parent_id=eq.id, uploaded_by='techuser',
+        )
+        db.session.add(doc)
+        db.session.commit()
+
+        resp = tech_client.post(
+            f'/equipment/{eq.id}/documents/{doc.id}/delete',
+            follow_redirects=True,
+        )
+        assert resp.status_code == 200
+        assert b'Document deleted' in resp.data
+
+    def test_tech_gets_403_delete_when_disabled(self, tech_client, make_equipment, db):
+        """Technician gets 403 on delete when permission disabled."""
+        eq = make_equipment()
+        doc = Document(
+            original_filename='test.pdf', stored_filename='x.pdf',
+            content_type='application/pdf', size_bytes=7,
+            parent_type='equipment_doc', parent_id=eq.id, uploaded_by='staffuser',
+        )
+        db.session.add(doc)
+        db.session.commit()
+
+        resp = tech_client.post(f'/equipment/{eq.id}/documents/{doc.id}/delete')
+        assert resp.status_code == 403
+
+
 class TestRBACAndEdgeCases:
     """Tests for RBAC and edge cases (Task 6)."""
 

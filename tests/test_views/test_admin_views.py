@@ -653,6 +653,69 @@ class TestArchiveArea:
         assert '/auth/login' in resp.headers['Location']
 
 
+class TestAppConfig:
+    """Tests for GET/POST /admin/config."""
+
+    def test_staff_sees_config_form(self, staff_client, staff_user):
+        """Staff sees the config form with current values."""
+        resp = staff_client.get('/admin/config')
+        assert resp.status_code == 200
+        assert b'App Configuration' in resp.data
+        assert b'Technician Permissions' in resp.data
+
+    def test_technician_gets_403(self, tech_client):
+        """Technician gets 403 on config page."""
+        resp = tech_client.get('/admin/config')
+        assert resp.status_code == 403
+
+    def test_staff_enables_tech_doc_edit(self, staff_client, staff_user):
+        """Staff can enable tech doc editing."""
+        resp = staff_client.post('/admin/config', data={
+            'tech_doc_edit_enabled': 'y',
+        }, follow_redirects=True)
+        assert resp.status_code == 200
+        assert b'Configuration updated successfully' in resp.data
+
+        from esb.services import config_service
+        assert config_service.get_config('tech_doc_edit_enabled') == 'true'
+
+    def test_staff_disables_tech_doc_edit(self, staff_client, staff_user):
+        """Staff can disable tech doc editing."""
+        from esb.services import config_service
+        config_service.set_config('tech_doc_edit_enabled', 'true', 'test')
+
+        resp = staff_client.post('/admin/config', data={}, follow_redirects=True)
+        assert resp.status_code == 200
+        assert b'Configuration updated successfully' in resp.data
+        assert config_service.get_config('tech_doc_edit_enabled') == 'false'
+
+    def test_config_mutation_logging(self, staff_client, staff_user, capture):
+        """Config change logs mutation."""
+        capture.records.clear()
+        staff_client.post('/admin/config', data={
+            'tech_doc_edit_enabled': 'y',
+        })
+        entries = [
+            json.loads(r.message) for r in capture.records
+            if 'app_config.updated' in r.message
+        ]
+        assert len(entries) == 1
+        assert entries[0]['data']['key'] == 'tech_doc_edit_enabled'
+        assert entries[0]['data']['new_value'] == 'true'
+
+    def test_config_nav_tab_visible(self, staff_client, staff_user):
+        """Config tab is visible in admin navigation."""
+        resp = staff_client.get('/admin/config')
+        assert b'/admin/config' in resp.data
+        assert b'Config' in resp.data
+
+    def test_unauthenticated_redirects_to_login(self, client, app):
+        """Unauthenticated user redirected to login."""
+        resp = client.get('/admin/config')
+        assert resp.status_code == 302
+        assert '/auth/login' in resp.headers['Location']
+
+
 class TestAreaMutationLogging:
     """Tests for mutation logging in area admin views."""
 

@@ -284,6 +284,76 @@ class TestArchiveArea:
         assert entry['data']['name'] == 'Woodshop'
 
 
+class TestArchiveEquipment:
+    """Tests for equipment_service.archive_equipment()."""
+
+    def test_archives_equipment_successfully(self, app, make_equipment):
+        """archive_equipment() sets is_archived to True."""
+        from esb.services.equipment_service import archive_equipment
+
+        eq = make_equipment('Laser', 'Epilog', 'Zing')
+        result = archive_equipment(eq.id, 'staffuser')
+        assert result.is_archived is True
+
+    def test_archive_persists_to_db(self, app, make_equipment):
+        """Archive is persisted to database."""
+        from esb.services.equipment_service import archive_equipment
+
+        eq = make_equipment('Laser', 'Epilog', 'Zing')
+        archive_equipment(eq.id, 'staffuser')
+        found = _db.session.get(Equipment, eq.id)
+        assert found.is_archived is True
+
+    def test_not_found_raises(self, app):
+        """archive_equipment() raises ValidationError when equipment not found."""
+        from esb.services.equipment_service import archive_equipment
+
+        with pytest.raises(ValidationError, match='not found'):
+            archive_equipment(99999, 'staffuser')
+
+    def test_already_archived_raises(self, app, make_equipment):
+        """archive_equipment() raises ValidationError when already archived."""
+        from esb.services.equipment_service import archive_equipment
+
+        eq = make_equipment('Laser', 'Epilog', 'Zing')
+        eq.is_archived = True
+        _db.session.commit()
+
+        with pytest.raises(ValidationError, match='already archived'):
+            archive_equipment(eq.id, 'staffuser')
+
+    def test_logs_equipment_archived_mutation(self, app, capture, make_equipment):
+        """archive_equipment() logs an equipment.archived mutation event."""
+        from esb.services.equipment_service import archive_equipment
+
+        eq = make_equipment('Laser', 'Epilog', 'Zing')
+        capture.records.clear()
+        archive_equipment(eq.id, 'staffuser')
+        entries = [
+            json.loads(r.message) for r in capture.records
+            if 'equipment.archived' in r.message
+        ]
+        assert len(entries) == 1
+        entry = entries[0]
+        assert entry['event'] == 'equipment.archived'
+        assert entry['user'] == 'staffuser'
+        assert entry['data']['id'] == eq.id
+        assert entry['data']['name'] == 'Laser'
+
+    def test_archived_equipment_excluded_from_list(self, app, make_area, make_equipment):
+        """Archived equipment is excluded from list_equipment()."""
+        from esb.services.equipment_service import archive_equipment, list_equipment
+
+        area = make_area('Shop', '#shop')
+        eq = make_equipment('Laser', 'Epilog', 'Zing', area=area)
+        make_equipment('CNC', 'ShopBot', 'Desktop', area=area)
+        archive_equipment(eq.id, 'staffuser')
+
+        result = list_equipment()
+        assert len(result) == 1
+        assert result[0].name == 'CNC'
+
+
 # --- Equipment Service Tests ---
 
 

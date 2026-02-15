@@ -129,6 +129,30 @@ def archive_area(area_id: int, archived_by: str) -> Area:
     return area
 
 
+def archive_equipment(equipment_id: int, archived_by: str) -> Equipment:
+    """Soft-delete an equipment record.
+
+    Raises:
+        ValidationError: if equipment not found or already archived.
+    """
+    equipment = db.session.get(Equipment, equipment_id)
+    if equipment is None:
+        raise ValidationError(f'Equipment with id {equipment_id} not found')
+
+    if equipment.is_archived:
+        raise ValidationError(f'Equipment {equipment.name!r} is already archived')
+
+    equipment.is_archived = True
+    db.session.commit()
+
+    log_mutation('equipment.archived', archived_by, {
+        'id': equipment.id,
+        'name': equipment.name,
+    })
+
+    return equipment
+
+
 # --- Equipment CRUD ---
 
 

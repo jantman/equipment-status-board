@@ -1,7 +1,7 @@
 """Admin forms for user management."""
 
 from flask_wtf import FlaskForm
-from wtforms import HiddenField, SelectField, StringField, SubmitField
+from wtforms import BooleanField, HiddenField, SelectField, StringField, SubmitField
 from wtforms.validators import DataRequired, Email, Length
 
 
@@ -28,6 +28,13 @@ class RoleChangeForm(FlaskForm):
         choices=[('technician', 'Technician'), ('staff', 'Staff')],
         validators=[DataRequired()],
     )
+
+
+class AppConfigForm(FlaskForm):
+    """Form for application configuration settings."""
+
+    tech_doc_edit_enabled = BooleanField('Allow Technicians to edit equipment documentation')
+    submit = SubmitField('Save Configuration')
 
 
 class ResetPasswordForm(FlaskForm):

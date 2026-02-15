@@ -103,6 +103,7 @@ def detail(id):
     doc_form = DocumentUploadForm()
     photo_form = PhotoUploadForm()
     link_form = ExternalLinkForm()
+    can_edit_docs = _can_edit_docs() and not eq.is_archived
 
     return render_template(
         'equipment/detail.html',
@@ -113,6 +114,7 @@ def detail(id):
         doc_form=doc_form,
         photo_form=photo_form,
         link_form=link_form,
+        can_edit_docs=can_edit_docs,
     )
 
 
@@ -124,6 +126,10 @@ def edit(id):
         eq = equipment_service.get_equipment(id)
     except ValidationError:
         abort(404)
+
+    if eq.is_archived:
+        flash('Cannot edit archived equipment.', 'danger')
+        return redirect(url_for('equipment.detail', id=id))
 
     form = EquipmentEditForm(obj=eq)
     areas = equipment_service.list_areas()
@@ -166,17 +172,56 @@ def edit(id):
     )
 
 
+@equipment_bp.route('/<int:id>/archive', methods=['POST'])
+@role_required('staff')
+def archive(id):
+    """Archive an equipment record (soft delete)."""
+    try:
+        equipment_service.archive_equipment(
+            equipment_id=id,
+            archived_by=current_user.username,
+        )
+        flash('Equipment archived successfully.', 'success')
+    except ValidationError as e:
+        flash(str(e), 'danger')
+    return redirect(url_for('equipment.detail', id=id))
+
+
+def _can_edit_docs() -> bool:
+    """Check if current user can edit equipment documentation.
+
+    Staff always can. Technicians can when tech_doc_edit_enabled is 'true'.
+    """
+    if current_user.role == 'staff':
+        return True
+    if current_user.role == 'technician':
+        from esb.services import config_service
+        return config_service.get_config('tech_doc_edit_enabled', 'false') == 'true'
+    return False
+
+
+def _require_doc_edit():
+    """Abort 403 if current user cannot edit equipment documentation."""
+    if not _can_edit_docs():
+        abort(403)
+
+
 # --- Document upload/delete ---
 
 
 @equipment_bp.route('/<int:id>/documents', methods=['POST'])
-@role_required('staff')
+@login_required
 def upload_document(id):
     """Handle document upload for an equipment item."""
+    _require_doc_edit()
     try:
-        equipment_service.get_equipment(id)
+        eq = equipment_service.get_equipment(id)
     except ValidationError:
         abort(404)
+
+    if eq.is_archived:
+        flash('Cannot modify archived equipment.', 'danger')
+        return redirect(url_for('equipment.detail', id=id))
 
     form = DocumentUploadForm()
     if form.validate_on_submit():
@@ -199,13 +244,18 @@ def upload_document(id):
 
 
 @equipment_bp.route('/<int:id>/documents/<int:doc_id>/delete', methods=['POST'])
-@role_required('staff')
+@login_required
 def delete_document(id, doc_id):
     """Delete a document from an equipment item."""
+    _require_doc_edit()
     try:
-        equipment_service.get_equipment(id)
+        eq = equipment_service.get_equipment(id)
     except ValidationError:
         abort(404)
+
+    if eq.is_archived:
+        flash('Cannot modify archived equipment.', 'danger')
+        return redirect(url_for('equipment.detail', id=id))
 
     try:
         upload_service.delete_upload(
@@ -222,13 +272,18 @@ def delete_document(id, doc_id):
 
 
 @equipment_bp.route('/<int:id>/photos', methods=['POST'])
-@role_required('staff')
+@login_required
 def upload_photo(id):
     """Handle photo upload for an equipment item."""
+    _require_doc_edit()
     try:
-        equipment_service.get_equipment(id)
+        eq = equipment_service.get_equipment(id)
     except ValidationError:
         abort(404)
+
+    if eq.is_archived:
+        flash('Cannot modify archived equipment.', 'danger')
+        return redirect(url_for('equipment.detail', id=id))
 
     form = PhotoUploadForm()
     if form.validate_on_submit():
@@ -250,13 +305,18 @@ def upload_photo(id):
 
 
 @equipment_bp.route('/<int:id>/photos/<int:photo_id>/delete', methods=['POST'])
-@role_required('staff')
+@login_required
 def delete_photo(id, photo_id):
     """Delete a photo from an equipment item."""
+    _require_doc_edit()
     try:
-        equipment_service.get_equipment(id)
+        eq = equipment_service.get_equipment(id)
     except ValidationError:
         abort(404)
+
+    if eq.is_archived:
+        flash('Cannot modify archived equipment.', 'danger')
+        return redirect(url_for('equipment.detail', id=id))
 
     try:
         upload_service.delete_upload(
@@ -273,13 +333,18 @@ def delete_photo(id, photo_id):
 
 
 @equipment_bp.route('/<int:id>/links', methods=['POST'])
-@role_required('staff')
+@login_required
 def add_link(id):
     """Add an external link to an equipment item."""
+    _require_doc_edit()
     try:
-        equipment_service.get_equipment(id)
+        eq = equipment_service.get_equipment(id)
     except ValidationError:
         abort(404)
+
+    if eq.is_archived:
+        flash('Cannot modify archived equipment.', 'danger')
+        return redirect(url_for('equipment.detail', id=id))
 
     form = ExternalLinkForm()
     if form.validate_on_submit():
@@ -301,13 +366,18 @@ def add_link(id):
 
 
 @equipment_bp.route('/<int:id>/links/<int:link_id>/delete', methods=['POST'])
-@role_required('staff')
+@login_required
 def delete_link(id, link_id):
     """Delete an external link from an equipment item."""
+    _require_doc_edit()
     try:
-        equipment_service.get_equipment(id)
+        eq = equipment_service.get_equipment(id)
     except ValidationError:
         abort(404)
+
+    if eq.is_archived:
+        flash('Cannot modify archived equipment.', 'danger')
+        return redirect(url_for('equipment.detail', id=id))
 
     try:
         equipment_service.delete_equipment_link(

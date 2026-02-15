@@ -1,6 +1,6 @@
 # Story 2.4: Equipment Archiving & Technician Permissions
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -30,61 +30,61 @@ so that retired equipment is preserved historically and documentation editing is
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Create AppConfig model and migration (AC: #3)
-  - [ ] 1.1 Create `esb/models/app_config.py` with AppConfig model
-  - [ ] 1.2 Register AppConfig model in `esb/models/__init__.py`
-  - [ ] 1.3 Generate and apply Alembic migration for `app_config` table
-  - [ ] 1.4 Write model unit tests
+- [x] Task 1: Create AppConfig model and migration (AC: #3)
+  - [x] 1.1 Create `esb/models/app_config.py` with AppConfig model
+  - [x] 1.2 Register AppConfig model in `esb/models/__init__.py`
+  - [x] 1.3 Generate and apply Alembic migration for `app_config` table
+  - [x] 1.4 Write model unit tests
 
-- [ ] Task 2: Create config service layer (AC: #4, #8)
-  - [ ] 2.1 Create `esb/services/config_service.py` (NEW file)
-  - [ ] 2.2 Implement `get_config(key, default='')` -- returns config value or default
-  - [ ] 2.3 Implement `set_config(key, value, changed_by)` -- upserts config value with mutation logging
-  - [ ] 2.4 Write service unit tests
+- [x] Task 2: Create config service layer (AC: #4, #8)
+  - [x] 2.1 Create `esb/services/config_service.py` (NEW file)
+  - [x] 2.2 Implement `get_config(key, default='')` -- returns config value or default
+  - [x] 2.3 Implement `set_config(key, value, changed_by)` -- upserts config value with mutation logging
+  - [x] 2.4 Write service unit tests
 
-- [ ] Task 3: Add equipment archiving service function (AC: #1, #8)
-  - [ ] 3.1 Add `archive_equipment(equipment_id, archived_by)` to `esb/services/equipment_service.py` (EXTEND existing file)
-  - [ ] 3.2 Follow `archive_area()` pattern (lines 108-129): get record, validate not already archived, set `is_archived = True`, commit, log mutation
-  - [ ] 3.3 Write service unit tests
+- [x] Task 3: Add equipment archiving service function (AC: #1, #8)
+  - [x] 3.1 Add `archive_equipment(equipment_id, archived_by)` to `esb/services/equipment_service.py` (EXTEND existing file)
+  - [x] 3.2 Follow `archive_area()` pattern (lines 108-129): get record, validate not already archived, set `is_archived = True`, commit, log mutation
+  - [x] 3.3 Write service unit tests
 
-- [ ] Task 4: Add equipment archive route (AC: #1, #2)
-  - [ ] 4.1 Add `POST /equipment/<int:id>/archive` route to `esb/views/equipment.py` (EXTEND existing file)
-  - [ ] 4.2 Require `@role_required('staff')` -- only Staff can archive
-  - [ ] 4.3 Redirect to equipment detail page after archive with success flash
-  - [ ] 4.4 Update detail view to pass `equipment.is_archived` status to template
-  - [ ] 4.5 Block edit route for archived equipment (redirect with warning flash)
-  - [ ] 4.6 Write view integration tests
+- [x] Task 4: Add equipment archive route (AC: #1, #2)
+  - [x] 4.1 Add `POST /equipment/<int:id>/archive` route to `esb/views/equipment.py` (EXTEND existing file)
+  - [x] 4.2 Require `@role_required('staff')` -- only Staff can archive
+  - [x] 4.3 Redirect to equipment detail page after archive with success flash
+  - [x] 4.4 Update detail view to pass `equipment.is_archived` status to template
+  - [x] 4.5 Block edit route for archived equipment (redirect with warning flash)
+  - [x] 4.6 Write view integration tests
 
-- [ ] Task 5: Add technician doc-edit permission check (AC: #5, #6, #7)
-  - [ ] 5.1 Add `_require_doc_edit()` helper to `esb/views/equipment.py` -- checks if user is Staff OR (Technician AND `tech_doc_edit_enabled` config is `'true'`)
-  - [ ] 5.2 Add `_can_edit_docs()` helper for template context -- returns boolean
-  - [ ] 5.3 Change upload/add/delete doc/photo/link routes from `@role_required('staff')` to `@login_required` + `_require_doc_edit()` call
-  - [ ] 5.4 Pass `can_edit_docs` to detail template context
-  - [ ] 5.5 Write permission tests (staff always allowed, tech allowed when enabled, tech blocked when disabled, anon blocked)
+- [x] Task 5: Add technician doc-edit permission check (AC: #5, #6, #7)
+  - [x] 5.1 Add `_require_doc_edit()` helper to `esb/views/equipment.py` -- checks if user is Staff OR (Technician AND `tech_doc_edit_enabled` config is `'true'`)
+  - [x] 5.2 Add `_can_edit_docs()` helper for template context -- returns boolean
+  - [x] 5.3 Change upload/add/delete doc/photo/link routes from `@role_required('staff')` to `@login_required` + `_require_doc_edit()` call
+  - [x] 5.4 Pass `can_edit_docs` to detail template context
+  - [x] 5.5 Write permission tests (staff always allowed, tech allowed when enabled, tech blocked when disabled, anon blocked)
 
-- [ ] Task 6: Add admin config page (AC: #4, #8)
-  - [ ] 6.1 Add `GET/POST /admin/config` route to `esb/views/admin.py` (EXTEND existing file)
-  - [ ] 6.2 Create `AppConfigForm` in `esb/forms/admin_forms.py` (EXTEND existing file)
-  - [ ] 6.3 Create `esb/templates/admin/config.html` template (NEW)
-  - [ ] 6.4 Add "Config" tab to `esb/templates/components/_admin_nav.html` (MODIFY)
-  - [ ] 6.5 Write view integration tests
+- [x] Task 6: Add admin config page (AC: #4, #8)
+  - [x] 6.1 Add `GET/POST /admin/config` route to `esb/views/admin.py` (EXTEND existing file)
+  - [x] 6.2 Create `AppConfigForm` in `esb/forms/admin_forms.py` (EXTEND existing file)
+  - [x] 6.3 Create `esb/templates/admin/config.html` template (NEW)
+  - [x] 6.4 Add "Config" tab to `esb/templates/components/_admin_nav.html` (MODIFY)
+  - [x] 6.5 Write view integration tests
 
-- [ ] Task 7: Update equipment detail template (AC: #1, #2, #5, #6)
-  - [ ] 7.1 Add archived warning banner (`alert-warning`) when `equipment.is_archived` is true
-  - [ ] 7.2 Add Archive button (danger style, `onclick="return confirm(...)"`) for Staff only, hidden when archived
-  - [ ] 7.3 Change doc/photo/link edit control visibility from `current_user.role == 'staff'` to `can_edit_docs and not equipment.is_archived`
-  - [ ] 7.4 Keep equipment core Edit button gated to Staff only AND not archived
-  - [ ] 7.5 Mobile responsive layout for archive button
+- [x] Task 7: Update equipment detail template (AC: #1, #2, #5, #6)
+  - [x] 7.1 Add archived warning banner (`alert-warning`) when `equipment.is_archived` is true
+  - [x] 7.2 Add Archive button (danger style, `onclick="return confirm(...)"`) for Staff only, hidden when archived
+  - [x] 7.3 Change doc/photo/link edit control visibility from `current_user.role == 'staff'` to `can_edit_docs and not equipment.is_archived`
+  - [x] 7.4 Keep equipment core Edit button gated to Staff only AND not archived
+  - [x] 7.5 Mobile responsive layout for archive button
 
-- [ ] Task 8: RBAC and edge case testing (AC: #1, #2, #5, #6, #7, #8)
-  - [ ] 8.1 Verify only Staff can archive equipment (tech gets 403)
-  - [ ] 8.2 Verify archived equipment is excluded from list view
-  - [ ] 8.3 Verify archived equipment detail shows warning banner
-  - [ ] 8.4 Verify edit/upload/add controls hidden on archived equipment
-  - [ ] 8.5 Verify edit route blocked for archived equipment
-  - [ ] 8.6 Verify technician can upload/add when permission enabled
-  - [ ] 8.7 Verify technician gets 403 on upload/add when permission disabled
-  - [ ] 8.8 Verify mutation logging for archive and config change events
+- [x] Task 8: RBAC and edge case testing (AC: #1, #2, #5, #6, #7, #8)
+  - [x] 8.1 Verify only Staff can archive equipment (tech gets 403)
+  - [x] 8.2 Verify archived equipment is excluded from list view
+  - [x] 8.3 Verify archived equipment detail shows warning banner
+  - [x] 8.4 Verify edit/upload/add controls hidden on archived equipment
+  - [x] 8.5 Verify edit route blocked for archived equipment
+  - [x] 8.6 Verify technician can upload/add when permission enabled
+  - [x] 8.7 Verify technician gets 403 on upload/add when permission disabled
+  - [x] 8.8 Verify mutation logging for archive and config change events
 
 ## Dev Notes
 
@@ -617,15 +617,50 @@ Add new `<li>` element after Areas tab:
 - [Source: _bmad-output/implementation-artifacts/2-3-equipment-documentation-media.md -- Previous story patterns]
 - [Source: _bmad-output/implementation-artifacts/2-2-equipment-registry-crud.md -- Previous story patterns]
 
+## Change Log
+
+- 2026-02-15: Implemented Story 2.4 — Equipment Archiving & Technician Permissions (all 8 tasks, 445 tests passing)
+
 ## Dev Agent Record
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+Claude Opus 4.6
 
 ### Debug Log References
 
+No debug issues encountered.
+
 ### Completion Notes List
 
+- Task 1: Created `AppConfig` model with key/value store, registered in models package, generated and applied Alembic migration `5a7c16f833e5_add_app_config_table`. 4 model unit tests.
+- Task 2: Created `config_service.py` with `get_config()` and `set_config()` (upsert with mutation logging). 7 service tests.
+- Task 3: Added `archive_equipment()` to `equipment_service.py` following `archive_area()` pattern exactly. 6 service tests.
+- Task 4: Added `POST /equipment/<id>/archive` route with `@role_required('staff')`. Added archived equipment check to edit route. Updated detail view to pass `can_edit_docs` context.
+- Task 5: Added `_can_edit_docs()` and `_require_doc_edit()` helpers. Changed upload/add/delete routes from `@role_required('staff')` to `@login_required` + `_require_doc_edit()`. Added archived equipment checks to all mutation routes.
+- Task 6: Added `GET/POST /admin/config` route, `AppConfigForm`, config template, and Config tab in admin nav. 7 admin view tests.
+- Task 7: Updated detail template: archived warning banner, Archive button (staff only, hidden when archived), changed doc/photo/link edit controls from `current_user.role == 'staff'` to `can_edit_docs`.
+- Task 8: Comprehensive RBAC tests: 12 archive tests, 7 technician permission tests, 7 admin config tests. All 445 tests pass. Ruff linting clean.
+
 ### File List
+
+**New files:**
+- `esb/models/app_config.py` — AppConfig SQLAlchemy model
+- `esb/services/config_service.py` — Runtime config get/set with mutation logging
+- `esb/templates/admin/config.html` — Admin config page template
+- `tests/test_models/test_app_config.py` — AppConfig model tests (4 tests)
+- `tests/test_services/test_config_service.py` — Config service tests (7 tests)
+- `migrations/versions/5a7c16f833e5_add_app_config_table.py` — Alembic migration
+
+**Modified files:**
+- `esb/models/__init__.py` — Added AppConfig import
+- `esb/services/equipment_service.py` — Added `archive_equipment()` function
+- `esb/views/equipment.py` — Added archive route, permission helpers, updated decorators on doc/photo/link routes
+- `esb/views/admin.py` — Added `/admin/config` route, added request import
+- `esb/forms/admin_forms.py` — Added `AppConfigForm`, added `BooleanField` import
+- `esb/templates/equipment/detail.html` — Archive banner, archive button, `can_edit_docs` permission gating
+- `esb/templates/components/_admin_nav.html` — Added Config tab
+- `tests/test_services/test_equipment_service.py` — Added `TestArchiveEquipment` class (6 tests)
+- `tests/test_views/test_equipment_views.py` — Added `TestArchiveEquipment` (12 tests) and `TestTechnicianPermissions` (7 tests)
+- `tests/test_views/test_admin_views.py` — Added `TestAppConfig` class (7 tests)
 

@@ -1,9 +1,14 @@
 """Admin routes (user management, area management, app config)."""
 
-from flask import Blueprint, flash, redirect, render_template, session, url_for
+from flask import Blueprint, flash, redirect, render_template, request, session, url_for
 from flask_login import current_user
 
-from esb.forms.admin_forms import ResetPasswordForm, RoleChangeForm, UserCreateForm
+from esb.forms.admin_forms import (
+    AppConfigForm,
+    ResetPasswordForm,
+    RoleChangeForm,
+    UserCreateForm,
+)
 from esb.forms.equipment_forms import AreaCreateForm, AreaEditForm
 from esb.services import equipment_service, user_service
 from esb.utils.decorators import role_required
@@ -204,3 +209,30 @@ def archive_area(id):
     except ValidationError as e:
         flash(str(e), 'danger')
     return redirect(url_for('admin.list_areas'))
+
+
+# --- App Configuration Routes ---
+
+
+@admin_bp.route('/config', methods=['GET', 'POST'])
+@role_required('staff')
+def app_config():
+    """App configuration page."""
+    from esb.services import config_service
+
+    form = AppConfigForm()
+    if request.method == 'GET':
+        form.tech_doc_edit_enabled.data = (
+            config_service.get_config('tech_doc_edit_enabled', 'false') == 'true'
+        )
+
+    if form.validate_on_submit():
+        config_service.set_config(
+            'tech_doc_edit_enabled',
+            'true' if form.tech_doc_edit_enabled.data else 'false',
+            changed_by=current_user.username,
+        )
+        flash('Configuration updated successfully.', 'success')
+        return redirect(url_for('admin.app_config'))
+
+    return render_template('admin/config.html', form=form)

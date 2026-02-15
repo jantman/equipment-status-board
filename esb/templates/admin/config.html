@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}App Configuration - Equipment Status Board{% endblock %}
+
+{% block content %}
+<h1>Admin</h1>
+{% include 'components/_admin_nav.html' %}
+
+<h2>App Configuration</h2>
+
+<div class="card">
+    <div class="card-body">
+        <form method="post">
+            {{ form.hidden_tag() }}
+            <h5>Technician Permissions</h5>
+            <div class="form-check mb-3">
+                {{ form.tech_doc_edit_enabled(class="form-check-input") }}
+                <label class="form-check-label" for="{{ form.tech_doc_edit_enabled.id }}">
+                    {{ form.tech_doc_edit_enabled.label.text }}
+                </label>
+                <div class="form-text">
+                    When enabled, Technicians can upload documents, photos, and add links to equipment records.
+                    Equipment core fields (name, manufacturer, model, etc.) remain Staff-only.
+                </div>
+            </div>
+            {{ form.submit(class="btn btn-primary") }}
+        </form>
+    </div>
+</div>
+{% endblock %}
