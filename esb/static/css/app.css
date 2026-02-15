@@ -16,3 +16,22 @@ th.sortable:hover {
 .sort-indicator {
     font-size: 0.75em;
 }
+
+/* Kanban board layout */
+.kanban-container {
+    display: flex;
+    gap: 1rem;
+    overflow-x: auto;
+    padding-bottom: 1rem;
+}
+.kanban-column {
+    min-width: 250px;
+    flex-shrink: 0;
+}
+.kanban-card-warm {
+    background-color: rgba(255, 193, 7, 0.1) !important;
+}
+.kanban-card-hot {
+    border-left: 3px solid #fd7e14 !important;
+    background-color: rgba(255, 193, 7, 0.25) !important;
+}

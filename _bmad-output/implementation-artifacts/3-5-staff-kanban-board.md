@@ -1,6 +1,6 @@
 # Story 3.5: Staff Kanban Board
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -40,79 +40,79 @@ so that I can instantly identify what's stuck and needs my attention.
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Add Kanban service function (AC: #2, #3, #4, #5, #6, #7)
-  - [ ] 1.1 Add `get_kanban_data()` function to `esb/services/repair_service.py` that returns open repair records grouped by status column
-  - [ ] 1.2 Exclude CLOSED_STATUSES (Resolved, Closed - No Issue Found, Closed - Duplicate) — reuse existing `CLOSED_STATUSES` constant
-  - [ ] 1.3 Define `KANBAN_COLUMNS` constant as ordered list: `['New', 'Assigned', 'In Progress', 'Parts Needed', 'Parts Ordered', 'Parts Received', 'Needs Specialist']`
-  - [ ] 1.4 For each column, return records ordered by time-in-current-status (oldest first). Time-in-column = now - last status_change timeline entry timestamp (or `created_at` if status is still "New" with no status changes)
-  - [ ] 1.5 Eager-load equipment (with area) and assignee relationships to avoid N+1
-  - [ ] 1.6 Return a dict of `{status: [records]}` with each record annotated with `time_in_column` (timedelta or seconds)
+- [x]Task 1: Add Kanban service function (AC: #2, #3, #4, #5, #6, #7)
+  - [x]1.1 Add `get_kanban_data()` function to `esb/services/repair_service.py` that returns open repair records grouped by status column
+  - [x]1.2 Exclude CLOSED_STATUSES (Resolved, Closed - No Issue Found, Closed - Duplicate) — reuse existing `CLOSED_STATUSES` constant
+  - [x]1.3 Define `KANBAN_COLUMNS` constant as ordered list: `['New', 'Assigned', 'In Progress', 'Parts Needed', 'Parts Ordered', 'Parts Received', 'Needs Specialist']`
+  - [x]1.4 For each column, return records ordered by time-in-current-status (oldest first). Time-in-column = now - last status_change timeline entry timestamp (or `created_at` if status is still "New" with no status changes)
+  - [x]1.5 Eager-load equipment (with area) and assignee relationships to avoid N+1
+  - [x]1.6 Return a dict of `{status: [records]}` with each record annotated with `time_in_column` (timedelta or seconds)
 
-- [ ] Task 2: Add Kanban route and view function (AC: #1, #2, #4, #12)
-  - [ ] 2.1 Add `kanban()` route at `GET /repairs/kanban` in `esb/views/repairs.py` with `@role_required('technician')` (staff inherits access via hierarchy)
-  - [ ] 2.2 Call `repair_service.get_kanban_data()` to get grouped records
-  - [ ] 2.3 Pass kanban data, column definitions, and current UTC time to template
-  - [ ] 2.4 Compute aging tier for each card in the view: 0-2 days = 'default', 3-5 days = 'warm', 6+ days = 'hot'
+- [x]Task 2: Add Kanban route and view function (AC: #1, #2, #4, #12)
+  - [x]2.1 Add `kanban()` route at `GET /repairs/kanban` in `esb/views/repairs.py` with `@role_required('technician')` (staff inherits access via hierarchy)
+  - [x]2.2 Call `repair_service.get_kanban_data()` to get grouped records
+  - [x]2.3 Pass kanban data, column definitions, and current UTC time to template
+  - [x]2.4 Compute aging tier for each card in the view: 0-2 days = 'default', 3-5 days = 'warm', 6+ days = 'hot'
 
-- [ ] Task 3: Update login redirect for Staff (AC: #1)
-  - [ ] 3.1 In `esb/views/auth.py`, after successful login, redirect Staff-role users to `/repairs/kanban`
-  - [ ] 3.2 Technicians continue to redirect to `/repairs/queue` (preserve existing behavior)
-  - [ ] 3.3 Respect `next` parameter in URL if present (existing behavior)
+- [x]Task 3: Update login redirect for Staff (AC: #1)
+  - [x]3.1 In `esb/views/auth.py`, after successful login, redirect Staff-role users to `/repairs/kanban`
+  - [x]3.2 Technicians continue to redirect to `/repairs/queue` (preserve existing behavior)
+  - [x]3.3 Respect `next` parameter in URL if present (existing behavior)
 
-- [ ] Task 4: Update navbar for Staff (AC: #1)
-  - [ ] 4.1 In `esb/templates/base.html`, add a "Kanban" navigation link for Staff users pointing to `url_for('repairs.kanban')`
-  - [ ] 4.2 Place the Kanban link before the existing Repairs link in the nav order
-  - [ ] 4.3 Add active class logic: highlight when `request.endpoint == 'repairs.kanban'`
+- [x]Task 4: Update navbar for Staff (AC: #1)
+  - [x]4.1 In `esb/templates/base.html`, add a "Kanban" navigation link for Staff users pointing to `url_for('repairs.kanban')`
+  - [x]4.2 Place the Kanban link before the existing Repairs link in the nav order
+  - [x]4.3 Add active class logic: highlight when `request.endpoint == 'repairs.kanban'`
 
-- [ ] Task 5: Create Kanban template with responsive layout (AC: #2, #3, #4, #5, #6, #7, #8, #10, #11, #12, #13)
-  - [ ] 5.1 Create `esb/templates/repairs/kanban.html` extending `base.html`
-  - [ ] 5.2 Add breadcrumb: Home > Kanban Board
-  - [ ] 5.3 Desktop layout (>= 992px): horizontal flexbox container with `overflow-x: auto`, each column ~250px min-width
-  - [ ] 5.4 Each column: header with status name + card count badge, then a card list
-  - [ ] 5.5 Each card: equipment name (bold), area badge (`badge bg-secondary`), severity indicator (compact: colored badge), time-in-column text (relative format)
-  - [ ] 5.6 Aging CSS classes: `kanban-card-default` (no extra styling), `kanban-card-warm` (subtle warm background), `kanban-card-hot` (stronger accent border/background)
-  - [ ] 5.7 Each card is an `<a>` tag linking to `url_for('repairs.detail', id=record.id)` for click-through navigation
-  - [ ] 5.8 Mobile layout (< 992px): Bootstrap accordion component with one panel per status column, collapsed by default except columns with cards
-  - [ ] 5.9 Add ARIA attributes: `role="region"` and `aria-label` on each column, `tabindex="0"` and keyboard Enter handler on cards
-  - [ ] 5.10 Empty state: show column headers with "(0)" count and centered message below
-  - [ ] 5.11 Add `title` attribute on time-in-column showing exact datetime
+- [x]Task 5: Create Kanban template with responsive layout (AC: #2, #3, #4, #5, #6, #7, #8, #10, #11, #12, #13)
+  - [x]5.1 Create `esb/templates/repairs/kanban.html` extending `base.html`
+  - [x]5.2 Add breadcrumb: Home > Kanban Board
+  - [x]5.3 Desktop layout (>= 992px): horizontal flexbox container with `overflow-x: auto`, each column ~250px min-width
+  - [x]5.4 Each column: header with status name + card count badge, then a card list
+  - [x]5.5 Each card: equipment name (bold), area badge (`badge bg-secondary`), severity indicator (compact: colored badge), time-in-column text (relative format)
+  - [x]5.6 Aging CSS classes: `kanban-card-default` (no extra styling), `kanban-card-warm` (subtle warm background), `kanban-card-hot` (stronger accent border/background)
+  - [x]5.7 Each card is an `<a>` tag linking to `url_for('repairs.detail', id=record.id)` for click-through navigation
+  - [x]5.8 Mobile layout (< 992px): Bootstrap accordion component with one panel per status column, collapsed by default except columns with cards
+  - [x]5.9 Add ARIA attributes: `role="region"` and `aria-label` on each column, `tabindex="0"` and keyboard Enter handler on cards
+  - [x]5.10 Empty state: show column headers with "(0)" count and centered message below
+  - [x]5.11 Add `title` attribute on time-in-column showing exact datetime
 
-- [ ] Task 6: Add Kanban CSS styles (AC: #5, #6, #7, #10)
-  - [ ] 6.1 Add Kanban-specific styles to `esb/static/css/app.css`
-  - [ ] 6.2 `.kanban-container`: flexbox, horizontal scroll on desktop
-  - [ ] 6.3 `.kanban-column`: min-width 250px, flex-shrink 0
-  - [ ] 6.4 `.kanban-card-warm`: subtle warm background tint (e.g., `rgba(255, 193, 7, 0.1)` — Bootstrap warning at 10% opacity)
-  - [ ] 6.5 `.kanban-card-hot`: stronger indicator (e.g., left border `3px solid #fd7e14` or `rgba(255, 193, 7, 0.25)` background)
-  - [ ] 6.6 Responsive: hide horizontal layout below 992px, show accordion instead
+- [x]Task 6: Add Kanban CSS styles (AC: #5, #6, #7, #10)
+  - [x]6.1 Add Kanban-specific styles to `esb/static/css/app.css`
+  - [x]6.2 `.kanban-container`: flexbox, horizontal scroll on desktop
+  - [x]6.3 `.kanban-column`: min-width 250px, flex-shrink 0
+  - [x]6.4 `.kanban-card-warm`: subtle warm background tint (e.g., `rgba(255, 193, 7, 0.1)` — Bootstrap warning at 10% opacity)
+  - [x]6.5 `.kanban-card-hot`: stronger indicator (e.g., left border `3px solid #fd7e14` or `rgba(255, 193, 7, 0.25)` background)
+  - [x]6.6 Responsive: hide horizontal layout below 992px, show accordion instead
 
-- [ ] Task 7: Add Kanban JavaScript for keyboard accessibility (AC: #8, #13)
-  - [ ] 7.1 Add keyboard handler to `esb/static/js/app.js` for Kanban cards: Enter key navigates to card href
-  - [ ] 7.2 Reuse the existing clickable-row pattern from queue (data-href + keydown handler)
+- [x]Task 7: Add Kanban JavaScript for keyboard accessibility (AC: #8, #13)
+  - [x]7.1 Add keyboard handler to `esb/static/js/app.js` for Kanban cards: Enter key navigates to card href
+  - [x]7.2 Reuse the existing clickable-row pattern from queue (data-href + keydown handler)
 
-- [ ] Task 8: Service tests (AC: #2, #3, #4, #5, #6, #7)
-  - [ ] 8.1 Add `TestGetKanbanData` class to `tests/test_services/test_repair_service.py`
-  - [ ] 8.2 Test returns only open records (excludes Resolved, Closed statuses)
-  - [ ] 8.3 Test records are grouped by status into correct columns
-  - [ ] 8.4 Test ordering within columns: oldest time-in-column first
-  - [ ] 8.5 Test time-in-column calculation uses last status_change timestamp
-  - [ ] 8.6 Test time-in-column falls back to created_at when no status changes
-  - [ ] 8.7 Test empty columns are included in result dict
-  - [ ] 8.8 Test eager loading includes equipment name, area name, assignee
+- [x]Task 8: Service tests (AC: #2, #3, #4, #5, #6, #7)
+  - [x]8.1 Add `TestGetKanbanData` class to `tests/test_services/test_repair_service.py`
+  - [x]8.2 Test returns only open records (excludes Resolved, Closed statuses)
+  - [x]8.3 Test records are grouped by status into correct columns
+  - [x]8.4 Test ordering within columns: oldest time-in-column first
+  - [x]8.5 Test time-in-column calculation uses last status_change timestamp
+  - [x]8.6 Test time-in-column falls back to created_at when no status changes
+  - [x]8.7 Test empty columns are included in result dict
+  - [x]8.8 Test eager loading includes equipment name, area name, assignee
 
-- [ ] Task 9: View tests (AC: #1, #2, #4, #8, #10, #11, #12, #13)
-  - [ ] 9.1 Add `TestKanbanBoard` class to `tests/test_views/test_repair_views.py`
-  - [ ] 9.2 Test kanban page loads with 200 for staff
-  - [ ] 9.3 Test kanban page loads with 200 for technician (accessible via hierarchy)
-  - [ ] 9.4 Test kanban page redirects unauthenticated to login
-  - [ ] 9.5 Test kanban displays column headers with status names
-  - [ ] 9.6 Test kanban shows card count in column headers
-  - [ ] 9.7 Test kanban cards contain equipment name and area
-  - [ ] 9.8 Test kanban cards contain severity badges
-  - [ ] 9.9 Test kanban shows empty state message when no open records
-  - [ ] 9.10 Test kanban card links to repair detail page
-  - [ ] 9.11 Test login redirects staff to kanban
-  - [ ] 9.12 Test navbar contains kanban link for staff
-  - [ ] 9.13 Test aging classes applied correctly (warm for 3-5 days, hot for 6+)
+- [x]Task 9: View tests (AC: #1, #2, #4, #8, #10, #11, #12, #13)
+  - [x]9.1 Add `TestKanbanBoard` class to `tests/test_views/test_repair_views.py`
+  - [x]9.2 Test kanban page loads with 200 for staff
+  - [x]9.3 Test kanban page loads with 200 for technician (accessible via hierarchy)
+  - [x]9.4 Test kanban page redirects unauthenticated to login
+  - [x]9.5 Test kanban displays column headers with status names
+  - [x]9.6 Test kanban shows card count in column headers
+  - [x]9.7 Test kanban cards contain equipment name and area
+  - [x]9.8 Test kanban cards contain severity badges
+  - [x]9.9 Test kanban shows empty state message when no open records
+  - [x]9.10 Test kanban card links to repair detail page
+  - [x]9.11 Test login redirects staff to kanban
+  - [x]9.12 Test navbar contains kanban link for staff
+  - [x]9.13 Test aging classes applied correctly (warm for 3-5 days, hot for 6+)
 
 ## Dev Notes
 
@@ -348,10 +348,38 @@ def kanban():
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+Claude Opus 4.6
 
 ### Debug Log References
 
+None
+
 ### Completion Notes List
 
+- Task 1: Added `KANBAN_COLUMNS` constant and `get_kanban_data()` to `repair_service.py`. Uses a subquery to find the latest `status_change` timeline entry per record, outer-joined to the main query. Falls back to `created_at` for records with no status changes. Annotates each record with `time_in_column` (float seconds). 7 service tests added.
+- Task 2: Added `kanban()` route at `/repairs/kanban` with `@role_required('technician')`. Computes aging tier (default/warm/hot) per card. Added `_aging_tier()` helper.
+- Task 3: Updated login redirect in `auth.py` — staff redirects to `/repairs/kanban`, technicians to `/repairs/queue`, others to `health`. Updated 4 existing auth tests to expect the new staff redirect target.
+- Task 4: Added Kanban nav link in `base.html` for staff users, placed before the Repairs link. Active class logic excludes kanban from repairs active highlight.
+- Task 5: Created `kanban.html` template with desktop horizontal flexbox layout (d-none d-lg-flex) and mobile Bootstrap accordion (d-lg-none). Cards show equipment name, area badge, severity badge, time-in-column text. Each card is an `<a>` to detail page. ARIA attributes on columns and cards. Empty state message shown when no cards.
+- Task 6: Added Kanban CSS to `app.css`: `.kanban-container` (flex, overflow-x auto), `.kanban-column` (min-width 250px), `.kanban-card-warm` (warm background), `.kanban-card-hot` (orange left border + background).
+- Task 7: Added keyboard handler for `a.kanban-card` elements (Enter/Space navigation) in `app.js`.
+- Tasks 8-9: 7 service tests in `TestGetKanbanData`, 13 view tests in `TestKanbanBoard`. All 607 tests pass, 0 lint errors.
+
+### Change Log
+
+- 2026-02-15: Implemented Story 3.5 Staff Kanban Board — all 9 tasks complete, 20 new tests added (607 total), 0 regressions, 0 lint errors.
+
 ### File List
+
+- `esb/services/repair_service.py` (modified) — Added `KANBAN_COLUMNS`, `get_kanban_data()`
+- `esb/views/repairs.py` (modified) — Added `kanban()` route, `_aging_tier()` helper, imported `KANBAN_COLUMNS`
+- `esb/views/auth.py` (modified) — Added staff role-based redirect to `/repairs/kanban`
+- `esb/templates/base.html` (modified) — Added Kanban navbar link for staff users
+- `esb/templates/repairs/kanban.html` (created) — Kanban board template with responsive layout
+- `esb/static/css/app.css` (modified) — Added Kanban container, column, and aging styles
+- `esb/static/js/app.js` (modified) — Added Kanban card keyboard navigation
+- `tests/test_services/test_repair_service.py` (modified) — Added `TestGetKanbanData` (7 tests)
+- `tests/test_views/test_repair_views.py` (modified) — Added `TestKanbanBoard` (13 tests)
+- `tests/test_views/test_auth_views.py` (modified) — Updated 4 tests for staff redirect change
+- `_bmad-output/implementation-artifacts/sprint-status.yaml` (modified) — Story status updated
+- `_bmad-output/implementation-artifacts/3-5-staff-kanban-board.md` (modified) — Story file updated

@@ -32,13 +32,13 @@ class TestLoginPost:
     """Tests for login POST handler."""
 
     def test_successful_login_redirects(self, client, staff_user):
-        """Successful login redirects to health page."""
+        """Successful staff login redirects to kanban page."""
         resp = client.post('/auth/login', data={
             'username': 'staffuser',
             'password': 'testpass',
         })
         assert resp.status_code == 302
-        assert '/health' in resp.headers['Location']
+        assert '/repairs/kanban' in resp.headers['Location']
 
     def test_successful_login_sets_session(self, client, staff_user):
         """After login, user can access authenticated routes."""
@@ -116,7 +116,7 @@ class TestLoginNextRedirect:
         })
         assert resp.status_code == 302
         assert 'evil.com' not in resp.headers['Location']
-        assert '/health' in resp.headers['Location']
+        assert '/repairs/kanban' in resp.headers['Location']
 
     def test_ignores_protocol_relative_next(self, client, staff_user):
         """Login ignores ?next= with protocol-relative URL."""
@@ -126,16 +126,16 @@ class TestLoginNextRedirect:
         })
         assert resp.status_code == 302
         assert 'evil.com' not in resp.headers['Location']
-        assert '/health' in resp.headers['Location']
+        assert '/repairs/kanban' in resp.headers['Location']
 
-    def test_no_next_redirects_to_health(self, client, staff_user):
-        """Login without ?next= redirects to health."""
+    def test_no_next_redirects_to_kanban(self, client, staff_user):
+        """Staff login without ?next= redirects to kanban."""
         resp = client.post('/auth/login', data={
             'username': 'staffuser',
             'password': 'testpass',
         })
         assert resp.status_code == 302
-        assert '/health' in resp.headers['Location']
+        assert '/repairs/kanban' in resp.headers['Location']
 
 
 class TestLogout:

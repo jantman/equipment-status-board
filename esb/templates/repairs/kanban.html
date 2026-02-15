@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+
+{% block title %}Kanban Board - Equipment Status Board{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/">Home</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Kanban Board</li>
+    </ol>
+</nav>
+
+<h1 class="mb-3">Kanban Board</h1>
+
+{% set total_cards = kanban_data.values()|map('length')|sum %}
+
+{# --- Desktop Layout (>= 992px): Horizontal columns --- #}
+<div class="kanban-container d-none d-lg-flex">
+    {% for col in columns %}
+    <div class="kanban-column" role="region" aria-label="Status: {{ col }}, {{ kanban_data[col]|length }} items">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <strong>{{ col }}</strong>
+                <span class="badge bg-secondary">{{ kanban_data[col]|length }}</span>
+            </div>
+            <div class="card-body p-2">
+                {% for record in kanban_data[col] %}
+                <a href="{{ url_for('repairs.detail', id=record.id) }}"
+                   class="card mb-2 text-decoration-none text-body kanban-card kanban-card-{{ record.aging_tier }}"
+                   tabindex="0"
+                   aria-label="{{ record.equipment.name }}, {{ record.equipment.area.name }}{% if record.severity %}, {{ record.severity }}{% endif %}, in column {{ (record.time_in_column / 86400)|int }} days{% if record.aging_tier == 'hot' %} - needs attention{% elif record.aging_tier == 'warm' %} - may need attention{% endif %}">
+                    <div class="card-body py-2 px-3">
+                        <div class="fw-bold">{{ record.equipment.name }}</div>
+                        <div class="mt-1">
+                            <span class="badge bg-secondary">{{ record.equipment.area.name }}</span>
+                            {% if record.severity == 'Down' %}
+                            <span class="badge bg-danger">Down</span>
+                            {% elif record.severity in ['Degraded', 'Not Sure'] %}
+                            <span class="badge bg-warning text-dark">{{ record.severity }}</span>
+                            {% endif %}
+                        </div>
+                        <div class="small text-muted mt-1" title="{{ (now_utc - (now_utc.__class__(now_utc.year, now_utc.month, now_utc.day) - (now_utc - now_utc.__class__(now_utc.year, now_utc.month, now_utc.day))))|string }}">
+                            {% set days = (record.time_in_column / 86400)|int %}
+                            {% if days == 0 %}
+                                <span title="Less than a day">< 1 day</span>
+                            {% elif days == 1 %}
+                                <span title="{{ days }} day">1 day</span>
+                            {% else %}
+                                <span title="{{ days }} days">{{ days }} days</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{# --- Mobile Layout (< 992px): Accordion --- #}
+<div class="d-lg-none">
+    <div class="accordion" id="kanbanAccordion">
+        {% for col in columns %}
+        <div class="accordion-item">
+            <h2 class="accordion-header" id="kanbanHead{{ loop.index }}">
+                <button class="accordion-button {% if not kanban_data[col] %}collapsed{% endif %}" type="button"
+                        data-bs-toggle="collapse" data-bs-target="#kanbanCol{{ loop.index }}"
+                        aria-expanded="{{ 'true' if kanban_data[col] else 'false' }}"
+                        aria-controls="kanbanCol{{ loop.index }}">
+                    {{ col }}
+                    <span class="badge bg-secondary ms-2">{{ kanban_data[col]|length }}</span>
+                </button>
+            </h2>
+            <div id="kanbanCol{{ loop.index }}" class="accordion-collapse collapse {% if kanban_data[col] %}show{% endif %}"
+                 aria-labelledby="kanbanHead{{ loop.index }}" data-bs-parent="#kanbanAccordion"
+                 role="region" aria-label="Status: {{ col }}, {{ kanban_data[col]|length }} items">
+                <div class="accordion-body p-2">
+                    {% for record in kanban_data[col] %}
+                    <a href="{{ url_for('repairs.detail', id=record.id) }}"
+                       class="card mb-2 text-decoration-none text-body kanban-card kanban-card-{{ record.aging_tier }}"
+                       tabindex="0"
+                       aria-label="{{ record.equipment.name }}, {{ record.equipment.area.name }}{% if record.severity %}, {{ record.severity }}{% endif %}, in column {{ (record.time_in_column / 86400)|int }} days{% if record.aging_tier == 'hot' %} - needs attention{% elif record.aging_tier == 'warm' %} - may need attention{% endif %}">
+                        <div class="card-body py-2 px-3">
+                            <div class="fw-bold">{{ record.equipment.name }}</div>
+                            <div class="mt-1">
+                                <span class="badge bg-secondary">{{ record.equipment.area.name }}</span>
+                                {% if record.severity == 'Down' %}
+                                <span class="badge bg-danger">Down</span>
+                                {% elif record.severity in ['Degraded', 'Not Sure'] %}
+                                <span class="badge bg-warning text-dark">{{ record.severity }}</span>
+                                {% endif %}
+                            </div>
+                            <div class="small text-muted mt-1">
+                                {% set days = (record.time_in_column / 86400)|int %}
+                                {% if days == 0 %}
+                                    <span title="Less than a day">< 1 day</span>
+                                {% elif days == 1 %}
+                                    <span title="{{ days }} day">1 day</span>
+                                {% else %}
+                                    <span title="{{ days }} days">{{ days }} days</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </a>
+                    {% endfor %}
+                    {% if not kanban_data[col] %}
+                    <p class="text-muted small mb-0">No records</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+{# --- Empty State --- #}
+{% if total_cards == 0 %}
+<div class="text-center py-5">
+    <p class="text-muted fs-5">No open repair records. All equipment is operational.</p>
+</div>
+{% endif %}
+{% endblock %}

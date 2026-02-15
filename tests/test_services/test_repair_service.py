@@ -614,6 +614,140 @@ class TestAddRepairPhoto:
             repair_service.add_repair_photo(9999, fake_file, 'staffuser')
 
 
+class TestGetKanbanData:
+    """Tests for get_kanban_data()."""
+
+    def test_returns_only_open_records(self, app, make_area, make_equipment):
+        """Excludes Resolved, Closed - No Issue Found, Closed - Duplicate."""
+        area = make_area()
+        eq = make_equipment('Printer', area=area)
+        open_statuses = ['New', 'Assigned', 'In Progress', 'Parts Needed',
+                         'Parts Ordered', 'Parts Received', 'Needs Specialist']
+        closed_statuses = ['Resolved', 'Closed - No Issue Found', 'Closed - Duplicate']
+        for s in open_statuses + closed_statuses:
+            _db.session.add(RepairRecord(
+                equipment_id=eq.id, description=f'{s} record', status=s,
+            ))
+        _db.session.commit()
+
+        result = repair_service.get_kanban_data()
+        all_records = [r for records in result.values() for r in records]
+        result_statuses = {r.status for r in all_records}
+        for s in closed_statuses:
+            assert s not in result_statuses
+        assert len(all_records) == len(open_statuses)
+
+    def test_records_grouped_by_status(self, app, make_area, make_equipment):
+        """Records are grouped into correct status columns."""
+        area = make_area()
+        eq = make_equipment('Router', area=area)
+        _db.session.add_all([
+            RepairRecord(equipment_id=eq.id, description='new', status='New'),
+            RepairRecord(equipment_id=eq.id, description='assigned', status='Assigned'),
+            RepairRecord(equipment_id=eq.id, description='in progress', status='In Progress'),
+        ])
+        _db.session.commit()
+
+        result = repair_service.get_kanban_data()
+        assert len(result['New']) == 1
+        assert len(result['Assigned']) == 1
+        assert len(result['In Progress']) == 1
+        assert result['New'][0].status == 'New'
+        assert result['Assigned'][0].status == 'Assigned'
+        assert result['In Progress'][0].status == 'In Progress'
+
+    def test_ordering_oldest_time_in_column_first(self, app, make_area, make_equipment, staff_user, capture):
+        """Within a column, records are ordered by time-in-column (oldest first)."""
+        area = make_area()
+        eq = make_equipment('Laser', area=area)
+        now = datetime.now(UTC)
+
+        # Both records are "New" but with different created_at (no status changes)
+        r_old = RepairRecord(
+            equipment_id=eq.id, description='old new',
+            status='New', created_at=now - timedelta(days=5),
+        )
+        r_new = RepairRecord(
+            equipment_id=eq.id, description='recent new',
+            status='New', created_at=now - timedelta(days=1),
+        )
+        _db.session.add_all([r_new, r_old])
+        _db.session.commit()
+
+        result = repair_service.get_kanban_data()
+        descriptions = [r.description for r in result['New']]
+        assert descriptions == ['old new', 'recent new']
+
+    def test_time_in_column_uses_last_status_change(self, app, make_area, make_equipment, staff_user, capture):
+        """Time-in-column uses the most recent status_change entry timestamp."""
+        area = make_area()
+        eq = make_equipment('CNC', area=area)
+        now = datetime.now(UTC)
+
+        # Record was created 10 days ago but moved to Assigned 2 days ago
+        record = RepairRecord(
+            equipment_id=eq.id, description='recently moved',
+            status='Assigned', created_at=now - timedelta(days=10),
+        )
+        _db.session.add(record)
+        _db.session.flush()
+        _db.session.add(RepairTimelineEntry(
+            repair_record_id=record.id,
+            entry_type='status_change',
+            old_value='New',
+            new_value='Assigned',
+            author_name='staffuser',
+            created_at=now - timedelta(days=2),
+        ))
+        _db.session.commit()
+
+        result = repair_service.get_kanban_data()
+        rec = result['Assigned'][0]
+        # time_in_column should be ~2 days, not 10
+        assert rec.time_in_column < timedelta(days=3).total_seconds()
+
+    def test_time_in_column_falls_back_to_created_at(self, app, make_area, make_equipment):
+        """When no status_change exists, time-in-column uses created_at."""
+        area = make_area()
+        eq = make_equipment('Drill', area=area)
+        now = datetime.now(UTC)
+        record = RepairRecord(
+            equipment_id=eq.id, description='still new',
+            status='New', created_at=now - timedelta(days=7),
+        )
+        _db.session.add(record)
+        _db.session.commit()
+
+        result = repair_service.get_kanban_data()
+        rec = result['New'][0]
+        assert rec.time_in_column >= timedelta(days=6).total_seconds()
+
+    def test_empty_columns_included(self, app):
+        """All Kanban columns are present in result even when empty."""
+        result = repair_service.get_kanban_data()
+        expected = ['New', 'Assigned', 'In Progress', 'Parts Needed',
+                    'Parts Ordered', 'Parts Received', 'Needs Specialist']
+        for col in expected:
+            assert col in result
+            assert result[col] == []
+
+    def test_eager_loads_equipment_area_assignee(self, app, make_area, make_equipment, tech_user):
+        """Returned records have accessible equipment name, area name, and assignee."""
+        area = make_area('Woodshop')
+        eq = make_equipment('Table Saw', area=area)
+        _db.session.add(RepairRecord(
+            equipment_id=eq.id, description='issue',
+            assignee_id=tech_user.id,
+        ))
+        _db.session.commit()
+
+        result = repair_service.get_kanban_data()
+        rec = result['New'][0]
+        assert rec.equipment.name == 'Table Saw'
+        assert rec.equipment.area.name == 'Woodshop'
+        assert rec.assignee.username == 'techuser'
+
+
 class TestGetRepairQueue:
     """Tests for get_repair_queue()."""
 

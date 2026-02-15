@@ -1,5 +1,6 @@
 """Tests for repair record views."""
 
+from datetime import UTC, datetime, timedelta
 from io import BytesIO
 from unittest.mock import patch
 
@@ -649,3 +650,124 @@ class TestRepairQueue:
         assert b'queue-card' in resp.data
         assert b'd-md-none' in resp.data
         assert b'queue-cards-wrapper' in resp.data
+
+
+class TestKanbanBoard:
+    """Tests for GET /repairs/kanban and Kanban-related behavior."""
+
+    def test_kanban_loads_200_for_staff(self, staff_client):
+        """Staff gets 200 on the kanban page."""
+        resp = staff_client.get('/repairs/kanban')
+        assert resp.status_code == 200
+        assert b'Kanban Board' in resp.data
+
+    def test_kanban_loads_200_for_technician(self, tech_client):
+        """Technician gets 200 on the kanban page (accessible via role hierarchy)."""
+        resp = tech_client.get('/repairs/kanban')
+        assert resp.status_code == 200
+        assert b'Kanban Board' in resp.data
+
+    def test_kanban_redirects_unauthenticated(self, client):
+        """Unauthenticated users are redirected to login."""
+        resp = client.get('/repairs/kanban')
+        assert resp.status_code == 302
+        assert '/auth/login' in resp.headers['Location']
+
+    def test_kanban_displays_column_headers(self, staff_client):
+        """Kanban shows all status column headers."""
+        resp = staff_client.get('/repairs/kanban')
+        assert resp.status_code == 200
+        assert b'New' in resp.data
+        assert b'Assigned' in resp.data
+        assert b'In Progress' in resp.data
+        assert b'Parts Needed' in resp.data
+        assert b'Parts Ordered' in resp.data
+        assert b'Parts Received' in resp.data
+        assert b'Needs Specialist' in resp.data
+
+    def test_kanban_shows_card_count(self, staff_client, make_area, make_equipment, make_repair_record):
+        """Column headers show card count badges."""
+        area = make_area('Woodshop')
+        eq = make_equipment('Table Saw', area=area)
+        make_repair_record(equipment=eq, description='issue1', status='New')
+        make_repair_record(equipment=eq, description='issue2', status='New')
+        resp = staff_client.get('/repairs/kanban')
+        assert resp.status_code == 200
+        # Count should show "2" for New column (badge text)
+        assert b'>2<' in resp.data
+
+    def test_kanban_cards_contain_equipment_and_area(self, staff_client, make_area, make_equipment, make_repair_record):
+        """Kanban cards show equipment name and area badge."""
+        area = make_area('Woodshop')
+        eq = make_equipment('Table Saw', area=area)
+        make_repair_record(equipment=eq, description='Blade dull')
+        resp = staff_client.get('/repairs/kanban')
+        assert resp.status_code == 200
+        assert b'Table Saw' in resp.data
+        assert b'Woodshop' in resp.data
+
+    def test_kanban_cards_contain_severity_badges(self, staff_client, make_area, make_equipment, make_repair_record):
+        """Kanban cards show severity badges."""
+        area = make_area('Metalshop')
+        eq = make_equipment('Welder', area=area)
+        make_repair_record(equipment=eq, description='Broken', severity='Down')
+        resp = staff_client.get('/repairs/kanban')
+        assert b'bg-danger' in resp.data
+        assert b'Down' in resp.data
+
+    def test_kanban_empty_state(self, staff_client):
+        """Shows empty state message when no open records."""
+        resp = staff_client.get('/repairs/kanban')
+        assert b'No open repair records' in resp.data
+        assert b'All equipment is operational' in resp.data
+
+    def test_kanban_card_links_to_detail(self, staff_client, make_area, make_equipment, make_repair_record):
+        """Kanban cards link to repair detail page."""
+        area = make_area('Woodshop')
+        eq = make_equipment('Table Saw', area=area)
+        record = make_repair_record(equipment=eq, description='Blade dull')
+        resp = staff_client.get('/repairs/kanban')
+        assert f'/repairs/{record.id}'.encode() in resp.data
+
+    def test_login_redirects_staff_to_kanban(self, client, staff_user):
+        """Staff login without next param redirects to /repairs/kanban."""
+        resp = client.post('/auth/login', data={
+            'username': 'staffuser',
+            'password': 'testpass',
+        }, follow_redirects=False)
+        assert resp.status_code == 302
+        assert '/repairs/kanban' in resp.headers['Location']
+
+    def test_navbar_contains_kanban_link_for_staff(self, staff_client):
+        """Navbar contains Kanban link for staff users."""
+        resp = staff_client.get('/repairs/kanban')
+        assert b'Kanban' in resp.data
+        assert b'/repairs/kanban' in resp.data
+
+    def test_aging_class_warm(self, staff_client, make_area, make_equipment):
+        """Cards aged 3-5 days get kanban-card-warm class."""
+        area = make_area('Shop')
+        eq = make_equipment('Drill', area=area)
+        now = datetime.now(UTC)
+        record = RepairRecord(
+            equipment_id=eq.id, description='aging warm',
+            status='New', created_at=now - timedelta(days=4),
+        )
+        _db.session.add(record)
+        _db.session.commit()
+        resp = staff_client.get('/repairs/kanban')
+        assert b'kanban-card-warm' in resp.data
+
+    def test_aging_class_hot(self, staff_client, make_area, make_equipment):
+        """Cards aged 6+ days get kanban-card-hot class."""
+        area = make_area('Shop')
+        eq = make_equipment('Drill', area=area)
+        now = datetime.now(UTC)
+        record = RepairRecord(
+            equipment_id=eq.id, description='aging hot',
+            status='New', created_at=now - timedelta(days=7),
+        )
+        _db.session.add(record)
+        _db.session.commit()
+        resp = staff_client.get('/repairs/kanban')
+        assert b'kanban-card-hot' in resp.data

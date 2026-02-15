@@ -10,11 +10,21 @@ from esb.forms.repair_forms import RepairNoteForm, RepairPhotoUploadForm, Repair
 from esb.models.repair_record import REPAIR_STATUSES
 from esb.models.repair_timeline_entry import RepairTimelineEntry
 from esb.services import equipment_service, repair_service, upload_service
-from esb.services.repair_service import CLOSED_STATUSES
+from esb.services.repair_service import CLOSED_STATUSES, KANBAN_COLUMNS
 from esb.utils.decorators import role_required
 from esb.utils.exceptions import ValidationError
 
 repairs_bp = Blueprint('repairs', __name__, url_prefix='/repairs')
+
+
+def _aging_tier(seconds):
+    """Return aging CSS class based on time-in-column seconds."""
+    days = seconds / 86400
+    if days >= 6:
+        return 'hot'
+    elif days >= 3:
+        return 'warm'
+    return 'default'
 
 
 @repairs_bp.route('/')
@@ -22,6 +32,26 @@ repairs_bp = Blueprint('repairs', __name__, url_prefix='/repairs')
 def index():
     """Repair records list page - redirects to queue."""
     return redirect(url_for('repairs.queue'))
+
+
+@repairs_bp.route('/kanban')
+@role_required('technician')
+def kanban():
+    """Staff Kanban board page."""
+    kanban_data = repair_service.get_kanban_data()
+    now_utc = datetime.now(UTC).replace(tzinfo=None)
+
+    # Compute aging tier for each card
+    for col_records in kanban_data.values():
+        for record in col_records:
+            record.aging_tier = _aging_tier(record.time_in_column)
+
+    return render_template(
+        'repairs/kanban.html',
+        kanban_data=kanban_data,
+        columns=KANBAN_COLUMNS,
+        now_utc=now_utc,
+    )
 
 
 @repairs_bp.route('/queue')

@@ -39,6 +39,8 @@ def login():
         next_page = request.args.get('next')
         if next_page and urlparse(next_page).netloc == '':
             return redirect(next_page)
+        if user.role == 'staff':
+            return redirect(url_for('repairs.kanban'))
         if user.role == 'technician':
             return redirect(url_for('repairs.queue'))
         return redirect(url_for('health'))

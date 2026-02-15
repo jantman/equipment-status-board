@@ -15,6 +15,16 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   });
 
+  // --- Kanban card keyboard navigation ---
+  document.querySelectorAll('a.kanban-card').forEach(function (card) {
+    card.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        window.location.href = card.href;
+      }
+    });
+  });
+
   // --- Queue table sorting ---
   var table = document.getElementById('queue-table');
   if (table) {

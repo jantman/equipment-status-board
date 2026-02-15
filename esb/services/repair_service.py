@@ -1,6 +1,8 @@
 """Repair record lifecycle management."""
 
-from sqlalchemy import case
+from datetime import UTC, datetime
+
+from sqlalchemy import case, func
 from sqlalchemy.orm import joinedload
 
 from esb.extensions import db
@@ -161,6 +163,65 @@ def list_repair_records(
 
 
 CLOSED_STATUSES = ['Resolved', 'Closed - No Issue Found', 'Closed - Duplicate']
+
+KANBAN_COLUMNS = [s for s in REPAIR_STATUSES if s not in CLOSED_STATUSES]
+
+
+def get_kanban_data() -> dict[str, list[RepairRecord]]:
+    """Get open repair records grouped by status for the Kanban board.
+
+    Returns a dict of {status: [records]} where each record is annotated
+    with a ``time_in_column`` attribute (float seconds). Records within
+    each column are ordered oldest-time-in-column first.
+    """
+    now = datetime.now(UTC).replace(tzinfo=None)
+
+    # Subquery: most recent status_change timestamp per repair record
+    latest_status_change = (
+        db.select(
+            RepairTimelineEntry.repair_record_id,
+            func.max(RepairTimelineEntry.created_at).label('last_change'),
+        )
+        .filter(RepairTimelineEntry.entry_type == 'status_change')
+        .group_by(RepairTimelineEntry.repair_record_id)
+        .subquery()
+    )
+
+    records = (
+        db.session.execute(
+            db.select(
+                RepairRecord,
+                latest_status_change.c.last_change,
+            )
+            .outerjoin(
+                latest_status_change,
+                RepairRecord.id == latest_status_change.c.repair_record_id,
+            )
+            .join(RepairRecord.equipment)
+            .join(Equipment.area)
+            .options(
+                joinedload(RepairRecord.equipment).joinedload(Equipment.area),
+                joinedload(RepairRecord.assignee),
+            )
+            .filter(RepairRecord.status.notin_(CLOSED_STATUSES))
+        )
+        .unique()
+        .all()
+    )
+
+    result: dict[str, list[RepairRecord]] = {col: [] for col in KANBAN_COLUMNS}
+
+    for record, last_change in records:
+        ref_time = last_change if last_change is not None else record.created_at
+        record.time_in_column = (now - ref_time).total_seconds()
+        if record.status in result:
+            result[record.status].append(record)
+
+    for col in result:
+        result[col].sort(key=lambda r: r.time_in_column, reverse=True)
+
+    return result
+
 
 _SEVERITY_PRIORITY = case(
     (RepairRecord.severity == 'Down', 0),
