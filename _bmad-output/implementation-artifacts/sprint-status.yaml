@@ -66,8 +66,8 @@ development_status:
   epic-3-retrospective: optional
 
   # Epic 4: Public Status, QR Codes & Problem Reporting
-  epic-4: backlog
-  4-1-equipment-status-derivation-status-dashboard: backlog
+  epic-4: in-progress
+  4-1-equipment-status-derivation-status-dashboard: ready-for-dev
   4-2-kiosk-display: backlog
   4-3-qr-code-equipment-pages-documentation: backlog
   4-4-problem-reporting-via-qr-code-page: backlog
