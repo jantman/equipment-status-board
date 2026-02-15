@@ -730,6 +730,18 @@ class TestDeleteEquipmentLink:
         with pytest.raises(ValidationError, match='not found'):
             delete_equipment_link(99999, 'staffuser')
 
+    def test_delete_link_wrong_equipment_raises(self, app, make_equipment, make_area):
+        """delete_equipment_link rejects if equipment_id doesn't match."""
+        from esb.services.equipment_service import add_equipment_link, delete_equipment_link
+
+        area = make_area('Shop', '#shop')
+        eq1 = make_equipment('Eq1', 'Co', 'M', area=area)
+        eq2 = make_equipment('Eq2', 'Co', 'M', area=area)
+        link = add_equipment_link(eq1.id, 'Link', 'https://example.com', 'staffuser')
+
+        with pytest.raises(ValidationError, match='not found'):
+            delete_equipment_link(link.id, 'staffuser', equipment_id=eq2.id)
+
     def test_delete_link_logs_mutation(self, app, capture, make_equipment):
         """delete_equipment_link() logs an equipment_link.deleted mutation."""
         from esb.services.equipment_service import add_equipment_link, delete_equipment_link

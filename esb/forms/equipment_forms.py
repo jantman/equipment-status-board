@@ -12,16 +12,9 @@ from wtforms import (
 )
 from wtforms.validators import URL, DataRequired, Length, Optional
 
-DOCUMENT_CATEGORIES = [
-    ('', '-- Select Category --'),
-    ('owners_manual', "Owner's Manual"),
-    ('service_manual', 'Service Manual'),
-    ('quick_start', 'Quick Start Guide'),
-    ('training_video', 'Training Video'),
-    ('manufacturer_page', 'Manufacturer Product Page'),
-    ('manufacturer_support', 'Manufacturer Support'),
-    ('other', 'Other'),
-]
+from esb.models.document import DOCUMENT_CATEGORIES
+
+FORM_DOCUMENT_CATEGORIES = [('', '-- Select Category --')] + DOCUMENT_CATEGORIES
 
 
 class AreaCreateForm(FlaskForm):
@@ -82,7 +75,7 @@ class DocumentUploadForm(FlaskForm):
             'Only document files are allowed.',
         ),
     ])
-    category = SelectField('Category', choices=DOCUMENT_CATEGORIES, validators=[DataRequired()])
+    category = SelectField('Category', choices=FORM_DOCUMENT_CATEGORIES, validators=[DataRequired()])
     submit = SubmitField('Upload Document')
 
 

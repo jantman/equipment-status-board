@@ -333,14 +333,23 @@ def add_equipment_link(
     return link
 
 
-def delete_equipment_link(link_id: int, deleted_by: str) -> None:
+def delete_equipment_link(
+    link_id: int, deleted_by: str, *, equipment_id: int | None = None,
+) -> None:
     """Delete an external link.
 
+    Args:
+        link_id: ID of the ExternalLink to delete.
+        deleted_by: Username performing the deletion.
+        equipment_id: If provided, verify link belongs to this equipment.
+
     Raises:
-        ValidationError: if link not found.
+        ValidationError: if link not found or ownership mismatch.
     """
     link = db.session.get(ExternalLink, link_id)
     if link is None:
+        raise ValidationError(f'Link with id {link_id} not found')
+    if equipment_id is not None and link.equipment_id != equipment_id:
         raise ValidationError(f'Link with id {link_id} not found')
 
     log_data = {

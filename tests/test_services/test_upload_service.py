@@ -222,6 +222,36 @@ class TestDeleteUpload:
         with pytest.raises(ValidationError, match='not found'):
             upload_service.delete_upload(9999, 'staffuser')
 
+    def test_delete_wrong_parent_type_raises(self, app):
+        """delete_upload rejects if parent_type doesn't match."""
+        doc = Document(
+            original_filename='test.pdf', stored_filename='x.pdf',
+            content_type='application/pdf', size_bytes=100,
+            parent_type='equipment_doc', parent_id=1, uploaded_by='staffuser',
+        )
+        _db.session.add(doc)
+        _db.session.commit()
+        with pytest.raises(ValidationError, match='not found'):
+            upload_service.delete_upload(
+                doc.id, 'staffuser',
+                parent_type='equipment_photo', parent_id=1,
+            )
+
+    def test_delete_wrong_parent_id_raises(self, app):
+        """delete_upload rejects if parent_id doesn't match."""
+        doc = Document(
+            original_filename='test.pdf', stored_filename='x.pdf',
+            content_type='application/pdf', size_bytes=100,
+            parent_type='equipment_doc', parent_id=1, uploaded_by='staffuser',
+        )
+        _db.session.add(doc)
+        _db.session.commit()
+        with pytest.raises(ValidationError, match='not found'):
+            upload_service.delete_upload(
+                doc.id, 'staffuser',
+                parent_type='equipment_doc', parent_id=999,
+            )
+
     def test_delete_missing_file_still_removes_record(self, app, capture, tmp_path):
         """If file is already missing from disk, record is still deleted."""
         app.config['UPLOAD_PATH'] = str(tmp_path)

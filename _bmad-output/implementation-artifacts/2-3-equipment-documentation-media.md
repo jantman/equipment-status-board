@@ -718,15 +718,20 @@ No issues encountered.
 
 **Modified files:**
 - `esb/models/__init__.py` (added Document, ExternalLink imports)
-- `esb/services/equipment_service.py` (added external link functions)
-- `esb/forms/equipment_forms.py` (added upload/link forms)
-- `esb/views/equipment.py` (added upload/link/delete/serve routes, updated detail view)
-- `esb/templates/equipment/detail.html` (replaced placeholder sections)
+- `esb/services/equipment_service.py` (added external link functions, ownership verification on delete)
+- `esb/forms/equipment_forms.py` (added upload/link forms, imports DOCUMENT_CATEGORIES from model)
+- `esb/views/equipment.py` (added upload/link/delete/serve routes, updated detail view, parent ownership on deletes)
+- `esb/templates/equipment/detail.html` (replaced placeholder sections, category_label and filesize filters)
+- `esb/templates/equipment/list.html` (replaced onclick row with anchor link for accessibility)
 - `esb/config.py` (added MAX_CONTENT_LENGTH)
 - `esb/__init__.py` (added 413 error handler)
-- `tests/test_services/test_equipment_service.py` (added link service tests)
-- `tests/test_views/test_equipment_views.py` (added upload/link/delete/serve view tests)
+- `esb/utils/filters.py` (changed default date format, added category_label and filesize filters)
+- `tests/test_services/test_equipment_service.py` (added link service tests, cross-equipment delete test)
+- `tests/test_services/test_upload_service.py` (added parent ownership verification tests)
+- `tests/test_views/test_equipment_views.py` (added upload/link/delete/serve view tests, cross-equipment tests)
+- `tests/test_utils/test_filters.py` (updated date format test, added category_label and filesize tests)
 
 ## Change Log
 
 - 2026-02-15: Implemented Story 2.3 -- Equipment Documentation & Media (all 7 tasks complete, 389 tests passing)
+- 2026-02-15: Code review fixes -- IDOR on delete routes (parent ownership verification), category label display (Jinja filter), DOCUMENT_CATEGORIES dedup, filesize filter, updated File List (403 tests passing)

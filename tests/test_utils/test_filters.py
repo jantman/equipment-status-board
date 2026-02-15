@@ -5,6 +5,8 @@ from datetime import datetime, timedelta, timezone
 from flask import Flask
 
 from esb.utils.filters import (
+    category_label,
+    filesize,
     format_date,
     format_datetime,
     register_filters,
@@ -100,6 +102,41 @@ class TestRelativeTime:
         assert relative_time(dt) == 'just now'
 
 
+class TestCategoryLabel:
+    """Tests for category_label filter."""
+
+    def test_known_category(self):
+        assert category_label('owners_manual') == "Owner's Manual"
+
+    def test_another_known_category(self):
+        assert category_label('quick_start') == 'Quick Start Guide'
+
+    def test_unknown_category_fallback(self):
+        assert category_label('unknown_value') == 'Unknown Value'
+
+    def test_none_returns_empty(self):
+        assert category_label(None) == ''
+
+
+class TestFilesize:
+    """Tests for filesize filter."""
+
+    def test_bytes(self):
+        assert filesize(500) == '500.0 B'
+
+    def test_kilobytes(self):
+        assert filesize(1536) == '1.5 KB'
+
+    def test_megabytes(self):
+        assert filesize(5 * 1024 * 1024) == '5.0 MB'
+
+    def test_zero(self):
+        assert filesize(0) == '0 B'
+
+    def test_none(self):
+        assert filesize(None) == '0 B'
+
+
 class TestRegisterFilters:
     """Tests for register_filters function."""
 
@@ -109,3 +146,5 @@ class TestRegisterFilters:
         assert 'format_date' in app.jinja_env.filters
         assert 'format_datetime' in app.jinja_env.filters
         assert 'relative_time' in app.jinja_env.filters
+        assert 'category_label' in app.jinja_env.filters
+        assert 'filesize' in app.jinja_env.filters

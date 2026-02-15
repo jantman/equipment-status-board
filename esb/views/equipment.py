@@ -208,7 +208,10 @@ def delete_document(id, doc_id):
         abort(404)
 
     try:
-        upload_service.delete_upload(doc_id, current_user.username)
+        upload_service.delete_upload(
+            doc_id, current_user.username,
+            parent_type='equipment_doc', parent_id=id,
+        )
         flash('Document deleted.', 'success')
     except ValidationError as e:
         flash(str(e), 'danger')
@@ -256,7 +259,10 @@ def delete_photo(id, photo_id):
         abort(404)
 
     try:
-        upload_service.delete_upload(photo_id, current_user.username)
+        upload_service.delete_upload(
+            photo_id, current_user.username,
+            parent_type='equipment_photo', parent_id=id,
+        )
         flash('Photo deleted.', 'success')
     except ValidationError as e:
         flash(str(e), 'danger')
@@ -304,7 +310,9 @@ def delete_link(id, link_id):
         abort(404)
 
     try:
-        equipment_service.delete_equipment_link(link_id, current_user.username)
+        equipment_service.delete_equipment_link(
+            link_id, current_user.username, equipment_id=id,
+        )
         flash('Link deleted.', 'success')
     except ValidationError as e:
         flash(str(e), 'danger')

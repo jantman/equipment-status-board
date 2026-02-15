@@ -2,6 +2,10 @@
 
 from datetime import datetime, timezone
 
+from esb.models.document import DOCUMENT_CATEGORIES
+
+_CATEGORY_LABELS = dict(DOCUMENT_CATEGORIES)
+
 
 def format_date(value, fmt='%b %d, %Y'):
     """Format a datetime object as a date string.
@@ -63,8 +67,29 @@ def relative_time(value):
     return f'{years} year{"s" if years != 1 else ""} ago'
 
 
+def category_label(value):
+    """Return the display label for a document category value."""
+    if value is None:
+        return ''
+    return _CATEGORY_LABELS.get(value, value.replace('_', ' ').title())
+
+
+def filesize(value):
+    """Format bytes as human-readable file size."""
+    if value is None or value == 0:
+        return '0 B'
+    size = float(value)
+    for unit in ('B', 'KB', 'MB', 'GB'):
+        if abs(size) < 1024:
+            return f'{size:.1f} {unit}'
+        size /= 1024
+    return f'{size:.1f} TB'
+
+
 def register_filters(app):
     """Register all custom Jinja2 filters with the Flask app."""
     app.jinja_env.filters['format_date'] = format_date
     app.jinja_env.filters['format_datetime'] = format_datetime
     app.jinja_env.filters['relative_time'] = relative_time
+    app.jinja_env.filters['category_label'] = category_label
+    app.jinja_env.filters['filesize'] = filesize

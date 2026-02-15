@@ -505,6 +505,25 @@ class TestDeleteDocument:
         resp = tech_client.post(f'/equipment/{eq.id}/documents/{doc.id}/delete')
         assert resp.status_code == 403
 
+    def test_cross_equipment_delete_rejected(self, staff_client, make_equipment, make_area, db):
+        """Cannot delete a document belonging to another equipment."""
+        area = make_area('Shop', '#shop')
+        eq1 = make_equipment('Eq1', 'Co', 'M', area=area)
+        eq2 = make_equipment('Eq2', 'Co', 'M', area=area)
+        doc = Document(
+            original_filename='test.pdf', stored_filename='x.pdf',
+            content_type='application/pdf', size_bytes=7,
+            parent_type='equipment_doc', parent_id=eq1.id, uploaded_by='staffuser',
+        )
+        db.session.add(doc)
+        db.session.commit()
+        resp = staff_client.post(
+            f'/equipment/{eq2.id}/documents/{doc.id}/delete',
+            follow_redirects=True,
+        )
+        assert resp.status_code == 200
+        assert db.session.get(Document, doc.id) is not None
+
 
 class TestDeletePhoto:
     """Tests for POST /equipment/<id>/photos/<photo_id>/delete."""
@@ -628,6 +647,24 @@ class TestDeleteLink:
         db.session.commit()
         resp = tech_client.post(f'/equipment/{eq.id}/links/{link.id}/delete')
         assert resp.status_code == 403
+
+    def test_cross_equipment_delete_rejected(self, staff_client, make_equipment, make_area, db):
+        """Cannot delete a link belonging to another equipment."""
+        area = make_area('Shop', '#shop')
+        eq1 = make_equipment('Eq1', 'Co', 'M', area=area)
+        eq2 = make_equipment('Eq2', 'Co', 'M', area=area)
+        link = ExternalLink(
+            equipment_id=eq1.id, title='Test',
+            url='https://example.com', created_by='staffuser',
+        )
+        db.session.add(link)
+        db.session.commit()
+        resp = staff_client.post(
+            f'/equipment/{eq2.id}/links/{link.id}/delete',
+            follow_redirects=True,
+        )
+        assert resp.status_code == 200
+        assert db.session.get(ExternalLink, link.id) is not None
 
 
 # --- File Serving View Tests ---

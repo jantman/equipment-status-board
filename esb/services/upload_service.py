@@ -119,14 +119,30 @@ def save_upload(
     return doc
 
 
-def delete_upload(document_id: int, deleted_by: str) -> None:
+def delete_upload(
+    document_id: int,
+    deleted_by: str,
+    *,
+    parent_type: str | None = None,
+    parent_id: int | None = None,
+) -> None:
     """Delete an uploaded file from disk and remove the Document record.
 
+    Args:
+        document_id: ID of the Document to delete.
+        deleted_by: Username performing the deletion.
+        parent_type: If provided, verify document belongs to this parent_type.
+        parent_id: If provided, verify document belongs to this parent_id.
+
     Raises:
-        ValidationError: if document not found.
+        ValidationError: if document not found or ownership mismatch.
     """
     doc = db.session.get(Document, document_id)
     if doc is None:
+        raise ValidationError(f'Document with id {document_id} not found')
+    if parent_type is not None and doc.parent_type != parent_type:
+        raise ValidationError(f'Document with id {document_id} not found')
+    if parent_id is not None and doc.parent_id != parent_id:
         raise ValidationError(f'Document with id {document_id} not found')
 
     config = _PARENT_TYPE_CONFIG.get(doc.parent_type)
