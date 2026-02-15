@@ -1,11 +1,17 @@
 /* ESB custom JavaScript */
 
 document.addEventListener('DOMContentLoaded', function () {
-  // --- Clickable queue rows ---
+  // --- Clickable queue rows (with keyboard support) ---
   document.querySelectorAll('.queue-row[data-href]').forEach(function (row) {
     row.style.cursor = 'pointer';
     row.addEventListener('click', function () {
       window.location.href = row.dataset.href;
+    });
+    row.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        window.location.href = row.dataset.href;
+      }
     });
   });
 
@@ -71,15 +77,16 @@ document.addEventListener('DOMContentLoaded', function () {
       var statusVal = statusFilter.value;
       var visibleCount = 0;
 
-      // Filter table rows
+      // Filter table rows (canonical count source)
       document.querySelectorAll('.queue-row').forEach(function (row) {
         var areaMatch = !areaVal || row.dataset.areaId === areaVal;
         var statusMatch = !statusVal || row.dataset.status === statusVal;
-        row.style.display = (areaMatch && statusMatch) ? '' : 'none';
-        if (areaMatch && statusMatch) visibleCount++;
+        var visible = areaMatch && statusMatch;
+        row.style.display = visible ? '' : 'none';
+        if (visible) visibleCount++;
       });
 
-      // Filter mobile cards
+      // Filter mobile cards (mirrors table row visibility)
       document.querySelectorAll('.queue-card').forEach(function (card) {
         var areaMatch = !areaVal || card.dataset.areaId === areaVal;
         var statusMatch = !statusVal || card.dataset.status === statusVal;
@@ -87,7 +94,6 @@ document.addEventListener('DOMContentLoaded', function () {
         if (link) {
           link.style.display = (areaMatch && statusMatch) ? '' : 'none';
         }
-        if (areaMatch && statusMatch) visibleCount++;
       });
 
       // Show/hide empty state

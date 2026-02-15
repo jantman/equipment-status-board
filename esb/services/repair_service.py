@@ -1,6 +1,7 @@
 """Repair record lifecycle management."""
 
 from sqlalchemy import case
+from sqlalchemy.orm import joinedload
 
 from esb.extensions import db
 from esb.models.audit_log import AuditLog
@@ -190,6 +191,10 @@ def get_repair_queue(
         db.select(RepairRecord)
         .join(RepairRecord.equipment)
         .join(Equipment.area)
+        .options(
+            joinedload(RepairRecord.equipment).joinedload(Equipment.area),
+            joinedload(RepairRecord.assignee),
+        )
         .filter(RepairRecord.status.notin_(CLOSED_STATUSES))
         .order_by(_SEVERITY_PRIORITY, RepairRecord.created_at.asc())
     )

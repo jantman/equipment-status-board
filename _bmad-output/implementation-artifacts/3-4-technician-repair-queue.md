@@ -1,6 +1,6 @@
 # Story 3.4: Technician Repair Queue
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -293,10 +293,12 @@ Claude Opus 4.6
 - Task 7: Added client-side filtering JS for area/status dropdowns with AND logic, works on both table rows and mobile cards, updates empty state.
 - Task 9: 12 view tests covering access control, display, filters, redirects, navbar link.
 - All 584 tests pass, 0 ruff lint errors.
+- Code Review Fix: Added `joinedload()` for equipment/area/assignee in `get_repair_queue()` (was N+1). Added keyboard accessibility (`tabindex`, `keydown` handler) to table rows. Added `aria-label` to filter dropdowns. Fixed `visibleCount` double-counting in JS. Added comment for timezone workaround. Added 3 new view tests (combined filter, assignee display, mobile cards). All 587 tests pass, 0 lint errors.
 
 ### Change Log
 
 - 2026-02-15: Implemented Story 3.4 — Technician Repair Queue (all 9 tasks, 19 new tests)
+- 2026-02-15: Code review fixes — eager loading, keyboard a11y, aria-labels, JS visibleCount, 3 new tests (22 total new)
 
 ### File List
 
@@ -308,6 +310,6 @@ Claude Opus 4.6
 - `esb/static/js/app.js` (modified) — Added table sorting and filtering JavaScript
 - `esb/static/css/app.css` (modified) — Added sortable header styles
 - `tests/test_services/test_repair_service.py` (modified) — Added `TestGetRepairQueue` (7 tests)
-- `tests/test_views/test_repair_views.py` (modified) — Added `TestRepairQueue` (12 tests)
+- `tests/test_views/test_repair_views.py` (modified) — Added `TestRepairQueue` (15 tests)
 - `_bmad-output/implementation-artifacts/sprint-status.yaml` (modified) — Story status updated
 - `_bmad-output/implementation-artifacts/3-4-technician-repair-queue.md` (modified) — Story file updated

@@ -42,6 +42,7 @@ def queue():
         statuses=open_statuses,
         active_area=area_id,
         active_status=status_filter,
+        # Strip tzinfo: db.DateTime stores naive datetimes so subtraction must match
         now_utc=datetime.now(UTC).replace(tzinfo=None),
     )
 

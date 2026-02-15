@@ -617,3 +617,35 @@ class TestRepairQueue:
         """Navbar Repairs link points to queue."""
         resp = tech_client.get('/repairs/queue')
         assert b'/repairs/queue' in resp.data
+
+    def test_queue_combined_area_and_status_filter(self, tech_client, make_area, make_equipment, make_repair_record):
+        """Combined area + status filter returns only matching records."""
+        area1 = make_area('Woodshop')
+        area2 = make_area('Metalshop', slack_channel='#metalshop')
+        eq1 = make_equipment('Table Saw', area=area1)
+        eq2 = make_equipment('Welder', area=area2)
+        make_repair_record(equipment=eq1, description='saw new', status='New')
+        make_repair_record(equipment=eq1, description='saw assigned', status='Assigned')
+        make_repair_record(equipment=eq2, description='welder new', status='New')
+        resp = tech_client.get(f'/repairs/queue?area={area1.id}&status=New')
+        assert resp.data.count(b'data-status="New"') == 2  # table row + mobile card
+        assert b'data-status="Assigned"' not in resp.data
+        assert b'Welder' not in resp.data
+
+    def test_queue_displays_assignee(self, tech_client, make_area, make_equipment, make_repair_record, tech_user):
+        """Queue shows assignee username when assigned."""
+        area = make_area('Woodshop')
+        eq = make_equipment('Table Saw', area=area)
+        make_repair_record(equipment=eq, description='Blade dull', assignee_id=tech_user.id)
+        resp = tech_client.get('/repairs/queue')
+        assert b'techuser' in resp.data
+
+    def test_queue_mobile_cards_present(self, tech_client, make_area, make_equipment, make_repair_record):
+        """Queue renders mobile card layout with expected structure."""
+        area = make_area('Woodshop')
+        eq = make_equipment('Table Saw', area=area)
+        make_repair_record(equipment=eq, description='Blade dull', severity='Down')
+        resp = tech_client.get('/repairs/queue')
+        assert b'queue-card' in resp.data
+        assert b'd-md-none' in resp.data
+        assert b'queue-cards-wrapper' in resp.data

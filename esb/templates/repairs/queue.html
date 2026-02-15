@@ -15,7 +15,7 @@
 {# --- Filter Controls --- #}
 <div class="row g-2 mb-3">
     <div class="col-auto">
-        <select id="area-filter" class="form-select form-select-sm">
+        <select id="area-filter" class="form-select form-select-sm" aria-label="Filter by area">
             <option value="">All Areas</option>
             {% for area in areas %}
             <option value="{{ area.id }}" {% if active_area == area.id %}selected{% endif %}>{{ area.name }}</option>
@@ -23,7 +23,7 @@
         </select>
     </div>
     <div class="col-auto">
-        <select id="status-filter" class="form-select form-select-sm">
+        <select id="status-filter" class="form-select form-select-sm" aria-label="Filter by status">
             <option value="">All Statuses</option>
             {% for s in statuses %}
             <option value="{{ s }}" {% if active_status == s %}selected{% endif %}>{{ s }}</option>
@@ -47,7 +47,7 @@
         </thead>
         <tbody>
             {% for record in records %}
-            <tr class="queue-row" role="button"
+            <tr class="queue-row" role="link" tabindex="0"
                 data-href="{{ url_for('repairs.detail', id=record.id) }}"
                 data-equipment-name="{{ record.equipment.name }}"
                 data-severity-priority="{{ '0' if record.severity == 'Down' else ('1' if record.severity == 'Degraded' else ('2' if record.severity == 'Not Sure' else '3')) }}"
