@@ -62,7 +62,7 @@ development_status:
   3-2-repair-record-workflow-updates: done
   3-3-repair-timeline-notes-photos: done
   3-4-technician-repair-queue: done
-  3-5-staff-kanban-board: review
+  3-5-staff-kanban-board: done
   epic-3-retrospective: optional
 
   # Epic 4: Public Status, QR Codes & Problem Reporting

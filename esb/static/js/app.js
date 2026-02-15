@@ -15,10 +15,10 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   });
 
-  // --- Kanban card keyboard navigation ---
+  // --- Kanban card keyboard navigation (Space key; Enter is native on <a>) ---
   document.querySelectorAll('a.kanban-card').forEach(function (card) {
     card.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter' || e.key === ' ') {
+      if (e.key === ' ') {
         e.preventDefault();
         window.location.href = card.href;
       }

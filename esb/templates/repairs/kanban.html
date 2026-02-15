@@ -2,6 +2,35 @@
 
 {% block title %}Kanban Board - Equipment Status Board{% endblock %}
 
+{% macro kanban_card(record) %}
+<a href="{{ url_for('repairs.detail', id=record.id) }}"
+   class="card mb-2 text-decoration-none text-body kanban-card kanban-card-{{ record.aging_tier }}"
+   tabindex="0"
+   aria-label="{{ record.equipment.name }}, {{ record.equipment.area.name }}{% if record.severity %}, {{ record.severity }}{% endif %}, in column {{ (record.time_in_column / 86400)|int }} days{% if record.aging_tier == 'hot' %} - needs attention{% elif record.aging_tier == 'warm' %} - may need attention{% endif %}">
+    <div class="card-body py-2 px-3">
+        <div class="fw-bold">{{ record.equipment.name }}</div>
+        <div class="mt-1">
+            <span class="badge bg-secondary">{{ record.equipment.area.name }}</span>
+            {% if record.severity == 'Down' %}
+            <span class="badge bg-danger">Down</span>
+            {% elif record.severity in ['Degraded', 'Not Sure'] %}
+            <span class="badge bg-warning text-dark">{{ record.severity }}</span>
+            {% endif %}
+        </div>
+        <div class="small text-muted mt-1">
+            {% set days = (record.time_in_column / 86400)|int %}
+            {% if days == 0 %}
+                <span title="{{ record.entered_at|format_datetime }}">&lt; 1 day</span>
+            {% elif days == 1 %}
+                <span title="{{ record.entered_at|format_datetime }}">1 day</span>
+            {% else %}
+                <span title="{{ record.entered_at|format_datetime }}">{{ days }} days</span>
+            {% endif %}
+        </div>
+    </div>
+</a>
+{% endmacro %}
+
 {% block content %}
 <nav aria-label="breadcrumb">
     <ol class="breadcrumb">
@@ -25,32 +54,7 @@
             </div>
             <div class="card-body p-2">
                 {% for record in kanban_data[col] %}
-                <a href="{{ url_for('repairs.detail', id=record.id) }}"
-                   class="card mb-2 text-decoration-none text-body kanban-card kanban-card-{{ record.aging_tier }}"
-                   tabindex="0"
-                   aria-label="{{ record.equipment.name }}, {{ record.equipment.area.name }}{% if record.severity %}, {{ record.severity }}{% endif %}, in column {{ (record.time_in_column / 86400)|int }} days{% if record.aging_tier == 'hot' %} - needs attention{% elif record.aging_tier == 'warm' %} - may need attention{% endif %}">
-                    <div class="card-body py-2 px-3">
-                        <div class="fw-bold">{{ record.equipment.name }}</div>
-                        <div class="mt-1">
-                            <span class="badge bg-secondary">{{ record.equipment.area.name }}</span>
-                            {% if record.severity == 'Down' %}
-                            <span class="badge bg-danger">Down</span>
-                            {% elif record.severity in ['Degraded', 'Not Sure'] %}
-                            <span class="badge bg-warning text-dark">{{ record.severity }}</span>
-                            {% endif %}
-                        </div>
-                        <div class="small text-muted mt-1" title="{{ (now_utc - (now_utc.__class__(now_utc.year, now_utc.month, now_utc.day) - (now_utc - now_utc.__class__(now_utc.year, now_utc.month, now_utc.day))))|string }}">
-                            {% set days = (record.time_in_column / 86400)|int %}
-                            {% if days == 0 %}
-                                <span title="Less than a day">< 1 day</span>
-                            {% elif days == 1 %}
-                                <span title="{{ days }} day">1 day</span>
-                            {% else %}
-                                <span title="{{ days }} days">{{ days }} days</span>
-                            {% endif %}
-                        </div>
-                    </div>
-                </a>
+                {{ kanban_card(record) }}
                 {% endfor %}
             </div>
         </div>
@@ -73,36 +77,11 @@
                 </button>
             </h2>
             <div id="kanbanCol{{ loop.index }}" class="accordion-collapse collapse {% if kanban_data[col] %}show{% endif %}"
-                 aria-labelledby="kanbanHead{{ loop.index }}" data-bs-parent="#kanbanAccordion"
+                 aria-labelledby="kanbanHead{{ loop.index }}"
                  role="region" aria-label="Status: {{ col }}, {{ kanban_data[col]|length }} items">
                 <div class="accordion-body p-2">
                     {% for record in kanban_data[col] %}
-                    <a href="{{ url_for('repairs.detail', id=record.id) }}"
-                       class="card mb-2 text-decoration-none text-body kanban-card kanban-card-{{ record.aging_tier }}"
-                       tabindex="0"
-                       aria-label="{{ record.equipment.name }}, {{ record.equipment.area.name }}{% if record.severity %}, {{ record.severity }}{% endif %}, in column {{ (record.time_in_column / 86400)|int }} days{% if record.aging_tier == 'hot' %} - needs attention{% elif record.aging_tier == 'warm' %} - may need attention{% endif %}">
-                        <div class="card-body py-2 px-3">
-                            <div class="fw-bold">{{ record.equipment.name }}</div>
-                            <div class="mt-1">
-                                <span class="badge bg-secondary">{{ record.equipment.area.name }}</span>
-                                {% if record.severity == 'Down' %}
-                                <span class="badge bg-danger">Down</span>
-                                {% elif record.severity in ['Degraded', 'Not Sure'] %}
-                                <span class="badge bg-warning text-dark">{{ record.severity }}</span>
-                                {% endif %}
-                            </div>
-                            <div class="small text-muted mt-1">
-                                {% set days = (record.time_in_column / 86400)|int %}
-                                {% if days == 0 %}
-                                    <span title="Less than a day">< 1 day</span>
-                                {% elif days == 1 %}
-                                    <span title="{{ days }} day">1 day</span>
-                                {% else %}
-                                    <span title="{{ days }} days">{{ days }} days</span>
-                                {% endif %}
-                            </div>
-                        </div>
-                    </a>
+                    {{ kanban_card(record) }}
                     {% endfor %}
                     {% if not kanban_data[col] %}
                     <p class="text-muted small mb-0">No records</p>

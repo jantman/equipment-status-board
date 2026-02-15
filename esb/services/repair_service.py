@@ -176,26 +176,25 @@ def get_kanban_data() -> dict[str, list[RepairRecord]]:
     """
     now = datetime.now(UTC).replace(tzinfo=None)
 
-    # Subquery: most recent status_change timestamp per repair record
+    # Correlated scalar subquery: most recent status_change timestamp
+    # where new_value matches the record's current status.
     latest_status_change = (
-        db.select(
-            RepairTimelineEntry.repair_record_id,
-            func.max(RepairTimelineEntry.created_at).label('last_change'),
+        db.select(func.max(RepairTimelineEntry.created_at))
+        .filter(
+            RepairTimelineEntry.repair_record_id == RepairRecord.id,
+            RepairTimelineEntry.entry_type == 'status_change',
+            RepairTimelineEntry.new_value == RepairRecord.status,
         )
-        .filter(RepairTimelineEntry.entry_type == 'status_change')
-        .group_by(RepairTimelineEntry.repair_record_id)
-        .subquery()
+        .correlate(RepairRecord)
+        .scalar_subquery()
+        .label('last_change')
     )
 
     records = (
         db.session.execute(
             db.select(
                 RepairRecord,
-                latest_status_change.c.last_change,
-            )
-            .outerjoin(
                 latest_status_change,
-                RepairRecord.id == latest_status_change.c.repair_record_id,
             )
             .join(RepairRecord.equipment)
             .join(Equipment.area)

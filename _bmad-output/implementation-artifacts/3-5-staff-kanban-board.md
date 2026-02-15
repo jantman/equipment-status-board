@@ -1,6 +1,6 @@
 # Story 3.5: Staff Kanban Board
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -368,6 +368,7 @@ None
 ### Change Log
 
 - 2026-02-15: Implemented Story 3.5 Staff Kanban Board — all 9 tasks complete, 20 new tests added (607 total), 0 regressions, 0 lint errors.
+- 2026-02-15: Code review fixes — 9 issues found (2H/4M/3L), all fixed. H1/H2: Fixed garbled title attribute; time-in-column tooltip now shows exact datetime via `format_datetime` filter with `entered_at` computed in view. M1: Refactored `get_kanban_data()` subquery to correlated scalar subquery filtering `new_value == current status` per spec. M2/M3: Added 3 new tests for responsive layout, ARIA attributes, and datetime title. M4: Extracted card markup into Jinja2 `kanban_card` macro (DRY). L1: Removed unused fixture params. L2: Removed `data-bs-parent` from accordion for independent panel expand. L3: Narrowed JS handler to Space key only (Enter is native on `<a>`). 610 tests pass, 0 lint errors.
 
 ### File List
 

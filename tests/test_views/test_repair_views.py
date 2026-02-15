@@ -744,6 +744,43 @@ class TestKanbanBoard:
         assert b'Kanban' in resp.data
         assert b'/repairs/kanban' in resp.data
 
+    def test_responsive_layout_classes(self, staff_client):
+        """Page contains desktop horizontal layout and mobile accordion layout."""
+        resp = staff_client.get('/repairs/kanban')
+        assert resp.status_code == 200
+        assert b'kanban-container d-none d-lg-flex' in resp.data
+        assert b'd-lg-none' in resp.data
+        assert b'accordion' in resp.data
+        assert b'accordion-item' in resp.data
+
+    def test_aria_attributes_on_columns_and_cards(self, staff_client, make_area, make_equipment, make_repair_record):
+        """Columns have role=region and aria-label; cards have tabindex=0."""
+        area = make_area('Woodshop')
+        eq = make_equipment('Table Saw', area=area)
+        make_repair_record(equipment=eq, description='ARIA test')
+        resp = staff_client.get('/repairs/kanban')
+        assert resp.status_code == 200
+        assert b'role="region"' in resp.data
+        assert b'aria-label="Status: New' in resp.data
+        assert b'tabindex="0"' in resp.data
+
+    def test_time_title_shows_exact_datetime(self, staff_client, make_area, make_equipment):
+        """Time-in-column title attribute shows exact datetime (format_datetime)."""
+        area = make_area('Shop')
+        eq = make_equipment('Drill', area=area)
+        now = datetime.now(UTC)
+        record = RepairRecord(
+            equipment_id=eq.id, description='title test',
+            status='New', created_at=now - timedelta(days=3),
+        )
+        _db.session.add(record)
+        _db.session.commit()
+        resp = staff_client.get('/repairs/kanban')
+        # format_datetime outputs YYYY-MM-DD HH:MM format
+        # The entered_at should be ~3 days ago, so the year should appear in the title
+        html = resp.data.decode()
+        assert 'title="20' in html  # starts with year prefix e.g. "2026-..."
+
     def test_aging_class_warm(self, staff_client, make_area, make_equipment):
         """Cards aged 3-5 days get kanban-card-warm class."""
         area = make_area('Shop')

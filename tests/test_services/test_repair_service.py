@@ -656,7 +656,7 @@ class TestGetKanbanData:
         assert result['Assigned'][0].status == 'Assigned'
         assert result['In Progress'][0].status == 'In Progress'
 
-    def test_ordering_oldest_time_in_column_first(self, app, make_area, make_equipment, staff_user, capture):
+    def test_ordering_oldest_time_in_column_first(self, app, make_area, make_equipment):
         """Within a column, records are ordered by time-in-column (oldest first)."""
         area = make_area()
         eq = make_equipment('Laser', area=area)
@@ -678,7 +678,7 @@ class TestGetKanbanData:
         descriptions = [r.description for r in result['New']]
         assert descriptions == ['old new', 'recent new']
 
-    def test_time_in_column_uses_last_status_change(self, app, make_area, make_equipment, staff_user, capture):
+    def test_time_in_column_uses_last_status_change(self, app, make_area, make_equipment):
         """Time-in-column uses the most recent status_change entry timestamp."""
         area = make_area()
         eq = make_equipment('CNC', area=area)

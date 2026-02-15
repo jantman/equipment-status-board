@@ -1,7 +1,7 @@
 """Repair record routes."""
 
 import os
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, send_from_directory, url_for
 from flask_login import current_user
@@ -41,10 +41,11 @@ def kanban():
     kanban_data = repair_service.get_kanban_data()
     now_utc = datetime.now(UTC).replace(tzinfo=None)
 
-    # Compute aging tier for each card
+    # Compute aging tier and entered-at datetime for each card
     for col_records in kanban_data.values():
         for record in col_records:
             record.aging_tier = _aging_tier(record.time_in_column)
+            record.entered_at = now_utc - timedelta(seconds=record.time_in_column)
 
     return render_template(
         'repairs/kanban.html',
