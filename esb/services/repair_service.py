@@ -3,11 +3,19 @@
 from esb.extensions import db
 from esb.models.audit_log import AuditLog
 from esb.models.equipment import Equipment
-from esb.models.repair_record import REPAIR_SEVERITIES, RepairRecord
+from esb.models.repair_record import REPAIR_SEVERITIES, REPAIR_STATUSES, RepairRecord
 from esb.models.repair_timeline_entry import RepairTimelineEntry
 from esb.models.user import User
 from esb.utils.exceptions import ValidationError
 from esb.utils.logging import log_mutation
+
+
+_REPAIR_UPDATABLE_FIELDS = {'status', 'severity', 'assignee_id', 'eta', 'specialist_description'}
+
+
+def _serialize(value):
+    """Serialize a value for audit log JSON."""
+    return str(value) if value is not None else None
 
 
 def create_repair_record(
@@ -143,3 +151,122 @@ def list_repair_records(
     if status is not None:
         query = query.filter_by(status=status)
     return list(db.session.execute(query).scalars().all())
+
+
+def update_repair_record(
+    repair_record_id: int,
+    updated_by: str,
+    author_id: int | None = None,
+    **changes,
+) -> RepairRecord:
+    """Update a repair record and create timeline entries for each change.
+
+    Accepts keyword arguments for any updatable field. Only fields that
+    actually differ from the current value will generate timeline entries.
+
+    Updatable fields:
+        status (str): New status value. Must be in REPAIR_STATUSES.
+        severity (str | None): New severity value. Must be in REPAIR_SEVERITIES or None.
+        assignee_id (int | None): New assignee user ID, or None to unassign.
+        eta (date | None): New ETA date, or None to clear.
+        specialist_description (str | None): Free-text description for specialist needs.
+        note (str | None): Optional note text to add to timeline.
+
+    Returns:
+        The updated RepairRecord.
+
+    Raises:
+        ValidationError: if repair record not found, or invalid field values.
+    """
+    record = db.session.get(RepairRecord, repair_record_id)
+    if record is None:
+        raise ValidationError(f'Repair record with id {repair_record_id} not found')
+
+    # Validate incoming values
+    if 'status' in changes and changes['status'] not in REPAIR_STATUSES:
+        raise ValidationError(f'Invalid status: {changes["status"]!r}')
+    if 'severity' in changes and changes['severity'] is not None and changes['severity'] not in REPAIR_SEVERITIES:
+        raise ValidationError(f'Invalid severity: {changes["severity"]!r}')
+    if 'assignee_id' in changes and changes['assignee_id'] is not None:
+        assignee = db.session.get(User, changes['assignee_id'])
+        if assignee is None:
+            raise ValidationError(f'User with id {changes["assignee_id"]} not found')
+
+    # Extract note separately (not a model field)
+    note = changes.pop('note', None)
+
+    # Detect changes and create timeline entries
+    audit_changes = {}
+    for field_name in _REPAIR_UPDATABLE_FIELDS:
+        if field_name not in changes:
+            continue
+        new_value = changes[field_name]
+        old_value = getattr(record, field_name)
+        if old_value == new_value:
+            continue
+
+        # Record the change
+        audit_changes[field_name] = [_serialize(old_value), _serialize(new_value)]
+        setattr(record, field_name, new_value)
+
+        # Create appropriate timeline entry
+        if field_name == 'status':
+            db.session.add(RepairTimelineEntry(
+                repair_record_id=record.id,
+                entry_type='status_change',
+                author_id=author_id,
+                author_name=updated_by,
+                old_value=str(old_value),
+                new_value=str(new_value),
+            ))
+        elif field_name == 'assignee_id':
+            old_name = db.session.get(User, old_value).username if old_value else None
+            new_name = db.session.get(User, new_value).username if new_value else None
+            db.session.add(RepairTimelineEntry(
+                repair_record_id=record.id,
+                entry_type='assignee_change',
+                author_id=author_id,
+                author_name=updated_by,
+                old_value=old_name,
+                new_value=new_name,
+            ))
+        elif field_name == 'eta':
+            db.session.add(RepairTimelineEntry(
+                repair_record_id=record.id,
+                entry_type='eta_update',
+                author_id=author_id,
+                author_name=updated_by,
+                old_value=str(old_value) if old_value else None,
+                new_value=str(new_value) if new_value else None,
+            ))
+
+    # Create note timeline entry if note provided
+    if note and note.strip():
+        db.session.add(RepairTimelineEntry(
+            repair_record_id=record.id,
+            entry_type='note',
+            author_id=author_id,
+            author_name=updated_by,
+            content=note.strip(),
+        ))
+        audit_changes['note'] = note.strip()
+
+    # Create audit log entry
+    if audit_changes:
+        db.session.add(AuditLog(
+            entity_type='repair_record',
+            entity_id=record.id,
+            action='updated',
+            user_id=author_id,
+            changes=audit_changes,
+        ))
+
+    db.session.commit()
+
+    if audit_changes:
+        log_mutation('repair_record.updated', updated_by, {
+            'id': record.id,
+            'changes': audit_changes,
+        })
+
+    return record

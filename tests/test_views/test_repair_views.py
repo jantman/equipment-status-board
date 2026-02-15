@@ -146,3 +146,120 @@ class TestRepairRecordDetail:
         assert resp.status_code == 200
         assert b'Laser Cutter' in resp.data
         assert f'/equipment/{eq.id}'.encode() in resp.data
+
+
+class TestEditRepairRecord:
+    """Tests for GET/POST /repairs/<id>/edit."""
+
+    def test_edit_page_staff_sees_form(self, staff_client, make_repair_record):
+        """Staff can access the edit form pre-populated."""
+        record = make_repair_record(status='New', description='Motor issue')
+        resp = staff_client.get(f'/repairs/{record.id}/edit')
+        assert resp.status_code == 200
+        assert b'Edit Repair' in resp.data
+        assert b'Save Changes' in resp.data
+
+    def test_edit_page_technician_sees_form(self, tech_client, make_repair_record):
+        """Technicians can access the edit form."""
+        record = make_repair_record()
+        resp = tech_client.get(f'/repairs/{record.id}/edit')
+        assert resp.status_code == 200
+        assert b'Edit Repair' in resp.data
+
+    def test_edit_page_unauthenticated_redirects(self, client, make_repair_record):
+        """Unauthenticated users are redirected to login."""
+        record = make_repair_record()
+        resp = client.get(f'/repairs/{record.id}/edit')
+        assert resp.status_code == 302
+        assert '/auth/login' in resp.headers['Location']
+
+    def test_edit_page_not_found(self, staff_client):
+        """Non-existent record returns 404."""
+        resp = staff_client.get('/repairs/9999/edit')
+        assert resp.status_code == 404
+
+    def test_edit_post_staff_updates_successfully(self, staff_client, make_repair_record):
+        """Staff POST updates record and redirects to detail."""
+        record = make_repair_record(status='New')
+        resp = staff_client.post(f'/repairs/{record.id}/edit', data={
+            'status': 'Assigned',
+            'severity': '',
+            'assignee_id': '0',
+            'specialist_description': '',
+            'note': '',
+        }, follow_redirects=False)
+        assert resp.status_code == 302
+        assert f'/repairs/{record.id}' in resp.headers['Location']
+
+    def test_edit_post_technician_updates_successfully(self, tech_client, make_repair_record):
+        """Technician POST updates record and redirects."""
+        record = make_repair_record(status='New')
+        resp = tech_client.post(f'/repairs/{record.id}/edit', data={
+            'status': 'In Progress',
+            'severity': '',
+            'assignee_id': '0',
+            'specialist_description': '',
+            'note': '',
+        }, follow_redirects=False)
+        assert resp.status_code == 302
+
+    def test_edit_post_status_change_saved(self, staff_client, make_repair_record):
+        """Status change is saved to the record after POST."""
+        record = make_repair_record(status='New')
+        staff_client.post(f'/repairs/{record.id}/edit', data={
+            'status': 'In Progress',
+            'severity': '',
+            'assignee_id': '0',
+            'specialist_description': '',
+            'note': '',
+        })
+        updated = _db.session.get(RepairRecord, record.id)
+        assert updated.status == 'In Progress'
+
+    def test_edit_post_multiple_changes(self, staff_client, make_repair_record, tech_user):
+        """POST with multiple changes (status + assignee + note) all saved."""
+        record = make_repair_record(status='New')
+        staff_client.post(f'/repairs/{record.id}/edit', data={
+            'status': 'Assigned',
+            'severity': 'Degraded',
+            'assignee_id': str(tech_user.id),
+            'specialist_description': '',
+            'note': 'Assigning to tech',
+        })
+        updated = _db.session.get(RepairRecord, record.id)
+        assert updated.status == 'Assigned'
+        assert updated.assignee_id == tech_user.id
+        entries = _db.session.execute(
+            _db.select(RepairTimelineEntry).filter_by(repair_record_id=record.id)
+        ).scalars().all()
+        entry_types = {e.entry_type for e in entries}
+        assert 'status_change' in entry_types
+        assert 'assignee_change' in entry_types
+        assert 'note' in entry_types
+
+    def test_edit_post_specialist_description(self, staff_client, make_repair_record):
+        """POST with Needs Specialist status saves specialist description."""
+        record = make_repair_record(status='New')
+        staff_client.post(f'/repairs/{record.id}/edit', data={
+            'status': 'Needs Specialist',
+            'severity': '',
+            'assignee_id': '0',
+            'specialist_description': 'Need licensed electrician',
+            'note': '',
+        })
+        updated = _db.session.get(RepairRecord, record.id)
+        assert updated.status == 'Needs Specialist'
+        assert updated.specialist_description == 'Need licensed electrician'
+
+    def test_edit_post_unauthenticated_redirects(self, client, make_repair_record):
+        """Unauthenticated POST redirects to login."""
+        record = make_repair_record()
+        resp = client.post(f'/repairs/{record.id}/edit', data={
+            'status': 'Assigned',
+            'severity': '',
+            'assignee_id': '0',
+            'specialist_description': '',
+            'note': '',
+        })
+        assert resp.status_code == 302
+        assert '/auth/login' in resp.headers['Location']

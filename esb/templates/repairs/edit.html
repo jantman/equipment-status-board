@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Repair #{{ record.id }} - Equipment Status Board{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{{ url_for('repairs.index') }}">Repairs</a></li>
+        <li class="breadcrumb-item"><a href="{{ url_for('repairs.detail', id=record.id) }}">Repair #{{ record.id }}</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Edit</li>
+    </ol>
+</nav>
+
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <h1 class="mb-4">Edit Repair #{{ record.id }}</h1>
+        <form method="POST" novalidate>
+            {{ form.hidden_tag() }}
+
+            <div class="mb-3">
+                <label for="status" class="form-label">Status *</label>
+                {{ form.status(class="form-select" ~ (" is-invalid" if form.status.errors else "")) }}
+                {% for error in form.status.errors %}
+                <div class="invalid-feedback">{{ error }}</div>
+                {% endfor %}
+            </div>
+
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="severity" class="form-label">Severity</label>
+                    {{ form.severity(class="form-select" ~ (" is-invalid" if form.severity.errors else "")) }}
+                    {% for error in form.severity.errors %}
+                    <div class="invalid-feedback">{{ error }}</div>
+                    {% endfor %}
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="assignee_id" class="form-label">Assignee</label>
+                    {{ form.assignee_id(class="form-select" ~ (" is-invalid" if form.assignee_id.errors else "")) }}
+                    {% for error in form.assignee_id.errors %}
+                    <div class="invalid-feedback">{{ error }}</div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label for="eta" class="form-label">ETA</label>
+                {{ form.eta(class="form-control" ~ (" is-invalid" if form.eta.errors else ""), type="date") }}
+                {% for error in form.eta.errors %}
+                <div class="invalid-feedback">{{ error }}</div>
+                {% endfor %}
+            </div>
+
+            <div class="mb-3">
+                <label for="specialist_description" class="form-label">Specialist Description</label>
+                {{ form.specialist_description(class="form-control" ~ (" is-invalid" if form.specialist_description.errors else ""), rows="3") }}
+                {% for error in form.specialist_description.errors %}
+                <div class="invalid-feedback">{{ error }}</div>
+                {% endfor %}
+            </div>
+
+            <hr class="my-4">
+
+            <div class="mb-3">
+                <label for="note" class="form-label">Add Note</label>
+                {{ form.note(class="form-control" ~ (" is-invalid" if form.note.errors else ""), rows="3") }}
+                {% for error in form.note.errors %}
+                <div class="invalid-feedback">{{ error }}</div>
+                {% endfor %}
+            </div>
+
+            <div class="d-flex gap-2">
+                {{ form.submit(class="btn btn-primary") }}
+                <a href="{{ url_for('repairs.detail', id=record.id) }}" class="btn btn-outline-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

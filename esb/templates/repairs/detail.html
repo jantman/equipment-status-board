@@ -12,9 +12,12 @@
 
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h1>Repair #{{ record.id }}</h1>
-    <span class="badge bg-{{ 'danger' if record.severity == 'Down' else ('warning text-dark' if record.severity in ['Degraded', 'Not Sure'] else 'secondary') }}">
-        {{ record.severity or 'No Severity' }}
-    </span>
+    <div>
+        <a href="{{ url_for('repairs.edit', id=record.id) }}" class="btn btn-primary">Edit</a>
+        <span class="badge bg-{{ 'danger' if record.severity == 'Down' else ('warning text-dark' if record.severity in ['Degraded', 'Not Sure'] else 'secondary') }}">
+            {{ record.severity or 'No Severity' }}
+        </span>
+    </div>
 </div>
 
 <div class="card mb-4">
@@ -37,6 +40,10 @@
             {% if record.eta %}
             <dt class="col-sm-3">ETA</dt>
             <dd class="col-sm-9">{{ record.eta.strftime('%Y-%m-%d') }}</dd>
+            {% endif %}
+            {% if record.specialist_description %}
+            <dt class="col-sm-3">Specialist Description</dt>
+            <dd class="col-sm-9">{{ record.specialist_description }}</dd>
             {% endif %}
             {% if record.has_safety_risk %}
             <dt class="col-sm-3">Safety Risk</dt>

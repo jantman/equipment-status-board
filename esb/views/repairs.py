@@ -3,7 +3,8 @@
 from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 from flask_login import current_user
 
-from esb.forms.repair_forms import RepairRecordCreateForm
+from esb.forms.repair_forms import RepairRecordCreateForm, RepairRecordUpdateForm
+from esb.models.repair_record import REPAIR_STATUSES
 from esb.models.repair_timeline_entry import RepairTimelineEntry
 from esb.services import equipment_service, repair_service
 from esb.utils.decorators import role_required
@@ -87,3 +88,54 @@ def detail(id):
         record=record,
         timeline=timeline,
     )
+
+
+@repairs_bp.route('/<int:id>/edit', methods=['GET', 'POST'])
+@role_required('technician')
+def edit(id):
+    """Edit a repair record."""
+    try:
+        record = repair_service.get_repair_record(id)
+    except ValidationError:
+        abort(404)
+
+    form = RepairRecordUpdateForm(obj=record)
+
+    # Populate dynamic choices
+    form.status.choices = [(s, s) for s in REPAIR_STATUSES]
+
+    from esb.services import user_service
+    users = user_service.list_users()
+    form.assignee_id.choices = [(0, '-- Unassigned --')] + [
+        (u.id, u.username) for u in users
+    ]
+
+    if request.method == 'GET':
+        form.status.data = record.status
+        form.severity.data = record.severity or ''
+        form.assignee_id.data = record.assignee_id or 0
+        form.eta.data = record.eta
+        form.specialist_description.data = record.specialist_description or ''
+        form.note.data = ''
+
+    if form.validate_on_submit():
+        try:
+            repair_service.update_repair_record(
+                repair_record_id=id,
+                updated_by=current_user.username,
+                author_id=current_user.id,
+                status=form.status.data,
+                severity=form.severity.data or None,
+                assignee_id=form.assignee_id.data if form.assignee_id.data != 0 else None,
+                eta=form.eta.data,
+                specialist_description=form.specialist_description.data or None,
+                note=form.note.data or None,
+            )
+        except ValidationError as e:
+            flash(str(e), 'danger')
+            return render_template('repairs/edit.html', form=form, record=record)
+
+        flash('Repair record updated successfully.', 'success')
+        return redirect(url_for('repairs.detail', id=id))
+
+    return render_template('repairs/edit.html', form=form, record=record)

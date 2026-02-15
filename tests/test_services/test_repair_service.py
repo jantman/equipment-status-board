@@ -1,12 +1,14 @@
 """Tests for repair service layer."""
 
 import json
+from datetime import date
 
 import pytest
 
 from esb.extensions import db as _db
 from esb.models.audit_log import AuditLog
 from esb.models.repair_record import RepairRecord
+from esb.models.repair_timeline_entry import RepairTimelineEntry
 from esb.services import repair_service
 from esb.utils.exceptions import ValidationError
 
@@ -218,3 +220,221 @@ class TestListRepairRecords:
         """Returns empty list when no records exist."""
         records = repair_service.list_repair_records()
         assert records == []
+
+
+class TestUpdateRepairRecord:
+    """Tests for update_repair_record()."""
+
+    def test_status_change_creates_timeline_entry(self, app, make_repair_record, staff_user, capture):
+        """Status change creates a status_change timeline entry with old/new values."""
+        record = make_repair_record(status='New')
+        updated = repair_service.update_repair_record(
+            record.id, 'staffuser', author_id=staff_user.id, status='In Progress',
+        )
+        assert updated.status == 'In Progress'
+        timeline = _db.session.execute(
+            _db.select(RepairTimelineEntry).filter_by(
+                repair_record_id=record.id, entry_type='status_change',
+            )
+        ).scalar_one()
+        assert timeline.old_value == 'New'
+        assert timeline.new_value == 'In Progress'
+
+    def test_assignee_change_creates_timeline_entry(self, app, make_repair_record, staff_user, tech_user, capture):
+        """Assignee change creates an assignee_change timeline entry with usernames."""
+        record = make_repair_record()
+        updated = repair_service.update_repair_record(
+            record.id, 'staffuser', author_id=staff_user.id, assignee_id=tech_user.id,
+        )
+        assert updated.assignee_id == tech_user.id
+        timeline = _db.session.execute(
+            _db.select(RepairTimelineEntry).filter_by(
+                repair_record_id=record.id, entry_type='assignee_change',
+            )
+        ).scalar_one()
+        assert timeline.old_value is None
+        assert timeline.new_value == 'techuser'
+
+    def test_assignee_clear_creates_timeline_entry(self, app, make_repair_record, staff_user, tech_user, capture):
+        """Clearing assignee (set to None) creates a timeline entry."""
+        record = make_repair_record(assignee_id=tech_user.id)
+        updated = repair_service.update_repair_record(
+            record.id, 'staffuser', author_id=staff_user.id, assignee_id=None,
+        )
+        assert updated.assignee_id is None
+        timeline = _db.session.execute(
+            _db.select(RepairTimelineEntry).filter_by(
+                repair_record_id=record.id, entry_type='assignee_change',
+            )
+        ).scalar_one()
+        assert timeline.old_value == 'techuser'
+        assert timeline.new_value is None
+
+    def test_eta_change_creates_timeline_entry(self, app, make_repair_record, staff_user, capture):
+        """ETA change creates an eta_update timeline entry with date strings."""
+        record = make_repair_record()
+        eta_date = date(2026, 3, 15)
+        updated = repair_service.update_repair_record(
+            record.id, 'staffuser', author_id=staff_user.id, eta=eta_date,
+        )
+        assert updated.eta == eta_date
+        timeline = _db.session.execute(
+            _db.select(RepairTimelineEntry).filter_by(
+                repair_record_id=record.id, entry_type='eta_update',
+            )
+        ).scalar_one()
+        assert timeline.old_value is None
+        assert timeline.new_value == '2026-03-15'
+
+    def test_eta_clear_creates_timeline_entry(self, app, make_repair_record, staff_user, capture):
+        """Clearing ETA creates a timeline entry."""
+        record = make_repair_record(eta=date(2026, 3, 15))
+        updated = repair_service.update_repair_record(
+            record.id, 'staffuser', author_id=staff_user.id, eta=None,
+        )
+        assert updated.eta is None
+        timeline = _db.session.execute(
+            _db.select(RepairTimelineEntry).filter_by(
+                repair_record_id=record.id, entry_type='eta_update',
+            )
+        ).scalar_one()
+        assert timeline.old_value == '2026-03-15'
+        assert timeline.new_value is None
+
+    def test_note_creates_timeline_entry(self, app, make_repair_record, staff_user, capture):
+        """Note creates a note timeline entry with content."""
+        record = make_repair_record()
+        repair_service.update_repair_record(
+            record.id, 'staffuser', author_id=staff_user.id, note='Checked wiring',
+        )
+        timeline = _db.session.execute(
+            _db.select(RepairTimelineEntry).filter_by(
+                repair_record_id=record.id, entry_type='note',
+            )
+        ).scalar_one()
+        assert timeline.content == 'Checked wiring'
+
+    def test_batch_changes_create_individual_entries(self, app, make_repair_record, staff_user, tech_user, capture):
+        """Multiple changes create individual timeline entries for each change type."""
+        record = make_repair_record(status='New')
+        repair_service.update_repair_record(
+            record.id, 'staffuser', author_id=staff_user.id,
+            status='In Progress', assignee_id=tech_user.id, note='Starting work',
+        )
+        entries = _db.session.execute(
+            _db.select(RepairTimelineEntry).filter_by(repair_record_id=record.id)
+        ).scalars().all()
+        entry_types = {e.entry_type for e in entries}
+        assert 'status_change' in entry_types
+        assert 'assignee_change' in entry_types
+        assert 'note' in entry_types
+        assert len(entries) == 3
+
+    def test_severity_change_updates_record(self, app, make_repair_record, staff_user, capture):
+        """Severity change updates record but does not create a specific timeline entry."""
+        record = make_repair_record()
+        updated = repair_service.update_repair_record(
+            record.id, 'staffuser', author_id=staff_user.id, severity='Down',
+        )
+        assert updated.severity == 'Down'
+        # No specific timeline entry type for severity
+        entries = _db.session.execute(
+            _db.select(RepairTimelineEntry).filter_by(repair_record_id=record.id)
+        ).scalars().all()
+        assert len(entries) == 0
+
+    def test_specialist_description_saved(self, app, make_repair_record, staff_user, capture):
+        """Specialist description is persisted on the record."""
+        record = make_repair_record()
+        updated = repair_service.update_repair_record(
+            record.id, 'staffuser', author_id=staff_user.id,
+            specialist_description='Needs electrician for high-voltage panel',
+        )
+        assert updated.specialist_description == 'Needs electrician for high-voltage panel'
+
+    def test_audit_log_created_with_changes(self, app, make_repair_record, staff_user, capture):
+        """Audit log entry created with all changes as JSON."""
+        record = make_repair_record(status='New')
+        repair_service.update_repair_record(
+            record.id, 'staffuser', author_id=staff_user.id,
+            status='Assigned', severity='Degraded',
+        )
+        audit = _db.session.execute(
+            _db.select(AuditLog).filter_by(
+                entity_type='repair_record', entity_id=record.id, action='updated',
+            )
+        ).scalar_one()
+        assert audit.user_id == staff_user.id
+        assert 'status' in audit.changes
+        assert audit.changes['status'] == ['New', 'Assigned']
+        assert 'severity' in audit.changes
+
+    def test_mutation_log_emitted(self, app, make_repair_record, staff_user, capture):
+        """Mutation log is emitted on update."""
+        record = make_repair_record(status='New')
+        repair_service.update_repair_record(
+            record.id, 'staffuser', author_id=staff_user.id, status='Assigned',
+        )
+        assert len(capture.records) == 1
+        log_data = json.loads(capture.records[0].message)
+        assert log_data['event'] == 'repair_record.updated'
+        assert log_data['user'] == 'staffuser'
+        assert log_data['data']['id'] == record.id
+        assert 'status' in log_data['data']['changes']
+
+    def test_invalid_status_raises(self, app, make_repair_record, staff_user):
+        """Raises ValidationError for invalid status value."""
+        record = make_repair_record()
+        with pytest.raises(ValidationError, match='Invalid status'):
+            repair_service.update_repair_record(
+                record.id, 'staffuser', author_id=staff_user.id, status='Bogus',
+            )
+
+    def test_invalid_severity_raises(self, app, make_repair_record, staff_user):
+        """Raises ValidationError for invalid severity value."""
+        record = make_repair_record()
+        with pytest.raises(ValidationError, match='Invalid severity'):
+            repair_service.update_repair_record(
+                record.id, 'staffuser', author_id=staff_user.id, severity='Critical',
+            )
+
+    def test_invalid_assignee_raises(self, app, make_repair_record, staff_user):
+        """Raises ValidationError for non-existent assignee user."""
+        record = make_repair_record()
+        with pytest.raises(ValidationError, match='User with id 9999 not found'):
+            repair_service.update_repair_record(
+                record.id, 'staffuser', author_id=staff_user.id, assignee_id=9999,
+            )
+
+    def test_not_found_raises(self, app, staff_user):
+        """Raises ValidationError for non-existent repair record."""
+        with pytest.raises(ValidationError, match='Repair record with id 9999 not found'):
+            repair_service.update_repair_record(
+                9999, 'staffuser', author_id=staff_user.id, status='New',
+            )
+
+    def test_no_changes_no_entries(self, app, make_repair_record, staff_user, capture):
+        """No actual changes results in no timeline entries and no audit log."""
+        record = make_repair_record(status='New')
+        repair_service.update_repair_record(
+            record.id, 'staffuser', author_id=staff_user.id, status='New',
+        )
+        entries = _db.session.execute(
+            _db.select(RepairTimelineEntry).filter_by(repair_record_id=record.id)
+        ).scalars().all()
+        assert len(entries) == 0
+        audits = _db.session.execute(
+            _db.select(AuditLog).filter_by(
+                entity_type='repair_record', entity_id=record.id, action='updated',
+            )
+        ).scalars().all()
+        assert len(audits) == 0
+        assert len(capture.records) == 0
+
+    def test_any_to_any_status_transition(self, app, make_repair_record, staff_user, capture):
+        """Can transition from any status to any other status."""
+        record = make_repair_record(status='Resolved')
+        updated = repair_service.update_repair_record(
+            record.id, 'staffuser', author_id=staff_user.id, status='New',
+        )
+        assert updated.status == 'New'

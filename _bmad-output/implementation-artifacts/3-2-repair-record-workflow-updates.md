@@ -1,6 +1,6 @@
 # Story 3.2: Repair Record Workflow & Updates
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -32,69 +32,69 @@ so that repairs are tracked accurately and coordinated efficiently.
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Create RepairRecordUpdateForm (AC: #1, #3, #4, #5, #6, #7)
-  - [ ] 1.1 Add `RepairRecordUpdateForm` to `esb/forms/repair_forms.py` with status, severity, assignee, ETA, specialist_description, and note fields
-  - [ ] 1.2 Import `DateField` from `wtforms` and `REPAIR_STATUSES` from model
+- [x] Task 1: Create RepairRecordUpdateForm (AC: #1, #3, #4, #5, #6, #7)
+  - [x] 1.1 Add `RepairRecordUpdateForm` to `esb/forms/repair_forms.py` with status, severity, assignee, ETA, specialist_description, and note fields
+  - [x] 1.2 Import `DateField` from `wtforms` and `REPAIR_STATUSES` from model
 
-- [ ] Task 2: Implement `update_repair_record()` service function (AC: #1-#9)
-  - [ ] 2.1 Add `update_repair_record()` to `esb/services/repair_service.py`
-  - [ ] 2.2 Detect changed fields by comparing old vs new values
-  - [ ] 2.3 Create `status_change` timeline entry for status changes (old_value → new_value)
-  - [ ] 2.4 Create `assignee_change` timeline entry for assignee changes
-  - [ ] 2.5 Create `eta_update` timeline entry for ETA changes
-  - [ ] 2.6 Create `note` timeline entry if note text provided
-  - [ ] 2.7 Create AuditLog entry with all changes as JSON
-  - [ ] 2.8 Handle specialist_description (save when status is "Needs Specialist")
-  - [ ] 2.9 Emit mutation log to STDOUT
-  - [ ] 2.10 Validate status is in REPAIR_STATUSES
-  - [ ] 2.11 Validate severity is in REPAIR_SEVERITIES (if provided)
-  - [ ] 2.12 Validate assignee_id references existing User (if provided)
+- [x] Task 2: Implement `update_repair_record()` service function (AC: #1-#9)
+  - [x] 2.1 Add `update_repair_record()` to `esb/services/repair_service.py`
+  - [x] 2.2 Detect changed fields by comparing old vs new values
+  - [x] 2.3 Create `status_change` timeline entry for status changes (old_value → new_value)
+  - [x] 2.4 Create `assignee_change` timeline entry for assignee changes
+  - [x] 2.5 Create `eta_update` timeline entry for ETA changes
+  - [x] 2.6 Create `note` timeline entry if note text provided
+  - [x] 2.7 Create AuditLog entry with all changes as JSON
+  - [x] 2.8 Handle specialist_description (save when status is "Needs Specialist")
+  - [x] 2.9 Emit mutation log to STDOUT
+  - [x] 2.10 Validate status is in REPAIR_STATUSES
+  - [x] 2.11 Validate severity is in REPAIR_SEVERITIES (if provided)
+  - [x] 2.12 Validate assignee_id references existing User (if provided)
 
-- [ ] Task 3: Add update route to repairs Blueprint (AC: #1-#9)
-  - [ ] 3.1 Add `GET /repairs/<int:id>/edit` route to display edit form pre-populated with current values
-  - [ ] 3.2 Add `POST /repairs/<int:id>/edit` route to handle form submission
-  - [ ] 3.3 Populate dynamic choices (status, severity, assignee) in view
-  - [ ] 3.4 Handle "0" sentinel for assignee (unassigned) and empty string for severity/ETA (cleared)
-  - [ ] 3.5 Redirect to detail page on success with flash message
+- [x] Task 3: Add update route to repairs Blueprint (AC: #1-#9)
+  - [x] 3.1 Add `GET /repairs/<int:id>/edit` route to display edit form pre-populated with current values
+  - [x] 3.2 Add `POST /repairs/<int:id>/edit` route to handle form submission
+  - [x] 3.3 Populate dynamic choices (status, severity, assignee) in view
+  - [x] 3.4 Handle "0" sentinel for assignee (unassigned) and empty string for severity/ETA (cleared)
+  - [x] 3.5 Redirect to detail page on success with flash message
 
-- [ ] Task 4: Create edit template (AC: #1, #3, #4, #5, #6)
-  - [ ] 4.1 Create `esb/templates/repairs/edit.html` with pre-populated form fields
-  - [ ] 4.2 Include specialist_description field (can be shown always; only saved when status warrants)
-  - [ ] 4.3 Include note textarea for optional note addition
-  - [ ] 4.4 ETA field uses native HTML date input (`<input type="date">`)
+- [x] Task 4: Create edit template (AC: #1, #3, #4, #5, #6)
+  - [x] 4.1 Create `esb/templates/repairs/edit.html` with pre-populated form fields
+  - [x] 4.2 Include specialist_description field (can be shown always; only saved when status warrants)
+  - [x] 4.3 Include note textarea for optional note addition
+  - [x] 4.4 ETA field uses native HTML date input (`<input type="date">`)
 
-- [ ] Task 5: Update detail page with Edit button (AC: #1)
-  - [ ] 5.1 Add "Edit" button to `esb/templates/repairs/detail.html` linking to the edit page
+- [x] Task 5: Update detail page with Edit button (AC: #1)
+  - [x] 5.1 Add "Edit" button to `esb/templates/repairs/detail.html` linking to the edit page
 
-- [ ] Task 6: Write service tests (AC: #1-#9)
-  - [ ] 6.1 Test status change creates status_change timeline entry
-  - [ ] 6.2 Test assignee change creates assignee_change timeline entry
-  - [ ] 6.3 Test ETA change creates eta_update timeline entry
-  - [ ] 6.4 Test note creates note timeline entry
-  - [ ] 6.5 Test batch changes create individual timeline entries for each change type
-  - [ ] 6.6 Test severity change updates record (no specific timeline entry type)
-  - [ ] 6.7 Test specialist_description saved with record
-  - [ ] 6.8 Test audit log entry created with all changes
-  - [ ] 6.9 Test mutation log emitted
-  - [ ] 6.10 Test invalid status raises ValidationError
-  - [ ] 6.11 Test invalid severity raises ValidationError
-  - [ ] 6.12 Test invalid assignee_id raises ValidationError
-  - [ ] 6.13 Test non-existent repair record raises ValidationError
-  - [ ] 6.14 Test no-op update (no changes) still succeeds but creates no timeline entries
-  - [ ] 6.15 Test clearing assignee (set to None) creates timeline entry
-  - [ ] 6.16 Test clearing ETA creates timeline entry
+- [x] Task 6: Write service tests (AC: #1-#9)
+  - [x] 6.1 Test status change creates status_change timeline entry
+  - [x] 6.2 Test assignee change creates assignee_change timeline entry
+  - [x] 6.3 Test ETA change creates eta_update timeline entry
+  - [x] 6.4 Test note creates note timeline entry
+  - [x] 6.5 Test batch changes create individual timeline entries for each change type
+  - [x] 6.6 Test severity change updates record (no specific timeline entry type)
+  - [x] 6.7 Test specialist_description saved with record
+  - [x] 6.8 Test audit log entry created with all changes
+  - [x] 6.9 Test mutation log emitted
+  - [x] 6.10 Test invalid status raises ValidationError
+  - [x] 6.11 Test invalid severity raises ValidationError
+  - [x] 6.12 Test invalid assignee_id raises ValidationError
+  - [x] 6.13 Test non-existent repair record raises ValidationError
+  - [x] 6.14 Test no-op update (no changes) still succeeds but creates no timeline entries
+  - [x] 6.15 Test clearing assignee (set to None) creates timeline entry
+  - [x] 6.16 Test clearing ETA creates timeline entry
 
-- [ ] Task 7: Write view tests (AC: #1-#9)
-  - [ ] 7.1 Test edit page GET: staff sees form pre-populated (200)
-  - [ ] 7.2 Test edit page GET: technician sees form (200)
-  - [ ] 7.3 Test edit page GET: unauthenticated redirects to login (302)
-  - [ ] 7.4 Test edit page GET: non-existent record returns 404
-  - [ ] 7.5 Test edit page POST: staff updates record successfully (302 redirect to detail)
-  - [ ] 7.6 Test edit page POST: technician updates record successfully
-  - [ ] 7.7 Test edit page POST: status change reflected in redirect target
-  - [ ] 7.8 Test edit page POST: multiple changes at once (status + assignee + note)
-  - [ ] 7.9 Test edit page POST: specialist description saved when status is Needs Specialist
-  - [ ] 7.10 Test edit page POST: unauthenticated redirects to login
+- [x] Task 7: Write view tests (AC: #1-#9)
+  - [x] 7.1 Test edit page GET: staff sees form pre-populated (200)
+  - [x] 7.2 Test edit page GET: technician sees form (200)
+  - [x] 7.3 Test edit page GET: unauthenticated redirects to login (302)
+  - [x] 7.4 Test edit page GET: non-existent record returns 404
+  - [x] 7.5 Test edit page POST: staff updates record successfully (302 redirect to detail)
+  - [x] 7.6 Test edit page POST: technician updates record successfully
+  - [x] 7.7 Test edit page POST: status change reflected in redirect target
+  - [x] 7.8 Test edit page POST: multiple changes at once (status + assignee + note)
+  - [x] 7.9 Test edit page POST: specialist description saved when status is Needs Specialist
+  - [x] 7.10 Test edit page POST: unauthenticated redirects to login
 
 ## Dev Notes
 
@@ -610,12 +610,33 @@ class TestUpdateRepairRecord:
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+Claude Opus 4.6
 
 ### Debug Log References
 
+None needed -- clean implementation with no blockers.
+
 ### Completion Notes List
+
+- Task 1: Added `RepairRecordUpdateForm` to `esb/forms/repair_forms.py` with status, severity, assignee_id, eta (DateField), specialist_description, and note fields. Imported `DateField` from wtforms.
+- Task 2: Implemented `update_repair_record()` in `esb/services/repair_service.py` with change detection, timeline entry creation (status_change, assignee_change, eta_update, note), audit logging, mutation logging, and validation for status/severity/assignee_id.
+- Task 3: Added `GET/POST /repairs/<int:id>/edit` route to `esb/views/repairs.py` with dynamic choice population, sentinel handling (0 for unassigned, '' for no severity), PRG redirect pattern, and error handling.
+- Task 4: Created `esb/templates/repairs/edit.html` following create.html pattern -- breadcrumbs, centered form, all fields, native date input, validation error display.
+- Task 5: Added "Edit" button to detail page header and specialist_description display field.
+- Task 6: Added 17 service tests covering all AC scenarios: status/assignee/eta/note timeline entries, batch changes, severity updates, specialist_description, audit log, mutation log, validation errors, no-op updates, any-to-any status transitions.
+- Task 7: Added 10 view tests covering GET/POST for staff/technician/unauthenticated, 404, status changes, multiple changes, specialist description.
+- All 535 tests pass (27 new + 508 existing), ruff lint clean.
 
 ### Change Log
 
+- 2026-02-15: Implemented Story 3.2 -- repair record update workflow with edit form, service function, timeline entries, audit/mutation logging, and comprehensive tests.
+
 ### File List
+
+- `esb/forms/repair_forms.py` (MODIFIED) -- Added RepairRecordUpdateForm class, imported DateField
+- `esb/services/repair_service.py` (MODIFIED) -- Added update_repair_record(), _serialize(), _REPAIR_UPDATABLE_FIELDS, imported REPAIR_STATUSES
+- `esb/views/repairs.py` (MODIFIED) -- Added edit() route (GET/POST), imported RepairRecordUpdateForm and REPAIR_STATUSES
+- `esb/templates/repairs/edit.html` (NEW) -- Edit form template
+- `esb/templates/repairs/detail.html` (MODIFIED) -- Added Edit button and specialist_description display
+- `tests/test_services/test_repair_service.py` (MODIFIED) -- Added TestUpdateRepairRecord class with 17 tests
+- `tests/test_views/test_repair_views.py` (MODIFIED) -- Added TestEditRepairRecord class with 10 tests
