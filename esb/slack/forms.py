@@ -1,10 +1,5 @@
 """Block Kit modal builder functions for Slack commands."""
 
-from esb.extensions import db
-from esb.models.equipment import Equipment
-from esb.models.repair_record import REPAIR_SEVERITIES, REPAIR_STATUSES
-from esb.models.user import User
-
 
 def build_equipment_options():
     """Build Slack static_select options for non-archived equipment.
@@ -12,6 +7,9 @@ def build_equipment_options():
     Returns:
         List of option dicts: [{"text": {"type": "plain_text", "text": "Name (Area)"}, "value": "id"}, ...]
     """
+    from esb.extensions import db
+    from esb.models.equipment import Equipment
+
     equipment_list = db.session.execute(
         db.select(Equipment)
         .filter(Equipment.is_archived.is_(False))
@@ -34,6 +32,9 @@ def build_user_options():
     Returns:
         List of option dicts.
     """
+    from esb.extensions import db
+    from esb.models.user import User
+
     users = db.session.execute(
         db.select(User)
         .filter(User.is_active.is_(True), User.role.in_(['technician', 'staff']))
@@ -58,6 +59,8 @@ def build_problem_report_modal(equipment_options):
     Returns:
         Block Kit modal view dict.
     """
+    from esb.models.repair_record import REPAIR_SEVERITIES
+
     return {
         'type': 'modal',
         'callback_id': 'problem_report_submission',
@@ -161,17 +164,80 @@ def build_repair_create_modal(equipment_options, user_options):
     Returns:
         Block Kit modal view dict.
     """
-    assignee_element = {
-        'type': 'static_select',
-        'action_id': 'assignee',
-        'placeholder': {'type': 'plain_text', 'text': 'Select assignee'},
-        'options': user_options,
-    } if user_options else {
-        'type': 'static_select',
-        'action_id': 'assignee',
-        'placeholder': {'type': 'plain_text', 'text': 'No users available'},
-        'options': [{'text': {'type': 'plain_text', 'text': 'None'}, 'value': 'none'}],
-    }
+    from esb.models.repair_record import REPAIR_SEVERITIES, REPAIR_STATUSES
+
+    blocks = [
+        {
+            'type': 'input',
+            'block_id': 'equipment_block',
+            'element': {
+                'type': 'static_select',
+                'action_id': 'equipment_select',
+                'placeholder': {'type': 'plain_text', 'text': 'Select equipment'},
+                'options': equipment_options,
+            },
+            'label': {'type': 'plain_text', 'text': 'Equipment'},
+        },
+        {
+            'type': 'input',
+            'block_id': 'description_block',
+            'element': {
+                'type': 'plain_text_input',
+                'action_id': 'description',
+                'multiline': True,
+                'placeholder': {'type': 'plain_text', 'text': 'Describe the issue'},
+            },
+            'label': {'type': 'plain_text', 'text': 'Description'},
+        },
+        {
+            'type': 'input',
+            'block_id': 'severity_block',
+            'optional': True,
+            'element': {
+                'type': 'static_select',
+                'action_id': 'severity',
+                'placeholder': {'type': 'plain_text', 'text': 'Select severity'},
+                'options': [
+                    {'text': {'type': 'plain_text', 'text': s}, 'value': s}
+                    for s in REPAIR_SEVERITIES
+                ],
+            },
+            'label': {'type': 'plain_text', 'text': 'Severity'},
+        },
+    ]
+
+    if user_options:
+        blocks.append({
+            'type': 'input',
+            'block_id': 'assignee_block',
+            'optional': True,
+            'element': {
+                'type': 'static_select',
+                'action_id': 'assignee',
+                'placeholder': {'type': 'plain_text', 'text': 'Select assignee'},
+                'options': user_options,
+            },
+            'label': {'type': 'plain_text', 'text': 'Assignee'},
+        })
+
+    blocks.append({
+        'type': 'input',
+        'block_id': 'status_block',
+        'optional': True,
+        'element': {
+            'type': 'static_select',
+            'action_id': 'status',
+            'initial_option': {
+                'text': {'type': 'plain_text', 'text': 'New'},
+                'value': 'New',
+            },
+            'options': [
+                {'text': {'type': 'plain_text', 'text': s}, 'value': s}
+                for s in REPAIR_STATUSES
+            ],
+        },
+        'label': {'type': 'plain_text', 'text': 'Status'},
+    })
 
     return {
         'type': 'modal',
@@ -179,70 +245,7 @@ def build_repair_create_modal(equipment_options, user_options):
         'title': {'type': 'plain_text', 'text': 'Create Repair Record'},
         'submit': {'type': 'plain_text', 'text': 'Create Record'},
         'close': {'type': 'plain_text', 'text': 'Cancel'},
-        'blocks': [
-            {
-                'type': 'input',
-                'block_id': 'equipment_block',
-                'element': {
-                    'type': 'static_select',
-                    'action_id': 'equipment_select',
-                    'placeholder': {'type': 'plain_text', 'text': 'Select equipment'},
-                    'options': equipment_options,
-                },
-                'label': {'type': 'plain_text', 'text': 'Equipment'},
-            },
-            {
-                'type': 'input',
-                'block_id': 'description_block',
-                'element': {
-                    'type': 'plain_text_input',
-                    'action_id': 'description',
-                    'multiline': True,
-                    'placeholder': {'type': 'plain_text', 'text': 'Describe the issue'},
-                },
-                'label': {'type': 'plain_text', 'text': 'Description'},
-            },
-            {
-                'type': 'input',
-                'block_id': 'severity_block',
-                'optional': True,
-                'element': {
-                    'type': 'static_select',
-                    'action_id': 'severity',
-                    'placeholder': {'type': 'plain_text', 'text': 'Select severity'},
-                    'options': [
-                        {'text': {'type': 'plain_text', 'text': s}, 'value': s}
-                        for s in REPAIR_SEVERITIES
-                    ],
-                },
-                'label': {'type': 'plain_text', 'text': 'Severity'},
-            },
-            {
-                'type': 'input',
-                'block_id': 'assignee_block',
-                'optional': True,
-                'element': assignee_element,
-                'label': {'type': 'plain_text', 'text': 'Assignee'},
-            },
-            {
-                'type': 'input',
-                'block_id': 'status_block',
-                'optional': True,
-                'element': {
-                    'type': 'static_select',
-                    'action_id': 'status',
-                    'initial_option': {
-                        'text': {'type': 'plain_text', 'text': 'New'},
-                        'value': 'New',
-                    },
-                    'options': [
-                        {'text': {'type': 'plain_text', 'text': s}, 'value': s}
-                        for s in REPAIR_STATUSES
-                    ],
-                },
-                'label': {'type': 'plain_text', 'text': 'Status'},
-            },
-        ],
+        'blocks': blocks,
     }
 
 
@@ -294,39 +297,29 @@ def build_repair_update_modal(repair_record, status_options, severity_options, u
             'value': repair_record.severity,
         }
 
-    # Assignee block
-    assignee_block = {
-        'type': 'input',
-        'block_id': 'assignee_block',
-        'optional': True,
-        'element': {
-            'type': 'static_select',
-            'action_id': 'assignee',
-            'placeholder': {'type': 'plain_text', 'text': 'Select assignee'},
-            'options': user_options,
-        },
-        'label': {'type': 'plain_text', 'text': 'Assignee'},
-    } if user_options else {
-        'type': 'input',
-        'block_id': 'assignee_block',
-        'optional': True,
-        'element': {
-            'type': 'static_select',
-            'action_id': 'assignee',
-            'placeholder': {'type': 'plain_text', 'text': 'No users available'},
-            'options': [{'text': {'type': 'plain_text', 'text': 'None'}, 'value': 'none'}],
-        },
-        'label': {'type': 'plain_text', 'text': 'Assignee'},
-    }
+    # Assignee block (only shown when assignable users exist)
+    if user_options:
+        assignee_block = {
+            'type': 'input',
+            'block_id': 'assignee_block',
+            'optional': True,
+            'element': {
+                'type': 'static_select',
+                'action_id': 'assignee',
+                'placeholder': {'type': 'plain_text', 'text': 'Select assignee'},
+                'options': user_options,
+            },
+            'label': {'type': 'plain_text', 'text': 'Assignee'},
+        }
 
-    # Set initial assignee if present
-    if repair_record.assignee_id and user_options:
-        for opt in user_options:
-            if opt['value'] == str(repair_record.assignee_id):
-                assignee_block['element']['initial_option'] = opt
-                break
+        # Set initial assignee if present
+        if repair_record.assignee_id:
+            for opt in user_options:
+                if opt['value'] == str(repair_record.assignee_id):
+                    assignee_block['element']['initial_option'] = opt
+                    break
 
-    blocks.append(assignee_block)
+        blocks.append(assignee_block)
 
     # ETA block
     eta_block = {

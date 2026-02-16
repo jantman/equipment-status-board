@@ -244,6 +244,16 @@ class TestBuildRepairCreateModal:
         status_values = [o['value'] for o in status_block['element']['options']]
         assert status_values == REPAIR_STATUSES
 
+    def test_no_assignee_block_when_no_users(self):
+        """L2: Assignee block is excluded when no users available."""
+        from esb.slack.forms import build_repair_create_modal
+
+        equip_opts = [{'text': {'type': 'plain_text', 'text': 'Saw'}, 'value': '1'}]
+        modal = build_repair_create_modal(equip_opts, [])
+
+        block_ids = [b['block_id'] for b in modal['blocks']]
+        assert 'assignee_block' not in block_ids
+
 
 class TestBuildRepairUpdateModal:
     """Tests for build_repair_update_modal()."""

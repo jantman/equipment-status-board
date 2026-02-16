@@ -241,6 +241,26 @@ class TestEsbRepairCommand:
         client.chat_postEphemeral.assert_called_once()
         client.views_open.assert_not_called()
 
+    def test_repair_command_no_equipment_posts_error(self):
+        """M4: /esb-repair posts error when no equipment available."""
+        from esb.models.equipment import Equipment
+        Equipment.query.delete()
+        self.db.session.commit()
+
+        ack = MagicMock()
+        client = MagicMock()
+        client.users_info.return_value = {
+            'user': {'profile': {'email': self.staff_user.email}},
+        }
+        body = {'trigger_id': 'T123', 'user_id': 'U123', 'channel_id': 'C123'}
+
+        self.handlers['command:/esb-repair'](ack=ack, body=body, client=client)
+
+        ack.assert_called_once()
+        client.chat_postEphemeral.assert_called_once()
+        assert 'No equipment' in client.chat_postEphemeral.call_args.kwargs['text']
+        client.views_open.assert_not_called()
+
 
 class TestRepairCreateSubmission:
     """Tests for repair_create_submission view handler."""
@@ -309,6 +329,25 @@ class TestRepairCreateSubmission:
         assert 'Repair record #' in msg
         assert 'SawStop' in msg
 
+    def test_creates_record_with_non_default_status(self):
+        """M3: Repair creation with non-New status creates and then updates."""
+        ack = MagicMock()
+        client = MagicMock()
+        client.users_info.return_value = {
+            'user': {'profile': {'email': self.staff_user.email}},
+        }
+        view = self._build_view(status='In Progress')
+        body = {'user': {'id': 'U123', 'username': 'slackuser'}}
+
+        self.handlers['view:repair_create_submission'](ack=ack, body=body, client=client, view=view)
+
+        ack.assert_called_once_with()
+
+        from esb.models.repair_record import RepairRecord
+        records = RepairRecord.query.all()
+        assert len(records) == 1
+        assert records[0].status == 'In Progress'
+
 
 class TestEsbUpdateCommand:
     """Tests for /esb-update command handler."""
@@ -374,6 +413,21 @@ class TestEsbUpdateCommand:
 
         client.chat_postEphemeral.assert_called_once()
         assert 'not found' in client.chat_postEphemeral.call_args.kwargs['text']
+        client.views_open.assert_not_called()
+
+    def test_invalid_id_format_returns_error(self):
+        """M2: /esb-update with non-numeric ID returns error."""
+        ack = MagicMock()
+        client = MagicMock()
+        client.users_info.return_value = {
+            'user': {'profile': {'email': self.staff_user.email}},
+        }
+        body = {'trigger_id': 'T123', 'user_id': 'U123', 'channel_id': 'C123', 'text': 'abc'}
+
+        self.handlers['command:/esb-update'](ack=ack, body=body, client=client)
+
+        client.chat_postEphemeral.assert_called_once()
+        assert 'Invalid repair ID' in client.chat_postEphemeral.call_args.kwargs['text']
         client.views_open.assert_not_called()
 
     def test_rejects_unauthorized_user(self):

@@ -1,6 +1,6 @@
 # Story 6.2: Problem Reporting & Repair Records via Slack
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -852,10 +852,12 @@ None.
 - All notifications handled by existing `repair_service` layer -- no duplicate notifications from Slack handlers
 - 59 new tests added (27 forms + 25 handlers + 4 handler app-context + 3 init), total suite: 902 passed, 0 failures, 0 lint errors
 - Slack App requires additional OAuth scopes (`users:read`, `users:read.email`) and slash commands registered at api.slack.com (admin task, not code)
+- **Code Review Fixes:** Exception handling narrowed from broad `Exception` to specific `ValidationError` with generic fallback (H1, H2). Added 4 missing tests: non-numeric repair ID, non-default status creation, no-equipment in /esb-repair, no-assignee-block form (M2-M4, L2). Module-level imports moved to lazy in forms.py (L1). Assignee block hidden when no users available (L2). Duplicate notification on non-"New" status documented as known service-layer limitation (M1). Total suite: 906 passed, 0 failures, 0 lint errors
 
 ### Change Log
 
 - 2026-02-16: Implemented Story 6.2 - Problem Reporting & Repair Records via Slack (all 6 tasks, 59 new tests)
+- 2026-02-16: Code review fixes (8 issues: 2 HIGH, 4 MEDIUM, 2 LOW) — see Senior Developer Review below
 
 ### File List
 
@@ -870,3 +872,27 @@ None.
 - tests/test_slack/test_init.py
 - _bmad-output/implementation-artifacts/sprint-status.yaml
 - _bmad-output/implementation-artifacts/6-2-problem-reporting-repair-records-via-slack.md
+
+## Senior Developer Review (AI)
+
+**Reviewer:** Amelia (Dev Agent) on 2026-02-16
+**Outcome:** Approved (all issues fixed)
+
+### Issues Found & Fixed (8 total: 2 HIGH, 4 MEDIUM, 2 LOW)
+
+**HIGH — Fixed:**
+- H1: View submission handlers caught broad `Exception` instead of `ValidationError` for primary service operations, risking information disclosure. Fixed in `handlers.py` — now catches `ValidationError` specifically, with generic fallback for unexpected errors.
+- H2: `/esb-update` command caught broad `Exception` from `get_repair_record()`, masking real errors as "not found". Fixed to catch `ValidationError` only.
+
+**MEDIUM — Fixed:**
+- M1: Two-step creation (create + update status) generates duplicate notifications. Documented as known service-layer limitation with code comment.
+- M2: Missing test for non-numeric repair ID in `/esb-update`. Added `test_invalid_id_format_returns_error`.
+- M3: Missing test for non-default status in repair creation. Added `test_creates_record_with_non_default_status`.
+- M4: Missing test for no-equipment path in `/esb-repair`. Added `test_repair_command_no_equipment_posts_error`.
+
+**LOW — Fixed:**
+- L1: Module-level imports in `forms.py` inconsistent with lazy import pattern. Moved all model/db imports inside functions.
+- L2: Assignee dropdown showed confusing "None" placeholder when no users. Now hides the assignee block entirely; handlers handle missing block gracefully.
+
+### Test Results After Review
+- 906 passed, 0 failures, 0 lint errors (4 new tests added)

@@ -74,6 +74,8 @@ def register_handlers(bolt_app):
         consumable_options = values['consumable_block']['consumable'].get('selected_options', [])
         is_consumable = any(o['value'] == 'consumable' for o in consumable_options)
 
+        from esb.utils.exceptions import ValidationError
+
         try:
             from esb.services import repair_service
 
@@ -86,10 +88,15 @@ def register_handlers(bolt_app):
                 has_safety_risk=has_safety_risk,
                 is_consumable=is_consumable,
             )
-        except Exception as e:
-            logger.warning('Problem report submission failed: %s', e, exc_info=True)
+        except ValidationError as e:
             ack(response_action='errors', errors={
                 'description_block': str(e),
+            })
+            return
+        except Exception:
+            logger.exception('Unexpected error in problem report submission')
+            ack(response_action='errors', errors={
+                'description_block': 'An unexpected error occurred. Please try again.',
             })
             return
 
@@ -145,14 +152,17 @@ def register_handlers(bolt_app):
         severity_data = values['severity_block']['severity'].get('selected_option')
         severity = severity_data['value'] if severity_data else None
 
-        assignee_data = values['assignee_block']['assignee'].get('selected_option')
-        assignee_id = int(assignee_data['value']) if assignee_data and assignee_data['value'] != 'none' else None
+        assignee_block = values.get('assignee_block')
+        assignee_data = assignee_block['assignee'].get('selected_option') if assignee_block else None
+        assignee_id = int(assignee_data['value']) if assignee_data else None
 
         status_data = values['status_block']['status'].get('selected_option')
         status = status_data['value'] if status_data else 'New'
 
         # Resolve the Slack user to get author_id
         esb_user = _resolve_esb_user(client, body['user']['id'])
+
+        from esb.utils.exceptions import ValidationError
 
         try:
             from esb.services import repair_service
@@ -166,7 +176,9 @@ def register_handlers(bolt_app):
                 author_id=esb_user.id if esb_user else None,
             )
 
-            # Update status if not default "New"
+            # Note: Setting non-"New" status requires a second service call, which
+            # may generate a duplicate notification. This is a known limitation of
+            # the service layer not accepting status on creation.
             if status != 'New':
                 repair_service.update_repair_record(
                     repair_record_id=record.id,
@@ -174,10 +186,15 @@ def register_handlers(bolt_app):
                     author_id=esb_user.id if esb_user else None,
                     status=status,
                 )
-        except Exception as e:
-            logger.warning('Repair creation submission failed: %s', e, exc_info=True)
+        except ValidationError as e:
             ack(response_action='errors', errors={
                 'description_block': str(e),
+            })
+            return
+        except Exception:
+            logger.exception('Unexpected error in repair creation submission')
+            ack(response_action='errors', errors={
+                'description_block': 'An unexpected error occurred. Please try again.',
             })
             return
 
@@ -225,10 +242,12 @@ def register_handlers(bolt_app):
             )
             return
 
+        from esb.utils.exceptions import ValidationError
+
         try:
             from esb.services import repair_service
             record = repair_service.get_repair_record(repair_id)
-        except Exception:
+        except ValidationError:
             client.chat_postEphemeral(
                 channel=body['channel_id'],
                 user=body['user_id'],
@@ -269,8 +288,9 @@ def register_handlers(bolt_app):
         severity_data = values['severity_block']['severity'].get('selected_option')
         changes['severity'] = severity_data['value'] if severity_data else None
 
-        assignee_data = values['assignee_block']['assignee'].get('selected_option')
-        if assignee_data and assignee_data['value'] != 'none':
+        assignee_block = values.get('assignee_block')
+        assignee_data = assignee_block['assignee'].get('selected_option') if assignee_block else None
+        if assignee_data:
             changes['assignee_id'] = int(assignee_data['value'])
         else:
             changes['assignee_id'] = None
@@ -292,6 +312,8 @@ def register_handlers(bolt_app):
         # Resolve the Slack user
         esb_user = _resolve_esb_user(client, body['user']['id'])
 
+        from esb.utils.exceptions import ValidationError
+
         try:
             from esb.services import repair_service
 
@@ -301,10 +323,15 @@ def register_handlers(bolt_app):
                 author_id=esb_user.id if esb_user else None,
                 **changes,
             )
-        except Exception as e:
-            logger.warning('Repair update submission failed: %s', e, exc_info=True)
+        except ValidationError as e:
             ack(response_action='errors', errors={
                 'status_block': str(e),
+            })
+            return
+        except Exception:
+            logger.exception('Unexpected error in repair update submission')
+            ack(response_action='errors', errors={
+                'status_block': 'An unexpected error occurred. Please try again.',
             })
             return
 
