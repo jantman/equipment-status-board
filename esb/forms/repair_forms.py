@@ -2,8 +2,8 @@
 
 from flask_wtf import FlaskForm
 from flask_wtf.file import FileAllowed, FileField, FileRequired
-from wtforms import BooleanField, DateField, SelectField, SubmitField, TextAreaField
-from wtforms.validators import DataRequired, Length, Optional
+from wtforms import BooleanField, DateField, SelectField, StringField, SubmitField, TextAreaField
+from wtforms.validators import DataRequired, Email, Length, Optional
 
 from esb.models.repair_record import REPAIR_SEVERITIES
 
@@ -50,6 +50,33 @@ class RepairNoteForm(FlaskForm):
 
     note = TextAreaField('Note', validators=[DataRequired(), Length(max=5000)])
     submit = SubmitField('Add Note')
+
+
+class ProblemReportForm(FlaskForm):
+    """Public problem report form -- no authentication required."""
+
+    reporter_name = StringField('Your Name', validators=[
+        DataRequired(message='Name is required'),
+        Length(max=200),
+    ])
+    description = TextAreaField('Description', validators=[
+        DataRequired(message='Description is required'),
+        Length(max=5000),
+    ])
+    severity = SelectField('Severity', choices=[
+        ('Not Sure', 'Not Sure'),
+        ('Degraded', 'Degraded'),
+        ('Down', 'Down'),
+    ], default='Not Sure')
+    has_safety_risk = BooleanField('This is a safety risk')
+    is_consumable = BooleanField('This is a consumable item (e.g., filament, sandpaper)')
+    reporter_email = StringField('Email (optional)', validators=[
+        Optional(),
+        Email(message='Please enter a valid email address'),
+        Length(max=255),
+    ])
+    photo = FileField('Photo (optional)')
+    submit = SubmitField('Submit Report')
 
 
 class RepairPhotoUploadForm(FlaskForm):

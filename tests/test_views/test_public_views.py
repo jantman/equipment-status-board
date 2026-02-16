@@ -1,6 +1,10 @@
-"""Tests for public views (status dashboard, kiosk, QR equipment pages)."""
+"""Tests for public views (status dashboard, kiosk, QR equipment pages, problem reports)."""
 
 from datetime import date
+from io import BytesIO
+from unittest.mock import patch
+
+from esb.models.repair_record import RepairRecord
 
 
 class TestStatusDashboardView:
@@ -685,3 +689,339 @@ class TestEquipmentInfoView:
         html = response.data.decode()
         assert f'/public/equipment/{equip.id}' in html
         assert 'Back to Status' in html
+
+
+class TestProblemReportFormDisplay:
+    """Tests for problem report form display on equipment page (AC: #3, #4)."""
+
+    def test_equipment_page_shows_report_form(self, client, make_area, make_equipment):
+        """Equipment page shows problem report form without authentication (AC #3)."""
+        area = make_area(name='Shop')
+        equip = make_equipment(name='Lathe', area=area)
+
+        response = client.get(f'/public/equipment/{equip.id}')
+        html = response.data.decode()
+        assert 'Report a Problem' in html
+
+    def test_form_has_required_fields(self, client, make_area, make_equipment):
+        """Form has required fields: name and description (AC #4)."""
+        area = make_area(name='Shop')
+        equip = make_equipment(name='Lathe', area=area)
+
+        response = client.get(f'/public/equipment/{equip.id}')
+        html = response.data.decode()
+        assert 'Your Name' in html
+        assert 'Description' in html
+
+    def test_form_has_optional_fields(self, client, make_area, make_equipment):
+        """Form has optional fields: severity, safety risk, consumable, email, photo (AC #4)."""
+        area = make_area(name='Shop')
+        equip = make_equipment(name='Lathe', area=area)
+
+        response = client.get(f'/public/equipment/{equip.id}')
+        html = response.data.decode()
+        assert 'Severity' in html
+        assert 'safety risk' in html.lower()
+        assert 'consumable' in html.lower()
+        assert 'Email' in html
+        assert 'Photo' in html
+
+    def test_form_has_submit_button(self, client, make_area, make_equipment):
+        """Form has a submit button (AC #4)."""
+        area = make_area(name='Shop')
+        equip = make_equipment(name='Lathe', area=area)
+
+        response = client.get(f'/public/equipment/{equip.id}')
+        html = response.data.decode()
+        assert 'Submit Report' in html
+        assert 'report-submit-btn' in html
+
+    def test_form_posts_to_report_route(self, client, make_area, make_equipment):
+        """Form action posts to the report route (CSRF rendered but disabled in test config)."""
+        area = make_area(name='Shop')
+        equip = make_equipment(name='Lathe', area=area)
+
+        response = client.get(f'/public/equipment/{equip.id}')
+        html = response.data.decode()
+        assert f'/public/equipment/{equip.id}/report' in html
+        assert 'method="POST"' in html
+
+    def test_form_has_multipart_enctype(self, client, make_area, make_equipment):
+        """Form has enctype multipart/form-data for photo upload (AC #4)."""
+        area = make_area(name='Shop')
+        equip = make_equipment(name='Lathe', area=area)
+
+        response = client.get(f'/public/equipment/{equip.id}')
+        html = response.data.decode()
+        assert 'enctype="multipart/form-data"' in html
+
+    def test_form_has_aria_labels(self, client, make_area, make_equipment):
+        """Form fields have ARIA labels for accessibility."""
+        area = make_area(name='Shop')
+        equip = make_equipment(name='Lathe', area=area)
+
+        response = client.get(f'/public/equipment/{equip.id}')
+        html = response.data.decode()
+        assert 'aria-label="Your Name"' in html
+        assert 'aria-label="Description"' in html
+        assert 'aria-label="Severity"' in html
+
+
+class TestProblemReportSubmission:
+    """Tests for problem report form submission (AC: #5, #6, #7, #9)."""
+
+    def _valid_data(self):
+        """Return valid form data for problem report."""
+        return {
+            'reporter_name': 'Sarah Member',
+            'description': 'Motor making grinding noise',
+            'severity': 'Down',
+        }
+
+    def test_valid_submission_creates_repair_record(
+        self, client, db, make_area, make_equipment,
+    ):
+        """Valid submission creates a repair record with status New (AC #5)."""
+        area = make_area(name='Shop')
+        equip = make_equipment(name='Lathe', area=area)
+
+        response = client.post(
+            f'/public/equipment/{equip.id}/report',
+            data=self._valid_data(),
+        )
+        assert response.status_code == 302
+
+        record = db.session.query(RepairRecord).filter_by(equipment_id=equip.id).first()
+        assert record is not None
+        assert record.status == 'New'
+        assert record.description == 'Motor making grinding noise'
+
+    def test_submission_sets_reporter_name_and_email(
+        self, client, db, make_area, make_equipment,
+    ):
+        """Submission sets reporter_name and reporter_email on record (AC #5)."""
+        area = make_area(name='Shop')
+        equip = make_equipment(name='Lathe', area=area)
+
+        data = self._valid_data()
+        data['reporter_email'] = 'sarah@example.com'
+        client.post(f'/public/equipment/{equip.id}/report', data=data)
+
+        record = db.session.query(RepairRecord).filter_by(equipment_id=equip.id).first()
+        assert record.reporter_name == 'Sarah Member'
+        assert record.reporter_email == 'sarah@example.com'
+
+    def test_submission_with_severity(self, client, db, make_area, make_equipment):
+        """Submission with severity sets severity on record (AC #5)."""
+        area = make_area(name='Shop')
+        equip = make_equipment(name='Lathe', area=area)
+
+        data = self._valid_data()
+        data['severity'] = 'Degraded'
+        client.post(f'/public/equipment/{equip.id}/report', data=data)
+
+        record = db.session.query(RepairRecord).filter_by(equipment_id=equip.id).first()
+        assert record.severity == 'Degraded'
+
+    def test_submission_without_severity_defaults_to_not_sure(
+        self, client, db, make_area, make_equipment,
+    ):
+        """Submission without severity defaults to Not Sure (AC #5)."""
+        area = make_area(name='Shop')
+        equip = make_equipment(name='Lathe', area=area)
+
+        data = {
+            'reporter_name': 'Sarah Member',
+            'description': 'Something seems off',
+        }
+        client.post(f'/public/equipment/{equip.id}/report', data=data)
+
+        record = db.session.query(RepairRecord).filter_by(equipment_id=equip.id).first()
+        assert record.severity == 'Not Sure'
+
+    def test_submission_with_safety_risk(self, client, db, make_area, make_equipment):
+        """Submission with safety risk flag sets has_safety_risk=True (AC #7)."""
+        area = make_area(name='Shop')
+        equip = make_equipment(name='Lathe', area=area)
+
+        data = self._valid_data()
+        data['has_safety_risk'] = 'y'
+        client.post(f'/public/equipment/{equip.id}/report', data=data)
+
+        record = db.session.query(RepairRecord).filter_by(equipment_id=equip.id).first()
+        assert record.has_safety_risk is True
+
+    def test_submission_with_consumable_flag(self, client, db, make_area, make_equipment):
+        """Submission with consumable flag sets is_consumable=True (AC #5)."""
+        area = make_area(name='Shop')
+        equip = make_equipment(name='Lathe', area=area)
+
+        data = self._valid_data()
+        data['is_consumable'] = 'y'
+        client.post(f'/public/equipment/{equip.id}/report', data=data)
+
+        record = db.session.query(RepairRecord).filter_by(equipment_id=equip.id).first()
+        assert record.is_consumable is True
+
+    def test_missing_name_shows_validation_error(
+        self, client, db, make_area, make_equipment,
+    ):
+        """Missing name shows validation error, no record created (AC #6)."""
+        area = make_area(name='Shop')
+        equip = make_equipment(name='Lathe', area=area)
+
+        data = {'description': 'Something broke'}
+        response = client.post(f'/public/equipment/{equip.id}/report', data=data)
+        assert response.status_code == 200
+        html = response.data.decode()
+        assert 'Name is required' in html
+
+        count = db.session.query(RepairRecord).filter_by(equipment_id=equip.id).count()
+        assert count == 0
+
+    def test_missing_description_shows_validation_error(
+        self, client, db, make_area, make_equipment,
+    ):
+        """Missing description shows validation error, no record created (AC #6)."""
+        area = make_area(name='Shop')
+        equip = make_equipment(name='Lathe', area=area)
+
+        data = {'reporter_name': 'Sarah Member'}
+        response = client.post(f'/public/equipment/{equip.id}/report', data=data)
+        assert response.status_code == 200
+        html = response.data.decode()
+        assert 'Description is required' in html
+
+        count = db.session.query(RepairRecord).filter_by(equipment_id=equip.id).count()
+        assert count == 0
+
+    def test_submission_with_photo(
+        self, client, db, make_area, make_equipment, tmp_path,
+    ):
+        """Submission with photo saves photo to uploads (AC #9)."""
+        area = make_area(name='Shop')
+        equip = make_equipment(name='Lathe', area=area)
+
+        data = self._valid_data()
+        data['photo'] = (BytesIO(b'fake image content'), 'problem.jpg')
+
+        with patch('esb.services.upload_service.save_upload') as mock_save:
+            mock_save.return_value = None
+            response = client.post(
+                f'/public/equipment/{equip.id}/report',
+                data=data,
+                content_type='multipart/form-data',
+            )
+
+        assert response.status_code == 302
+        mock_save.assert_called_once()
+        call_kwargs = mock_save.call_args
+        assert call_kwargs[1]['parent_type'] == 'repair_photo'
+        assert call_kwargs[1]['uploaded_by'] == 'Sarah Member'
+
+    def test_submission_redirects_to_confirmation(
+        self, client, make_area, make_equipment,
+    ):
+        """Valid submission redirects to confirmation page (AC #5)."""
+        area = make_area(name='Shop')
+        equip = make_equipment(name='Lathe', area=area)
+
+        response = client.post(
+            f'/public/equipment/{equip.id}/report',
+            data=self._valid_data(),
+        )
+        assert response.status_code == 302
+        assert '/report-confirmation' in response.headers['Location']
+
+    def test_submission_for_archived_equipment_returns_404(
+        self, client, make_area, make_equipment,
+    ):
+        """Submission for archived equipment returns 404."""
+        area = make_area(name='Shop')
+        equip = make_equipment(name='Old Tool', area=area, is_archived=True)
+
+        response = client.post(
+            f'/public/equipment/{equip.id}/report',
+            data=self._valid_data(),
+        )
+        assert response.status_code == 404
+
+    def test_submission_for_nonexistent_equipment_returns_404(self, client):
+        """Submission for non-existent equipment returns 404."""
+        response = client.post(
+            '/public/equipment/99999/report',
+            data={'reporter_name': 'Test', 'description': 'Test'},
+        )
+        assert response.status_code == 404
+
+    def test_valid_submission_creates_timeline_entry(
+        self, client, db, make_area, make_equipment,
+    ):
+        """Valid submission creates a timeline entry."""
+        from esb.models.repair_timeline_entry import RepairTimelineEntry as RepairTimeline
+
+        area = make_area(name='Shop')
+        equip = make_equipment(name='Lathe', area=area)
+
+        client.post(f'/public/equipment/{equip.id}/report', data=self._valid_data())
+
+        record = db.session.query(RepairRecord).filter_by(equipment_id=equip.id).first()
+        timeline = db.session.query(RepairTimeline).filter_by(repair_record_id=record.id).first()
+        assert timeline is not None
+
+
+class TestReportConfirmationView:
+    """Tests for the problem report confirmation page (AC: #8)."""
+
+    def test_renders_without_authentication(self, client, make_area, make_equipment):
+        """Confirmation page is accessible without login (AC #8)."""
+        area = make_area(name='Shop')
+        equip = make_equipment(name='Lathe', area=area)
+
+        response = client.get(f'/public/equipment/{equip.id}/report-confirmation?record_id=1')
+        assert response.status_code == 200
+
+    def test_shows_success_message(self, client, make_area, make_equipment):
+        """Confirmation page shows success message (AC #8)."""
+        area = make_area(name='Shop')
+        equip = make_equipment(name='Lathe', area=area)
+
+        response = client.get(f'/public/equipment/{equip.id}/report-confirmation?record_id=1')
+        html = response.data.decode()
+        assert 'Report Submitted' in html
+        assert 'Thank you' in html
+
+    def test_shows_slack_channel_links(self, client, make_area, make_equipment):
+        """Confirmation page shows Slack channel links (AC #8)."""
+        area = make_area(name='Shop', slack_channel='#shop-area')
+        equip = make_equipment(name='Lathe', area=area)
+
+        response = client.get(f'/public/equipment/{equip.id}/report-confirmation?record_id=1')
+        html = response.data.decode()
+        assert '#shop-area' in html
+        assert '#oops' in html
+
+    def test_has_report_another_link(self, client, make_area, make_equipment):
+        """Confirmation page has Report Another Issue link (AC #8)."""
+        area = make_area(name='Shop')
+        equip = make_equipment(name='Lathe', area=area)
+
+        response = client.get(f'/public/equipment/{equip.id}/report-confirmation?record_id=1')
+        html = response.data.decode()
+        assert 'Report Another Issue' in html
+        assert '#report-form' in html
+
+    def test_has_back_to_status_link(self, client, make_area, make_equipment):
+        """Confirmation page has Back to equipment link (AC #8)."""
+        area = make_area(name='Shop')
+        equip = make_equipment(name='Lathe', area=area)
+
+        response = client.get(f'/public/equipment/{equip.id}/report-confirmation?record_id=1')
+        html = response.data.decode()
+        assert f'/public/equipment/{equip.id}' in html
+        assert 'Back to' in html
+
+    def test_returns_404_for_nonexistent_equipment(self, client):
+        """Confirmation page returns 404 for non-existent equipment (AC #8)."""
+        response = client.get('/public/equipment/99999/report-confirmation?record_id=1')
+        assert response.status_code == 404

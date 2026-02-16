@@ -81,3 +81,11 @@ th.sortable:hover {
 .doc-category-group .list-group-item {
     padding: 0.75rem 1rem;
 }
+
+/* Problem report form */
+.report-submit-btn {
+    min-height: 48px;
+}
+#report-form .form-control[type="file"] {
+    min-height: 44px;
+}

@@ -70,7 +70,7 @@ development_status:
   4-1-equipment-status-derivation-status-dashboard: done
   4-2-kiosk-display: done
   4-3-qr-code-equipment-pages-documentation: review
-  4-4-problem-reporting-via-qr-code-page: ready-for-dev
+  4-4-problem-reporting-via-qr-code-page: review
   epic-4-retrospective: optional
 
   # Epic 5: Notification System & Static Status Page

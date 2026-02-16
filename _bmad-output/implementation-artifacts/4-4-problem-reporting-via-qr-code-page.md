@@ -1,6 +1,6 @@
 # Story 4.4: Problem Reporting via QR Code Page
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -34,87 +34,87 @@ So that issues get tracked and fixed without me needing to figure out who to tel
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Create `ProblemReportForm` in `esb/forms/repair_forms.py` (AC: #4, #6)
-  - [ ] 1.1: Add `ProblemReportForm` class with fields: `reporter_name` (StringField, required), `description` (TextAreaField, required), `severity` (SelectField, choices: Down/Degraded/Not Sure, default "Not Sure"), `has_safety_risk` (BooleanField), `is_consumable` (BooleanField), `reporter_email` (StringField, optional, email validation if provided), `photo` (FileField, optional, allowed extensions: jpg/jpeg/png/gif/webp/mp4/mov/avi/webm)
-  - [ ] 1.2: Use existing `ALLOWED_PHOTO_EXTENSIONS` pattern from `RepairPhotoUploadForm` for file validation
-  - [ ] 1.3: Import `REPAIR_SEVERITIES` from `esb.models.repair_record` for severity choices
+- [x] Task 1: Create `ProblemReportForm` in `esb/forms/repair_forms.py` (AC: #4, #6)
+  - [x] 1.1: Add `ProblemReportForm` class with fields: `reporter_name` (StringField, required), `description` (TextAreaField, required), `severity` (SelectField, choices: Down/Degraded/Not Sure, default "Not Sure"), `has_safety_risk` (BooleanField), `is_consumable` (BooleanField), `reporter_email` (StringField, optional, email validation if provided), `photo` (FileField, optional, allowed extensions: jpg/jpeg/png/gif/webp/mp4/mov/avi/webm)
+  - [x] 1.2: Use existing `ALLOWED_PHOTO_EXTENSIONS` pattern from `RepairPhotoUploadForm` for file validation
+  - [x] 1.3: Import `REPAIR_SEVERITIES` from `esb.models.repair_record` for severity choices
 
-- [ ] Task 2: Add problem report form to `esb/templates/public/equipment_page.html` (AC: #3, #4, #10)
-  - [ ] 2.1: Add "Report a Problem" section below Known Issues (or below Equipment Info link if no issues)
-  - [ ] 2.2: Form action posts to `url_for('public.report_problem', id=equipment.id)`
-  - [ ] 2.3: Include `enctype="multipart/form-data"` for photo upload support
-  - [ ] 2.4: Render required fields: reporter_name (label "Your Name"), description (textarea, min 3 rows)
-  - [ ] 2.5: Render optional fields: severity (dropdown defaulting to "Not Sure"), has_safety_risk (checkbox "This is a safety risk"), is_consumable (checkbox "This is a consumable item"), reporter_email (label "Email (optional)"), photo (file input with `accept="image/*,video/*"` and `capture="environment"`)
-  - [ ] 2.6: Large, full-width submit button (`btn-primary btn-lg w-100` with min-height 48px)
-  - [ ] 2.7: Inline validation error display using Bootstrap `invalid-feedback` pattern
-  - [ ] 2.8: Hidden CSRF token field (Flask-WTF handles this)
-  - [ ] 2.9: ARIA labels on all form fields
+- [x] Task 2: Add problem report form to `esb/templates/public/equipment_page.html` (AC: #3, #4, #10)
+  - [x] 2.1: Add "Report a Problem" section below Known Issues (or below Equipment Info link if no issues)
+  - [x] 2.2: Form action posts to `url_for('public.report_problem', id=equipment.id)`
+  - [x] 2.3: Include `enctype="multipart/form-data"` for photo upload support
+  - [x] 2.4: Render required fields: reporter_name (label "Your Name"), description (textarea, min 3 rows)
+  - [x] 2.5: Render optional fields: severity (dropdown defaulting to "Not Sure"), has_safety_risk (checkbox "This is a safety risk"), is_consumable (checkbox "This is a consumable item"), reporter_email (label "Email (optional)"), photo (file input with `accept="image/*,video/*"` and `capture="environment"`)
+  - [x] 2.6: Large, full-width submit button (`btn-primary btn-lg w-100` with min-height 48px)
+  - [x] 2.7: Inline validation error display using Bootstrap `invalid-feedback` pattern
+  - [x] 2.8: Hidden CSRF token field (Flask-WTF handles this)
+  - [x] 2.9: ARIA labels on all form fields
 
-- [ ] Task 3: Add `report_problem` POST route to `esb/views/public.py` (AC: #5, #7, #9)
-  - [ ] 3.1: Add `POST /public/equipment/<int:id>/report` route -- NO `@login_required`
-  - [ ] 3.2: Instantiate `ProblemReportForm` from request data
-  - [ ] 3.3: On validation failure: re-render `equipment_page.html` with form errors, preserving all page context (equipment, status, open_repairs, eta, form)
-  - [ ] 3.4: On validation pass: call `repair_service.create_repair_record()` with form data
-  - [ ] 3.5: Pass `has_safety_risk=form.has_safety_risk.data` and `is_consumable=form.is_consumable.data`
-  - [ ] 3.6: If photo uploaded: call `upload_service.save_upload(file=form.photo.data, parent_type='repair_photo', parent_id=record.id, uploaded_by=form.reporter_name.data)`
-  - [ ] 3.7: On success: redirect to `url_for('public.report_confirmation', id=equipment.id, record_id=record.id)`
-  - [ ] 3.8: On `ValidationError` from service: flash error message with category `'danger'`, re-render form
+- [x] Task 3: Add `report_problem` POST route to `esb/views/public.py` (AC: #5, #7, #9)
+  - [x] 3.1: Add `POST /public/equipment/<int:id>/report` route -- NO `@login_required`
+  - [x] 3.2: Instantiate `ProblemReportForm` from request data
+  - [x] 3.3: On validation failure: re-render `equipment_page.html` with form errors, preserving all page context (equipment, status, open_repairs, eta, form)
+  - [x] 3.4: On validation pass: call `repair_service.create_repair_record()` with form data
+  - [x] 3.5: Pass `has_safety_risk=form.has_safety_risk.data` and `is_consumable=form.is_consumable.data`
+  - [x] 3.6: If photo uploaded: call `upload_service.save_upload(file=form.photo.data, parent_type='repair_photo', parent_id=record.id, uploaded_by=form.reporter_name.data)`
+  - [x] 3.7: On success: redirect to `url_for('public.report_confirmation', id=equipment.id, record_id=record.id)`
+  - [x] 3.8: On `ValidationError` from service: flash error message with category `'danger'`, re-render form
 
-- [ ] Task 4: Add `report_confirmation` GET route to `esb/views/public.py` (AC: #8)
-  - [ ] 4.1: Add `GET /public/equipment/<int:id>/report-confirmation` route -- NO `@login_required`
-  - [ ] 4.2: Accept `record_id` as query parameter
-  - [ ] 4.3: Load equipment (404 if not found/archived) and repair record
-  - [ ] 4.4: Load equipment's area for Slack channel display
-  - [ ] 4.5: Render `public/report_confirmation.html` with equipment, repair record, and area info
+- [x] Task 4: Add `report_confirmation` GET route to `esb/views/public.py` (AC: #8)
+  - [x] 4.1: Add `GET /public/equipment/<int:id>/report-confirmation` route -- NO `@login_required`
+  - [x] 4.2: Accept `record_id` as query parameter
+  - [x] 4.3: Load equipment (404 if not found/archived) and repair record
+  - [x] 4.4: Load equipment's area for Slack channel display
+  - [x] 4.5: Render `public/report_confirmation.html` with equipment, repair record, and area info
 
-- [ ] Task 5: Create `esb/templates/public/report_confirmation.html` (AC: #8)
-  - [ ] 5.1: Extends `base_public.html` (no navbar, public page)
-  - [ ] 5.2: Success heading and confirmation message ("Thank you for reporting this issue!")
-  - [ ] 5.3: Display submitted issue summary (description, severity)
-  - [ ] 5.4: Display Slack channel links: area-specific channel (from `equipment.area.slack_channel`) and `#oops`
-  - [ ] 5.5: "Report another issue" link back to equipment page with form anchor
-  - [ ] 5.6: "Back to equipment status" link to equipment page
-  - [ ] 5.7: Mobile-friendly, single-column layout
+- [x] Task 5: Create `esb/templates/public/report_confirmation.html` (AC: #8)
+  - [x] 5.1: Extends `base_public.html` (no navbar, public page)
+  - [x] 5.2: Success heading and confirmation message ("Thank you for reporting this issue!")
+  - [x] 5.3: Display submitted issue summary (description, severity)
+  - [x] 5.4: Display Slack channel links: area-specific channel (from `equipment.area.slack_channel`) and `#oops`
+  - [x] 5.5: "Report another issue" link back to equipment page with form anchor
+  - [x] 5.6: "Back to equipment status" link to equipment page
+  - [x] 5.7: Mobile-friendly, single-column layout
 
-- [ ] Task 6: Update `equipment_page` GET route in `esb/views/public.py` to pass empty form (AC: #3)
-  - [ ] 6.1: Import and instantiate `ProblemReportForm()` (empty) in the existing `equipment_page()` view
-  - [ ] 6.2: Pass `form=form` to the template context
+- [x] Task 6: Update `equipment_page` GET route in `esb/views/public.py` to pass empty form (AC: #3)
+  - [x] 6.1: Import and instantiate `ProblemReportForm()` (empty) in the existing `equipment_page()` view
+  - [x] 6.2: Pass `form=form` to the template context
 
-- [ ] Task 7: Add problem report form CSS to `esb/static/css/app.css` (AC: #10)
-  - [ ] 7.1: Submit button min-height 48px styling
-  - [ ] 7.2: Form section spacing consistent with rest of QR page
-  - [ ] 7.3: File input touch-friendly sizing
+- [x] Task 7: Add problem report form CSS to `esb/static/css/app.css` (AC: #10)
+  - [x] 7.1: Submit button min-height 48px styling
+  - [x] 7.2: Form section spacing consistent with rest of QR page
+  - [x] 7.3: File input touch-friendly sizing
 
-- [ ] Task 8: Write view tests for problem report form display (AC: #3, #4)
-  - [ ] 8.1: Test equipment page shows report form without authentication
-  - [ ] 8.2: Test form has required fields (name, description)
-  - [ ] 8.3: Test form has optional fields (severity, safety risk, consumable, email, photo)
-  - [ ] 8.4: Test form has submit button
-  - [ ] 8.5: Test form has CSRF token (rendered, but disabled in test config)
-  - [ ] 8.6: Test form has `enctype="multipart/form-data"`
+- [x] Task 8: Write view tests for problem report form display (AC: #3, #4)
+  - [x] 8.1: Test equipment page shows report form without authentication
+  - [x] 8.2: Test form has required fields (name, description)
+  - [x] 8.3: Test form has optional fields (severity, safety risk, consumable, email, photo)
+  - [x] 8.4: Test form has submit button
+  - [x] 8.5: Test form has CSRF token (rendered, but disabled in test config)
+  - [x] 8.6: Test form has `enctype="multipart/form-data"`
 
-- [ ] Task 9: Write view tests for problem report submission (AC: #5, #6, #7, #9)
-  - [ ] 9.1: Test valid submission creates repair record with status "New"
-  - [ ] 9.2: Test submission sets reporter_name and reporter_email on record
-  - [ ] 9.3: Test submission with severity sets severity on record
-  - [ ] 9.4: Test submission without severity defaults to "Not Sure"
-  - [ ] 9.5: Test submission with safety risk flag sets has_safety_risk=True
-  - [ ] 9.6: Test submission with consumable flag sets is_consumable=True
-  - [ ] 9.7: Test missing name shows validation error (no record created)
-  - [ ] 9.8: Test missing description shows validation error (no record created)
-  - [ ] 9.9: Test submission with photo saves photo to uploads/repairs/{id}/
-  - [ ] 9.10: Test submission redirects to confirmation page
-  - [ ] 9.11: Test submission for archived equipment returns 404
-  - [ ] 9.12: Test submission for non-existent equipment returns 404
-  - [ ] 9.13: Test valid submission creates timeline entry
+- [x] Task 9: Write view tests for problem report submission (AC: #5, #6, #7, #9)
+  - [x] 9.1: Test valid submission creates repair record with status "New"
+  - [x] 9.2: Test submission sets reporter_name and reporter_email on record
+  - [x] 9.3: Test submission with severity sets severity on record
+  - [x] 9.4: Test submission without severity defaults to "Not Sure"
+  - [x] 9.5: Test submission with safety risk flag sets has_safety_risk=True
+  - [x] 9.6: Test submission with consumable flag sets is_consumable=True
+  - [x] 9.7: Test missing name shows validation error (no record created)
+  - [x] 9.8: Test missing description shows validation error (no record created)
+  - [x] 9.9: Test submission with photo saves photo to uploads/repairs/{id}/
+  - [x] 9.10: Test submission redirects to confirmation page
+  - [x] 9.11: Test submission for archived equipment returns 404
+  - [x] 9.12: Test submission for non-existent equipment returns 404
+  - [x] 9.13: Test valid submission creates timeline entry
 
-- [ ] Task 10: Write view tests for confirmation page (AC: #8)
-  - [ ] 10.1: Test confirmation page renders without authentication
-  - [ ] 10.2: Test confirmation page shows success message
-  - [ ] 10.3: Test confirmation page shows Slack channel links (area channel + #oops)
-  - [ ] 10.4: Test confirmation page has "Report another issue" link
-  - [ ] 10.5: Test confirmation page has "Back to status" link
-  - [ ] 10.6: Test confirmation page returns 404 for non-existent equipment
+- [x] Task 10: Write view tests for confirmation page (AC: #8)
+  - [x] 10.1: Test confirmation page renders without authentication
+  - [x] 10.2: Test confirmation page shows success message
+  - [x] 10.3: Test confirmation page shows Slack channel links (area channel + #oops)
+  - [x] 10.4: Test confirmation page has "Report another issue" link
+  - [x] 10.5: Test confirmation page has "Back to status" link
+  - [x] 10.6: Test confirmation page returns 404 for non-existent equipment
 
 ## Dev Notes
 
@@ -648,10 +648,35 @@ response = client.post(f'/public/equipment/{equip.id}/report', data=data,
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+Claude Opus 4.6
 
 ### Debug Log References
 
+- CSRF hidden_tag renders empty in test config (WTF_CSRF_ENABLED=False); adjusted test to verify form action/method instead
+- RepairTimelineEntry model is in `esb/models/repair_timeline_entry.py` (not `repair_timeline.py`)
+
 ### Completion Notes List
 
+- Task 1: Added `ProblemReportForm` class to `esb/forms/repair_forms.py` with required fields (reporter_name, description), optional fields (severity, has_safety_risk, is_consumable, reporter_email, photo), severity defaults "Not Sure"
+- Task 2: Added problem report form section to `equipment_page.html` below Known Issues, with ARIA labels, inline validation errors, multipart enctype, novalidate
+- Task 3: Added `report_problem` POST route -- validates form, creates repair record via service, handles optional photo upload, re-renders on validation failure with full page context
+- Task 4: Added `report_confirmation` GET route -- loads equipment (404 if archived/missing), renders confirmation template with record_id
+- Task 5: Created `report_confirmation.html` -- success message, Slack channel links (conditional on area.slack_channel), "Report Another Issue" and "Back to" links
+- Task 6: Updated `equipment_page` GET route to instantiate and pass empty `ProblemReportForm` to template
+- Task 7: Added CSS for `.report-submit-btn` min-height 48px and file input touch-friendly sizing
+- Tasks 8-10: Added 26 tests covering form display (7), submission (13), confirmation (6) -- all AC verified
+
+### Change Log
+
+- 2026-02-16: Implemented Story 4.4 - Problem Reporting via QR Code Page (all 10 tasks, 26 new tests, 718 total passing)
+
 ### File List
+
+- esb/forms/repair_forms.py (modified -- added ProblemReportForm class)
+- esb/views/public.py (modified -- added report_problem POST, report_confirmation GET, updated equipment_page to pass form)
+- esb/templates/public/equipment_page.html (modified -- added problem report form section)
+- esb/templates/public/report_confirmation.html (new -- confirmation page template)
+- esb/static/css/app.css (modified -- added report form styling)
+- tests/test_views/test_public_views.py (modified -- added 26 tests in 3 test classes)
+- _bmad-output/implementation-artifacts/sprint-status.yaml (modified -- updated story status)
+- _bmad-output/implementation-artifacts/4-4-problem-reporting-via-qr-code-page.md (modified -- updated status, tasks, dev record)

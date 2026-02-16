@@ -44,4 +44,68 @@
   </ul>
 </div>
 {% endif %}
+
+{# Problem Report Form #}
+<div class="mt-4" id="report-form">
+  <h2>Report a Problem</h2>
+  <p class="text-muted">Don't see your issue listed above? Let us know.</p>
+
+  <form method="POST" action="{{ url_for('public.report_problem', id=equipment.id) }}"
+        enctype="multipart/form-data" novalidate>
+    {{ form.hidden_tag() }}
+
+    <div class="mb-3">
+      {{ form.reporter_name.label(class="form-label") }}
+      <span class="text-danger">*</span>
+      {{ form.reporter_name(class="form-control" ~ (" is-invalid" if form.reporter_name.errors else ""),
+                             placeholder="Your name", **{"aria-label": "Your Name"}) }}
+      {% for error in form.reporter_name.errors %}
+      <div class="invalid-feedback">{{ error }}</div>
+      {% endfor %}
+    </div>
+
+    <div class="mb-3">
+      {{ form.description.label(class="form-label") }}
+      <span class="text-danger">*</span>
+      {{ form.description(class="form-control" ~ (" is-invalid" if form.description.errors else ""),
+                           rows="3", placeholder="Describe the problem...", **{"aria-label": "Description"}) }}
+      {% for error in form.description.errors %}
+      <div class="invalid-feedback">{{ error }}</div>
+      {% endfor %}
+    </div>
+
+    <div class="mb-3">
+      {{ form.severity.label(class="form-label") }}
+      {{ form.severity(class="form-select", **{"aria-label": "Severity"}) }}
+    </div>
+
+    <div class="mb-3 form-check">
+      {{ form.has_safety_risk(class="form-check-input", **{"aria-label": "This is a safety risk"}) }}
+      {{ form.has_safety_risk.label(class="form-check-label") }}
+    </div>
+
+    <div class="mb-3 form-check">
+      {{ form.is_consumable(class="form-check-input", **{"aria-label": "This is a consumable item"}) }}
+      {{ form.is_consumable.label(class="form-check-label") }}
+    </div>
+
+    <div class="mb-3">
+      {{ form.reporter_email.label(class="form-label") }}
+      {{ form.reporter_email(class="form-control" ~ (" is-invalid" if form.reporter_email.errors else ""),
+                              placeholder="your@email.com", **{"aria-label": "Email"}) }}
+      {% for error in form.reporter_email.errors %}
+      <div class="invalid-feedback">{{ error }}</div>
+      {% endfor %}
+    </div>
+
+    <div class="mb-3">
+      {{ form.photo.label(class="form-label") }}
+      {{ form.photo(class="form-control", accept="image/*,video/*", capture="environment", **{"aria-label": "Photo"}) }}
+    </div>
+
+    <button type="submit" class="btn btn-primary btn-lg w-100 report-submit-btn">
+      Submit Report
+    </button>
+  </form>
+</div>
 {% endblock %}
