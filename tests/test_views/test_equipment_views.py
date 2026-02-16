@@ -900,6 +900,25 @@ class TestDeletePhoto:
         resp = tech_client.post(f'/equipment/{eq.id}/photos/{doc.id}/delete')
         assert resp.status_code == 403
 
+    def test_cross_equipment_delete_rejected(self, staff_client, make_equipment, make_area, db):
+        """Cannot delete a photo belonging to another equipment."""
+        area = make_area('Shop', '#shop')
+        eq1 = make_equipment('Eq1', 'Co', 'M', area=area)
+        eq2 = make_equipment('Eq2', 'Co', 'M', area=area)
+        doc = Document(
+            original_filename='photo.jpg', stored_filename='x.jpg',
+            content_type='image/jpeg', size_bytes=5,
+            parent_type='equipment_photo', parent_id=eq1.id, uploaded_by='staffuser',
+        )
+        db.session.add(doc)
+        db.session.commit()
+        resp = staff_client.post(
+            f'/equipment/{eq2.id}/photos/{doc.id}/delete',
+            follow_redirects=True,
+        )
+        assert resp.status_code == 200
+        assert db.session.get(Document, doc.id) is not None
+
 
 # --- External Link View Tests ---
 

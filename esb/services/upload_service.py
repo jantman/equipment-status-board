@@ -77,9 +77,12 @@ def save_upload(
             f'Allowed types: {", ".join(sorted(config["allowed_extensions"]))}'
         )
 
-    content = file.read()
+    file.seek(0, 2)
+    file_size = file.tell()
+    file.seek(0)
+
     max_bytes = current_app.config['UPLOAD_MAX_SIZE_MB'] * 1024 * 1024
-    if len(content) > max_bytes:
+    if file_size > max_bytes:
         raise ValidationError(
             f'File exceeds maximum size of {current_app.config["UPLOAD_MAX_SIZE_MB"]} MB.'
         )
@@ -90,8 +93,7 @@ def save_upload(
     os.makedirs(upload_dir, exist_ok=True)
 
     file_path = os.path.join(upload_dir, stored_filename)
-    with open(file_path, 'wb') as f:
-        f.write(content)
+    file.save(file_path)
 
     content_type = file.content_type or 'application/octet-stream'
 
@@ -99,7 +101,7 @@ def save_upload(
         original_filename=original_filename,
         stored_filename=stored_filename,
         content_type=content_type,
-        size_bytes=len(content),
+        size_bytes=file_size,
         category=category,
         parent_type=parent_type,
         parent_id=parent_id,

@@ -396,6 +396,10 @@ def delete_link(id, link_id):
 @login_required
 def serve_document(id, filename):
     """Serve an uploaded document file."""
+    try:
+        equipment_service.get_equipment(id)
+    except ValidationError:
+        abort(404)
     upload_path = current_app.config['UPLOAD_PATH']
     directory = os.path.join(upload_path, 'equipment', str(id), 'docs')
     return send_from_directory(directory, filename)
@@ -405,6 +409,10 @@ def serve_document(id, filename):
 @login_required
 def serve_photo(id, filename):
     """Serve an uploaded photo file."""
+    try:
+        equipment_service.get_equipment(id)
+    except ValidationError:
+        abort(404)
     upload_path = current_app.config['UPLOAD_PATH']
     directory = os.path.join(upload_path, 'equipment', str(id), 'photos')
     return send_from_directory(directory, filename)
