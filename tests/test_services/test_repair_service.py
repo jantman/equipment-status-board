@@ -96,8 +96,12 @@ class TestCreateRepairRecord:
             created_by='staffuser',
             author_id=staff_user.id,
         )
-        assert len(capture.records) == 1
-        log_data = json.loads(capture.records[0].message)
+        created_logs = [
+            r for r in capture.records
+            if 'repair_record.created' in r.message
+        ]
+        assert len(created_logs) == 1
+        log_data = json.loads(created_logs[0].message)
         assert log_data['event'] == 'repair_record.created'
         assert log_data['user'] == 'staffuser'
         assert log_data['data']['id'] == record.id
@@ -152,6 +156,90 @@ class TestCreateRepairRecord:
                 created_by='staffuser',
                 assignee_id=9999,
             )
+
+
+class TestCreateRepairRecordStaticPageHook:
+    """Tests for static_page_push notification hook in create_repair_record()."""
+
+    def test_queues_static_page_push_notification(self, app, make_equipment, staff_user, capture):
+        """create_repair_record() queues a static_page_push notification."""
+        from esb.models.pending_notification import PendingNotification
+
+        eq = make_equipment()
+        repair_service.create_repair_record(
+            equipment_id=eq.id,
+            description='Motor grinding noise',
+            created_by='staffuser',
+            author_id=staff_user.id,
+        )
+
+        notifications = _db.session.execute(
+            _db.select(PendingNotification).filter_by(notification_type='static_page_push')
+        ).scalars().all()
+        assert len(notifications) == 1
+        assert notifications[0].target == 'status_change'
+        assert notifications[0].payload['trigger'] == 'repair_record_created'
+
+
+class TestUpdateRepairRecordStaticPageHook:
+    """Tests for static_page_push notification hook in update_repair_record()."""
+
+    def test_status_change_queues_notification(self, app, make_repair_record, staff_user, capture):
+        """update_repair_record() with status change queues a static_page_push notification."""
+        from esb.models.pending_notification import PendingNotification
+
+        record = make_repair_record(status='New')
+        repair_service.update_repair_record(
+            record.id, 'staffuser', author_id=staff_user.id, status='In Progress',
+        )
+
+        notifications = _db.session.execute(
+            _db.select(PendingNotification).filter_by(notification_type='static_page_push')
+        ).scalars().all()
+        assert len(notifications) == 1
+        assert notifications[0].payload['trigger'] == 'repair_record_updated'
+
+    def test_severity_change_queues_notification(self, app, make_repair_record, staff_user, capture):
+        """update_repair_record() with severity change queues a static_page_push notification."""
+        from esb.models.pending_notification import PendingNotification
+
+        record = make_repair_record()
+        repair_service.update_repair_record(
+            record.id, 'staffuser', author_id=staff_user.id, severity='Down',
+        )
+
+        notifications = _db.session.execute(
+            _db.select(PendingNotification).filter_by(notification_type='static_page_push')
+        ).scalars().all()
+        assert len(notifications) == 1
+
+    def test_assignee_only_does_not_queue_notification(self, app, make_repair_record, staff_user, tech_user, capture):
+        """update_repair_record() with only assignee change does NOT queue a static_page_push."""
+        from esb.models.pending_notification import PendingNotification
+
+        record = make_repair_record()
+        repair_service.update_repair_record(
+            record.id, 'staffuser', author_id=staff_user.id, assignee_id=tech_user.id,
+        )
+
+        notifications = _db.session.execute(
+            _db.select(PendingNotification).filter_by(notification_type='static_page_push')
+        ).scalars().all()
+        assert len(notifications) == 0
+
+    def test_note_only_does_not_queue_notification(self, app, make_repair_record, staff_user, capture):
+        """update_repair_record() with only note does NOT queue a static_page_push."""
+        from esb.models.pending_notification import PendingNotification
+
+        record = make_repair_record()
+        repair_service.update_repair_record(
+            record.id, 'staffuser', author_id=staff_user.id, note='Just a note',
+        )
+
+        notifications = _db.session.execute(
+            _db.select(PendingNotification).filter_by(notification_type='static_page_push')
+        ).scalars().all()
+        assert len(notifications) == 0
 
 
 class TestGetRepairRecord:
@@ -357,8 +445,12 @@ class TestUpdateRepairRecord:
             )
         ).scalar_one()
         assert 'specialist_description' in audit.changes
-        assert len(capture.records) == 1
-        log_data = json.loads(capture.records[0].message)
+        updated_logs = [
+            r for r in capture.records
+            if 'repair_record.updated' in r.message
+        ]
+        assert len(updated_logs) == 1
+        log_data = json.loads(updated_logs[0].message)
         assert 'specialist_description' in log_data['data']['changes']
 
     def test_audit_log_created_with_changes(self, app, make_repair_record, staff_user, capture):
@@ -384,8 +476,12 @@ class TestUpdateRepairRecord:
         repair_service.update_repair_record(
             record.id, 'staffuser', author_id=staff_user.id, status='Assigned',
         )
-        assert len(capture.records) == 1
-        log_data = json.loads(capture.records[0].message)
+        updated_logs = [
+            r for r in capture.records
+            if 'repair_record.updated' in r.message
+        ]
+        assert len(updated_logs) == 1
+        log_data = json.loads(updated_logs[0].message)
         assert log_data['event'] == 'repair_record.updated'
         assert log_data['user'] == 'staffuser'
         assert log_data['data']['id'] == record.id

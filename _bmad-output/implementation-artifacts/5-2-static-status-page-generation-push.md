@@ -1,6 +1,6 @@
 # Story 5.2: Static Status Page Generation & Push
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -30,57 +30,57 @@ So that I can check equipment status without being on the makerspace local netwo
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Create `esb/services/static_page_service.py` (AC: #1, #4, #5, #6)
-  - [ ] 1.1: Implement `generate()` -- renders `public/static_page.html` template using `render_template()` with status data from `status_service.get_area_status_dashboard()`, returns HTML string
-  - [ ] 1.2: Implement `push(html_content)` -- dispatcher that routes to `_push_local()` or `_push_s3()` based on `current_app.config['STATIC_PAGE_PUSH_METHOD']`
-  - [ ] 1.3: Implement `_push_local(html_content, target_path)` -- writes HTML string to `{target_path}/index.html`, creates directory if needed
-  - [ ] 1.4: Implement `_push_s3(html_content, target)` -- parses target as `bucket/key`, uploads via boto3 `put_object` with `ContentType='text/html; charset=utf-8'`
-  - [ ] 1.5: Implement `generate_and_push()` -- convenience function calling generate() then push(), used by the notification handler
-  - [ ] 1.6: Add mutation logging for push events
-  - [ ] 1.7: Raise `RuntimeError` on push failures (caught by worker for retry)
+- [x] Task 1: Create `esb/services/static_page_service.py` (AC: #1, #4, #5, #6)
+  - [x] 1.1: Implement `generate()` -- renders `public/static_page.html` template using `render_template()` with status data from `status_service.get_area_status_dashboard()`, returns HTML string
+  - [x] 1.2: Implement `push(html_content)` -- dispatcher that routes to `_push_local()` or `_push_s3()` based on `current_app.config['STATIC_PAGE_PUSH_METHOD']`
+  - [x] 1.3: Implement `_push_local(html_content, target_path)` -- writes HTML string to `{target_path}/index.html`, creates directory if needed
+  - [x] 1.4: Implement `_push_s3(html_content, target)` -- parses target as `bucket/key`, uploads via boto3 `put_object` with `ContentType='text/html; charset=utf-8'`
+  - [x] 1.5: Implement `generate_and_push()` -- convenience function calling generate() then push(), used by the notification handler
+  - [x] 1.6: Add mutation logging for push events
+  - [x] 1.7: Raise `RuntimeError` on push failures (caught by worker for retry)
 
-- [ ] Task 2: Create `esb/templates/public/static_page.html` (AC: #2)
-  - [ ] 2.1: Self-contained HTML document (own `<!DOCTYPE html>`, `<head>`, `<body>`) -- does NOT extend any base template
-  - [ ] 2.2: Inline all CSS in a `<style>` block -- minimal styles for layout, status dot colors (green/yellow/red), typography
-  - [ ] 2.3: Display areas with headings, equipment names with Minimal status indicators (color dot + equipment name + text label)
-  - [ ] 2.4: Include generation timestamp in footer
-  - [ ] 2.5: Include meta charset, viewport, and CSP meta tag
+- [x] Task 2: Create `esb/templates/public/static_page.html` (AC: #2)
+  - [x] 2.1: Self-contained HTML document (own `<!DOCTYPE html>`, `<head>`, `<body>`) -- does NOT extend any base template
+  - [x] 2.2: Inline all CSS in a `<style>` block -- minimal styles for layout, status dot colors (green/yellow/red), typography
+  - [x] 2.3: Display areas with headings, equipment names with Minimal status indicators (color dot + equipment name + text label)
+  - [x] 2.4: Include generation timestamp in footer
+  - [x] 2.5: Include meta charset, viewport, and CSP meta tag
 
-- [ ] Task 3: Wire `_deliver_static_page_push` in `notification_service.py` (AC: #4)
-  - [ ] 3.1: Replace the `NotImplementedError` stub with a call to `static_page_service.generate_and_push()`
-  - [ ] 3.2: Let any exceptions propagate to the worker loop (which handles retry via `mark_failed()`)
+- [x] Task 3: Wire `_deliver_static_page_push` in `notification_service.py` (AC: #4)
+  - [x] 3.1: Replace the `NotImplementedError` stub with a call to `static_page_service.generate_and_push()`
+  - [x] 3.2: Let any exceptions propagate to the worker loop (which handles retry via `mark_failed()`)
 
-- [ ] Task 4: Add static page push hooks in `repair_service.py` (AC: #3)
-  - [ ] 4.1: After `create_repair_record()` commits, queue a `static_page_push` notification
-  - [ ] 4.2: After `update_repair_record()` commits, queue a `static_page_push` notification ONLY when `status` or `severity` changed (these are the fields that affect equipment status)
-  - [ ] 4.3: Import `notification_service` locally inside each function to avoid circular imports
+- [x] Task 4: Add static page push hooks in `repair_service.py` (AC: #3)
+  - [x] 4.1: After `create_repair_record()` commits, queue a `static_page_push` notification
+  - [x] 4.2: After `update_repair_record()` commits, queue a `static_page_push` notification ONLY when `status` or `severity` changed (these are the fields that affect equipment status)
+  - [x] 4.3: Import `notification_service` locally inside each function to avoid circular imports
 
-- [ ] Task 5: Write service tests in `tests/test_services/test_static_page_service.py` (AC: #1, #2, #4, #5, #6, #7)
-  - [ ] 5.1: Test `generate()` renders HTML with area and equipment data
-  - [ ] 5.2: Test `generate()` produces self-contained HTML (no external CSS/JS links)
-  - [ ] 5.3: Test `push()` with method='local' writes file to target directory
-  - [ ] 5.4: Test `push()` with method='local' creates directory if needed
-  - [ ] 5.5: Test `push()` with method='s3' calls boto3 put_object with correct params
-  - [ ] 5.6: Test `push()` with method='s3' handles ClientError (raises RuntimeError)
-  - [ ] 5.7: Test `push()` with empty target raises RuntimeError
-  - [ ] 5.8: Test `push()` with unknown method raises RuntimeError
-  - [ ] 5.9: Test `generate_and_push()` calls generate then push
-  - [ ] 5.10: Test mutation logging on successful push
+- [x] Task 5: Write service tests in `tests/test_services/test_static_page_service.py` (AC: #1, #2, #4, #5, #6, #7)
+  - [x] 5.1: Test `generate()` renders HTML with area and equipment data
+  - [x] 5.2: Test `generate()` produces self-contained HTML (no external CSS/JS links)
+  - [x] 5.3: Test `push()` with method='local' writes file to target directory
+  - [x] 5.4: Test `push()` with method='local' creates directory if needed
+  - [x] 5.5: Test `push()` with method='s3' calls boto3 put_object with correct params
+  - [x] 5.6: Test `push()` with method='s3' handles ClientError (raises RuntimeError)
+  - [x] 5.7: Test `push()` with empty target raises RuntimeError
+  - [x] 5.8: Test `push()` with unknown method raises RuntimeError
+  - [x] 5.9: Test `generate_and_push()` calls generate then push
+  - [x] 5.10: Test mutation logging on successful push
 
-- [ ] Task 6: Write notification handler tests in `tests/test_services/test_notification_service.py` (AC: #4)
-  - [ ] 6.1: Update existing test for `_deliver_static_page_push` -- verify it no longer raises NotImplementedError
-  - [ ] 6.2: Test that processing a `static_page_push` notification calls `static_page_service.generate_and_push()`
-  - [ ] 6.3: Test that exceptions from static_page_service propagate to the worker loop
+- [x] Task 6: Write notification handler tests in `tests/test_services/test_notification_service.py` (AC: #4)
+  - [x] 6.1: Update existing test for `_deliver_static_page_push` -- verify it no longer raises NotImplementedError
+  - [x] 6.2: Test that processing a `static_page_push` notification calls `static_page_service.generate_and_push()`
+  - [x] 6.3: Test that exceptions from static_page_service propagate to the worker loop
 
-- [ ] Task 7: Write repair service hook tests (AC: #3)
-  - [ ] 7.1: Test `create_repair_record()` queues a `static_page_push` notification
-  - [ ] 7.2: Test `update_repair_record()` with status change queues a `static_page_push` notification
-  - [ ] 7.3: Test `update_repair_record()` with severity change queues a `static_page_push` notification
-  - [ ] 7.4: Test `update_repair_record()` with only assignee/eta/note changes does NOT queue a `static_page_push` notification
+- [x] Task 7: Write repair service hook tests (AC: #3)
+  - [x] 7.1: Test `create_repair_record()` queues a `static_page_push` notification
+  - [x] 7.2: Test `update_repair_record()` with status change queues a `static_page_push` notification
+  - [x] 7.3: Test `update_repair_record()` with severity change queues a `static_page_push` notification
+  - [x] 7.4: Test `update_repair_record()` with only assignee/eta/note changes does NOT queue a `static_page_push` notification
 
-- [ ] Task 8: Add `boto3` to `requirements.txt` (AC: #6)
-  - [ ] 8.1: Add `boto3` to requirements.txt
-  - [ ] 8.2: Verify it installs cleanly in the venv
+- [x] Task 8: Add `boto3` to `requirements.txt` (AC: #6)
+  - [x] 8.1: Add `boto3` to requirements.txt
+  - [x] 8.2: Verify it installs cleanly in the venv
 
 ## Dev Notes
 
@@ -585,10 +585,41 @@ Parsing: split on first `/`, first part is bucket, remainder is key (default `in
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+Claude Opus 4.6
 
 ### Debug Log References
 
+- Fixed S3 test mocking: `_push_s3` imports boto3 locally so `patch.object(boto3, 'client')` is the correct approach rather than patching sys.modules
+- Fixed notification service tests: `_deliver_static_page_push` uses local import so `patch.object(static_page_service, 'generate_and_push')` is correct
+- Updated existing repair_service mutation log assertions to filter by specific event name since `queue_notification` now also emits mutation logs
+
 ### Completion Notes List
 
+- Task 1: Created `esb/services/static_page_service.py` with `generate()`, `push()`, `_push_local()`, `_push_s3()`, and `generate_and_push()` functions. All failures raise RuntimeError for worker retry. Mutation logging on push via `log_mutation`.
+- Task 2: Created self-contained `esb/templates/public/static_page.html` with inlined CSS, CSP meta tag, status dots (green/yellow/red), equipment names, text labels, and generation timestamp.
+- Task 3: Replaced `_deliver_static_page_push` stub in `notification_service.py` with delegation to `static_page_service.generate_and_push()`. Exceptions propagate to worker loop for retry.
+- Task 4: Added `static_page_push` notification hooks in `repair_service.py`. `create_repair_record()` always queues. `update_repair_record()` only queues when `status` or `severity` changed. Local imports used for circular import avoidance.
+- Task 5: Created 14 tests in `tests/test_services/test_static_page_service.py` covering generate, push local, push S3, error handling, mutation logging, and generate_and_push.
+- Task 6: Updated notification handler tests: replaced NotImplementedError stub test with 3 tests verifying delegation to static_page_service, no NotImplementedError, and exception propagation.
+- Task 7: Added 4 repair service hook tests verifying notification queuing on create, status change, severity change, and no queuing on assignee/note-only changes.
+- Task 8: Added `boto3>=1.35.0` to requirements.txt and verified clean install.
+
+### Change Log
+
+- 2026-02-16: Implemented Story 5.2 - Static status page generation with local and S3 push methods, notification queue integration, and repair service hooks. 789 tests passing, 0 lint errors.
+
 ### File List
+
+**New files:**
+- esb/services/static_page_service.py
+- esb/templates/public/static_page.html
+- tests/test_services/test_static_page_service.py
+
+**Modified files:**
+- esb/services/notification_service.py
+- esb/services/repair_service.py
+- requirements.txt
+- tests/test_services/test_notification_service.py
+- tests/test_services/test_repair_service.py
+- _bmad-output/implementation-artifacts/sprint-status.yaml
+- _bmad-output/implementation-artifacts/5-2-static-status-page-generation-push.md

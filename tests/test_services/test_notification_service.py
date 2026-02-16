@@ -284,11 +284,30 @@ class TestProcessNotification:
         with pytest.raises(NotImplementedError):
             notification_service._deliver_slack_message(n)
 
-    def test_static_page_stub_raises_not_implemented(self, app):
-        """_deliver_static_page_push raises NotImplementedError."""
+    def test_static_page_push_no_longer_raises_not_implemented(self, app):
+        """_deliver_static_page_push no longer raises NotImplementedError."""
+        from esb.services import static_page_service
         n = _create_notification(notification_type='static_page_push')
-        with pytest.raises(NotImplementedError):
+        with patch.object(static_page_service, 'generate_and_push'):
+            # Should not raise NotImplementedError
             notification_service._deliver_static_page_push(n)
+
+    def test_static_page_push_delegates_to_service(self, app):
+        """_deliver_static_page_push delegates to static_page_service.generate_and_push()."""
+        from esb.services import static_page_service
+        n = _create_notification(notification_type='static_page_push')
+        with patch.object(static_page_service, 'generate_and_push') as mock_gap:
+            notification_service._deliver_static_page_push(n)
+            mock_gap.assert_called_once()
+
+    def test_static_page_push_exceptions_propagate(self, app):
+        """Exceptions from static_page_service propagate to the worker loop."""
+        from esb.services import static_page_service
+        n = _create_notification(notification_type='static_page_push')
+        with patch.object(static_page_service, 'generate_and_push',
+                          side_effect=RuntimeError('Push failed')):
+            with pytest.raises(RuntimeError, match='Push failed'):
+                notification_service._deliver_static_page_push(n)
 
 
 class TestRunWorkerLoop:

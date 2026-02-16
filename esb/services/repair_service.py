@@ -126,6 +126,14 @@ def create_repair_record(
         'reporter_name': record.reporter_name,
     })
 
+    # Queue static page regeneration (new repair affects equipment status)
+    from esb.services import notification_service
+    notification_service.queue_notification(
+        notification_type='static_page_push',
+        target='status_change',
+        payload={'trigger': 'repair_record_created', 'equipment_id': equipment_id},
+    )
+
     return record
 
 
@@ -387,6 +395,19 @@ def update_repair_record(
             'id': record.id,
             'changes': audit_changes,
         })
+
+    # Queue static page regeneration if status-affecting fields changed
+    if 'status' in audit_changes or 'severity' in audit_changes:
+        from esb.services import notification_service
+        notification_service.queue_notification(
+            notification_type='static_page_push',
+            target='status_change',
+            payload={
+                'trigger': 'repair_record_updated',
+                'equipment_id': record.equipment_id,
+                'changes': list(audit_changes.keys()),
+            },
+        )
 
     return record
 

@@ -186,12 +186,17 @@ def _deliver_slack_message(notification: PendingNotification) -> None:
 
 
 def _deliver_static_page_push(notification: PendingNotification) -> None:
-    """Deliver a static page push notification.
+    """Generate and push the static status page.
 
-    Stub -- actual static page generation and push will be implemented
-    in Story 5.2.
+    Called by the background worker when processing a static_page_push
+    notification. Delegates to static_page_service for rendering and push.
+
+    Raises:
+        RuntimeError: if generation or push fails (worker will retry).
     """
-    raise NotImplementedError('Static page push not yet implemented (Story 5.2)')
+    from esb.services import static_page_service
+
+    static_page_service.generate_and_push()
 
 
 def run_worker_loop(poll_interval: int = 30) -> None:

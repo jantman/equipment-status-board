@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline';">
+    <title>Equipment Status</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #212529; background: #f8f9fa; padding: 1rem; }
+        h1 { font-size: 1.5rem; margin-bottom: 1rem; text-align: center; }
+        .area { margin-bottom: 1.5rem; }
+        .area h2 { font-size: 1.1rem; border-bottom: 2px solid #dee2e6; padding-bottom: 0.3rem; margin-bottom: 0.5rem; }
+        .equipment-list { list-style: none; }
+        .equipment-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.25rem 0; }
+        .status-dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+        .status-green { background-color: #198754; }
+        .status-yellow { background-color: #ffc107; }
+        .status-red { background-color: #dc3545; }
+        .equipment-name { font-size: 0.95rem; }
+        .status-label { font-size: 0.8rem; color: #6c757d; }
+        .footer { text-align: center; margin-top: 2rem; font-size: 0.75rem; color: #6c757d; }
+    </style>
+</head>
+<body>
+    <h1>Equipment Status</h1>
+    {% for area_data in areas %}
+    <div class="area">
+        <h2>{{ area_data.area.name }}</h2>
+        {% if area_data.equipment %}
+        <ul class="equipment-list">
+            {% for item in area_data.equipment %}
+            <li class="equipment-item">
+                <span class="status-dot status-{{ item.status.color }}"></span>
+                <span class="equipment-name">{{ item.equipment.name }}</span>
+                <span class="status-label">{{ item.status.label }}</span>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p style="color: #6c757d; font-size: 0.9rem;">No equipment in this area.</p>
+        {% endif %}
+    </div>
+    {% endfor %}
+    <div class="footer">
+        Generated: {{ generated_at }}
+    </div>
+</body>
+</html>
