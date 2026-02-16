@@ -64,3 +64,20 @@ th.sortable:hover {
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     gap: 1rem;
 }
+
+/* QR code equipment page */
+.qr-page-hero {
+    max-width: 600px;
+    margin: 0 auto;
+}
+.qr-issues-list .card-body a,
+.qr-issues-list .card-body .btn,
+.doc-download-link,
+.photo-thumbnail-link,
+.external-links-list a {
+    min-height: 44px;
+    min-width: 44px;
+}
+.doc-category-group .list-group-item {
+    padding: 0.75rem 1rem;
+}

@@ -1,0 +1,67 @@
+{% extends "base_public.html" %}
+
+{% block title %}{{ equipment.name }} - Equipment Info{% endblock %}
+
+{% block content %}
+<h1>{{ equipment.name }}</h1>
+<p class="text-muted">{{ equipment.area.name }}</p>
+
+<a href="{{ url_for('public.equipment_page', id=equipment.id) }}"
+   class="btn btn-outline-secondary mb-4">&larr; Back to Status</a>
+
+{% if documents_by_category %}
+<h2>Documents</h2>
+{% for category, docs in documents_by_category.items() %}
+<h3>{{ category }}</h3>
+<ul class="list-group mb-3 doc-category-group">
+  {% for doc in docs %}
+  <li class="list-group-item">
+    <a href="{{ url_for('public.serve_upload', filepath='equipment/' ~ equipment.id|string ~ '/docs/' ~ doc.stored_filename) }}"
+       class="doc-download-link py-2 d-block"
+       download="{{ doc.original_filename }}">
+      {{ doc.original_filename }}
+    </a>
+    <small class="text-muted d-block">{{ (doc.size_bytes / 1024)|int }} KB</small>
+  </li>
+  {% endfor %}
+</ul>
+{% endfor %}
+{% endif %}
+
+{% if photos %}
+<h2 class="mt-4">Photos</h2>
+<div class="row g-2">
+  {% for photo in photos %}
+  <div class="col-6 col-md-4">
+    <a href="{{ url_for('public.serve_upload', filepath='equipment/' ~ equipment.id|string ~ '/photos/' ~ photo.stored_filename) }}"
+       target="_blank" rel="noopener noreferrer"
+       class="d-block photo-thumbnail-link">
+      <img src="{{ url_for('public.serve_upload', filepath='equipment/' ~ equipment.id|string ~ '/photos/' ~ photo.stored_filename) }}"
+           alt="{{ photo.original_filename }}"
+           class="img-fluid rounded">
+    </a>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if links %}
+<h2 class="mt-4">External Links</h2>
+<ul class="list-group external-links-list">
+  {% for link in links %}
+  <li class="list-group-item">
+    <a href="{{ link.url }}" target="_blank" rel="noopener noreferrer"
+       class="py-2 d-block">
+      {{ link.title }}
+    </a>
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}
+
+{% if not documents and not photos and not links %}
+<div class="text-center py-4">
+  <p class="text-muted">No documentation available for this equipment yet.</p>
+</div>
+{% endif %}
+{% endblock %}

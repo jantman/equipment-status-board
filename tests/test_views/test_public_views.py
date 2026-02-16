@@ -1,4 +1,6 @@
-"""Tests for public views (status dashboard)."""
+"""Tests for public views (status dashboard, kiosk, QR equipment pages)."""
+
+from datetime import date
 
 
 class TestStatusDashboardView:
@@ -375,3 +377,311 @@ class TestKioskView:
         response = client.get('/public/kiosk')
         html = response.data.decode()
         assert '<h3 class="kiosk-equipment-name' in html
+
+
+class TestEquipmentPageView:
+    """Tests for the QR code equipment page route (AC: #2, #3, #4, #7)."""
+
+    def test_renders_without_authentication(self, client, make_area, make_equipment):
+        """Equipment page is accessible without login (AC #2)."""
+        area = make_area(name='Workshop')
+        equip = make_equipment(name='Table Saw', area=area)
+
+        response = client.get(f'/public/equipment/{equip.id}')
+        assert response.status_code == 200
+
+    def test_shows_equipment_name_and_area(self, client, make_area, make_equipment):
+        """Equipment page shows name and area (AC #3)."""
+        area = make_area(name='Wood Shop')
+        equip = make_equipment(name='Band Saw', area=area)
+
+        response = client.get(f'/public/equipment/{equip.id}')
+        html = response.data.decode()
+        assert 'Band Saw' in html
+        assert 'Wood Shop' in html
+
+    def test_shows_large_status_indicator(self, client, make_area, make_equipment):
+        """Equipment page shows large status indicator (AC #3)."""
+        area = make_area(name='Shop')
+        equip = make_equipment(name='Lathe', area=area)
+
+        response = client.get(f'/public/equipment/{equip.id}')
+        html = response.data.decode()
+        assert 'status-indicator-large' in html
+
+    def test_shows_issue_description_for_degraded(
+        self, client, make_area, make_equipment, make_repair_record,
+    ):
+        """Degraded equipment shows issue description (AC #4)."""
+        area = make_area(name='Shop')
+        equip = make_equipment(name='Lathe', area=area)
+        make_repair_record(
+            equipment=equip, status='New', severity='Degraded',
+            description='Belt needs replacement',
+        )
+
+        response = client.get(f'/public/equipment/{equip.id}')
+        assert b'Belt needs replacement' in response.data
+
+    def test_shows_issue_description_for_down(
+        self, client, make_area, make_equipment, make_repair_record,
+    ):
+        """Down equipment shows issue description (AC #4)."""
+        area = make_area(name='Shop')
+        equip = make_equipment(name='Mill', area=area)
+        make_repair_record(
+            equipment=equip, status='New', severity='Down',
+            description='Motor burned out',
+        )
+
+        response = client.get(f'/public/equipment/{equip.id}')
+        assert b'Motor burned out' in response.data
+
+    def test_shows_eta_when_available(
+        self, client, make_area, make_equipment, make_repair_record,
+    ):
+        """ETA is displayed when available on an open repair (AC #4)."""
+        area = make_area(name='Shop')
+        equip = make_equipment(name='Drill Press', area=area)
+        make_repair_record(
+            equipment=equip, status='New', severity='Down',
+            description='Broken chuck', eta=date(2026, 3, 15),
+        )
+
+        response = client.get(f'/public/equipment/{equip.id}')
+        assert b'Mar 15, 2026' in response.data
+
+    def test_shows_known_issues_when_open_repairs(
+        self, client, make_area, make_equipment, make_repair_record,
+    ):
+        """Known Issues section is shown when open repairs exist (AC #4)."""
+        area = make_area(name='Shop')
+        equip = make_equipment(name='Lathe', area=area)
+        make_repair_record(
+            equipment=equip, status='New', severity='Degraded',
+            description='Vibration issue',
+        )
+
+        response = client.get(f'/public/equipment/{equip.id}')
+        html = response.data.decode()
+        assert 'Known Issues' in html
+        assert 'Vibration issue' in html
+
+    def test_hides_known_issues_when_no_open_repairs(
+        self, client, make_area, make_equipment,
+    ):
+        """Known Issues section hidden when no open repairs."""
+        area = make_area(name='Shop')
+        equip = make_equipment(name='Good Tool', area=area)
+
+        response = client.get(f'/public/equipment/{equip.id}')
+        html = response.data.decode()
+        assert 'Known Issues' not in html
+
+    def test_returns_404_for_nonexistent(self, client):
+        """Returns 404 for non-existent equipment (AC #2)."""
+        response = client.get('/public/equipment/99999')
+        assert response.status_code == 404
+
+    def test_returns_404_for_archived(self, client, make_area, make_equipment):
+        """Returns 404 for archived equipment (AC #2)."""
+        area = make_area(name='Shop')
+        equip = make_equipment(name='Old Tool', area=area, is_archived=True)
+
+        response = client.get(f'/public/equipment/{equip.id}')
+        assert response.status_code == 404
+
+    def test_has_equipment_info_link(self, client, make_area, make_equipment):
+        """Equipment page has link to info/documentation page (AC #5)."""
+        area = make_area(name='Shop')
+        equip = make_equipment(name='Lathe', area=area)
+
+        response = client.get(f'/public/equipment/{equip.id}')
+        html = response.data.decode()
+        assert f'/public/equipment/{equip.id}/info' in html
+        assert 'Equipment Info' in html
+
+    def test_aria_labels_present(
+        self, client, make_area, make_equipment, make_repair_record,
+    ):
+        """ARIA labels present on status indicator and interactive elements (AC #7)."""
+        area = make_area(name='Shop')
+        equip = make_equipment(name='Printer', area=area)
+        make_repair_record(equipment=equip, status='New', severity='Down')
+
+        response = client.get(f'/public/equipment/{equip.id}')
+        html = response.data.decode()
+        assert 'aria-label="Equipment status: Down"' in html
+        assert 'aria-label="View equipment info and documentation"' in html
+
+    def test_closed_repairs_not_shown_as_known_issues(
+        self, client, make_area, make_equipment, make_repair_record,
+    ):
+        """Closed repair records are not shown in Known Issues."""
+        area = make_area(name='Shop')
+        equip = make_equipment(name='Lathe', area=area)
+        make_repair_record(
+            equipment=equip, status='Resolved', severity='Down',
+            description='Fixed motor',
+        )
+
+        response = client.get(f'/public/equipment/{equip.id}')
+        html = response.data.decode()
+        assert 'Known Issues' not in html
+
+    def test_qr_page_hero_class(self, client, make_area, make_equipment):
+        """Equipment page has qr-page-hero CSS class for mobile layout."""
+        area = make_area(name='Shop')
+        equip = make_equipment(name='Tool', area=area)
+
+        response = client.get(f'/public/equipment/{equip.id}')
+        html = response.data.decode()
+        assert 'qr-page-hero' in html
+
+
+class TestEquipmentInfoView:
+    """Tests for the equipment info/documentation page route (AC: #5, #6)."""
+
+    def test_renders_without_authentication(self, client, make_area, make_equipment):
+        """Info page is accessible without login (AC #5)."""
+        area = make_area(name='Workshop')
+        equip = make_equipment(name='Table Saw', area=area)
+
+        response = client.get(f'/public/equipment/{equip.id}/info')
+        assert response.status_code == 200
+
+    def test_shows_equipment_name(self, client, make_area, make_equipment):
+        """Info page shows equipment name."""
+        area = make_area(name='Shop')
+        equip = make_equipment(name='CNC Router', area=area)
+
+        response = client.get(f'/public/equipment/{equip.id}/info')
+        assert b'CNC Router' in response.data
+
+    def test_shows_documents_grouped_by_category(self, client, db, make_area, make_equipment):
+        """Info page shows documents organized by category (AC #6)."""
+        from esb.models.document import Document
+
+        area = make_area(name='Shop')
+        equip = make_equipment(name='Lathe', area=area)
+
+        doc = Document(
+            original_filename='manual.pdf',
+            stored_filename='abc123.pdf',
+            content_type='application/pdf',
+            size_bytes=1024,
+            category='owners_manual',
+            parent_type='equipment_doc',
+            parent_id=equip.id,
+            uploaded_by='testuser',
+        )
+        db.session.add(doc)
+        db.session.commit()
+
+        response = client.get(f'/public/equipment/{equip.id}/info')
+        html = response.data.decode()
+        assert "Owner&#39;s Manual" in html or "Owner's Manual" in html
+        assert 'manual.pdf' in html
+
+    def test_shows_download_links(self, client, db, make_area, make_equipment):
+        """Info page has download links for documents (AC #6)."""
+        from esb.models.document import Document
+
+        area = make_area(name='Shop')
+        equip = make_equipment(name='Mill', area=area)
+
+        doc = Document(
+            original_filename='guide.pdf',
+            stored_filename='def456.pdf',
+            content_type='application/pdf',
+            size_bytes=2048,
+            category='quick_start',
+            parent_type='equipment_doc',
+            parent_id=equip.id,
+            uploaded_by='testuser',
+        )
+        db.session.add(doc)
+        db.session.commit()
+
+        response = client.get(f'/public/equipment/{equip.id}/info')
+        html = response.data.decode()
+        assert 'download="guide.pdf"' in html
+
+    def test_shows_photos(self, client, db, make_area, make_equipment):
+        """Info page shows photos (AC #6)."""
+        from esb.models.document import Document
+
+        area = make_area(name='Shop')
+        equip = make_equipment(name='Drill', area=area)
+
+        photo = Document(
+            original_filename='front.jpg',
+            stored_filename='photo123.jpg',
+            content_type='image/jpeg',
+            size_bytes=5000,
+            parent_type='equipment_photo',
+            parent_id=equip.id,
+            uploaded_by='testuser',
+        )
+        db.session.add(photo)
+        db.session.commit()
+
+        response = client.get(f'/public/equipment/{equip.id}/info')
+        html = response.data.decode()
+        assert 'front.jpg' in html
+
+    def test_shows_external_links_with_target_blank(
+        self, client, db, make_area, make_equipment,
+    ):
+        """Info page shows external links with target=_blank (AC #6)."""
+        from esb.models.external_link import ExternalLink
+
+        area = make_area(name='Shop')
+        equip = make_equipment(name='Lathe', area=area)
+
+        link = ExternalLink(
+            equipment_id=equip.id,
+            title='Manufacturer Site',
+            url='https://example.com/lathe',
+            created_by='testuser',
+        )
+        db.session.add(link)
+        db.session.commit()
+
+        response = client.get(f'/public/equipment/{equip.id}/info')
+        html = response.data.decode()
+        assert 'Manufacturer Site' in html
+        assert 'target="_blank"' in html
+        assert 'rel="noopener noreferrer"' in html
+
+    def test_returns_404_for_nonexistent(self, client):
+        """Returns 404 for non-existent equipment."""
+        response = client.get('/public/equipment/99999/info')
+        assert response.status_code == 404
+
+    def test_returns_404_for_archived(self, client, make_area, make_equipment):
+        """Returns 404 for archived equipment."""
+        area = make_area(name='Shop')
+        equip = make_equipment(name='Old Tool', area=area, is_archived=True)
+
+        response = client.get(f'/public/equipment/{equip.id}/info')
+        assert response.status_code == 404
+
+    def test_hides_empty_sections(self, client, make_area, make_equipment):
+        """Info page hides empty sections (AC #6)."""
+        area = make_area(name='Shop')
+        equip = make_equipment(name='New Tool', area=area)
+
+        response = client.get(f'/public/equipment/{equip.id}/info')
+        html = response.data.decode()
+        assert 'No documentation available' in html
+
+    def test_back_to_status_link(self, client, make_area, make_equipment):
+        """Info page has back link to equipment status page (AC #5)."""
+        area = make_area(name='Shop')
+        equip = make_equipment(name='Lathe', area=area)
+
+        response = client.get(f'/public/equipment/{equip.id}/info')
+        html = response.data.decode()
+        assert f'/public/equipment/{equip.id}' in html
+        assert 'Back to Status' in html
