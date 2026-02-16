@@ -68,7 +68,7 @@ development_status:
   # Epic 4: Public Status, QR Codes & Problem Reporting
   epic-4: in-progress
   4-1-equipment-status-derivation-status-dashboard: done
-  4-2-kiosk-display: backlog
+  4-2-kiosk-display: ready-for-dev
   4-3-qr-code-equipment-pages-documentation: backlog
   4-4-problem-reporting-via-qr-code-page: backlog
   epic-4-retrospective: optional
