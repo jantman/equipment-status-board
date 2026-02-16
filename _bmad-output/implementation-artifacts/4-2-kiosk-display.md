@@ -1,6 +1,6 @@
 # Story 4.2: Kiosk Display
 
-Status: review
+Status: done
 
 ## Story
 
@@ -280,15 +280,31 @@ No issues encountered. All tests passed on first run (655 total, 15 new kiosk te
 - Task 3: Added 3 CSS classes to `app.css`: `.kiosk-area-heading` (2.5rem), `.kiosk-equipment-name` (1.5rem), `.kiosk-equipment-grid` (CSS Grid auto-fill with minmax(280px, 1fr)). No animations for stable layout on refresh.
 - Task 4: Added 15 tests in `TestKioskView` class covering all ACs: unauthenticated access, area headings, equipment names, status indicators, issue descriptions, empty state, archived exclusion, meta refresh, no navbar, ARIA labels, CSS classes, grid layout, kiosk parameter redirect, authenticated access.
 
+### Senior Developer Review (AI)
+
+**Reviewer:** Jantman on 2026-02-16
+**Outcome:** Changes Requested (6 issues found, all fixed)
+
+**Issues Found & Fixed:**
+1. [H1] Empty area sections rendered dangling headings on kiosk -- fixed by skipping areas with no equipment (kiosk.html)
+2. [M1] Missing test for unauthenticated `?kiosk=true` behavior -- added test_kiosk_param_unauthenticated_redirects_to_login
+3. [M2] Missing test for area with no equipment on kiosk -- added test_kiosk_skips_empty_areas
+4. [M3] Missing `<h1>` heading on kiosk page (WCAG 1.3.1) -- added visually-hidden h1 (kiosk.html)
+5. [L1] Equipment name used `<span>` instead of heading element -- changed to `<h3>` for proper heading hierarchy (kiosk.html)
+6. [L2] Missing test for archived areas excluded from kiosk -- added test_kiosk_excludes_archived_areas
+
+**Post-fix test results:** 660 passed (was 655), 0 failures
+
 ### Change Log
 
 - 2026-02-16: Implemented Story 4.2 Kiosk Display -- added kiosk route, template, CSS, and 15 tests (655 total passing)
+- 2026-02-16: Code review fixes -- 6 issues fixed (1H, 3M, 2L): skip empty areas on kiosk, add visually-hidden h1, use h3 for equipment names, add 5 new tests (660 total passing)
 
 ### File List
 
 - esb/views/public.py (modified) -- added kiosk route, kiosk=true redirect
-- esb/templates/public/kiosk.html (new) -- kiosk display template
+- esb/templates/public/kiosk.html (new) -- kiosk display template, review fixes: skip empty areas, add h1, use h3 for equipment names
 - esb/static/css/app.css (modified) -- kiosk CSS classes
-- tests/test_views/test_public_views.py (modified) -- 15 new kiosk tests
+- tests/test_views/test_public_views.py (modified) -- 20 kiosk tests (15 original + 5 review fixes)
 - _bmad-output/implementation-artifacts/sprint-status.yaml (modified) -- status update
-- _bmad-output/implementation-artifacts/4-2-kiosk-display.md (modified) -- story file updates
+- _bmad-output/implementation-artifacts/4-2-kiosk-display.md (modified) -- story file updates + review notes

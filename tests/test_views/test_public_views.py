@@ -324,3 +324,54 @@ class TestKioskView:
         response = staff_client.get('/public/kiosk')
         assert response.status_code == 200
         assert b'Tool' in response.data
+
+    def test_kiosk_param_unauthenticated_redirects_to_login(self, client):
+        """Unauthenticated user hitting ?kiosk=true is redirected to login, not kiosk."""
+        response = client.get('/public/?kiosk=true')
+        assert response.status_code == 302
+        assert '/auth/login' in response.headers['Location']
+
+    def test_kiosk_skips_empty_areas(self, client, make_area, make_equipment):
+        """Areas with no equipment are not rendered on kiosk display."""
+        populated_area = make_area(name='Busy Shop')
+        make_area(name='Empty Room')
+        make_equipment(name='Lathe', area=populated_area)
+
+        response = client.get('/public/kiosk')
+        html = response.data.decode()
+        assert 'Busy Shop' in html
+        assert 'Empty Room' not in html
+
+    def test_kiosk_excludes_archived_areas(self, client, make_area, make_equipment):
+        """Archived areas are excluded from kiosk display."""
+        from esb.extensions import db
+
+        active_area = make_area(name='Active Shop')
+        archived_area = make_area(name='Closed Wing')
+        archived_area.is_archived = True
+        make_equipment(name='Drill', area=active_area)
+        make_equipment(name='Old Saw', area=archived_area)
+        db.session.commit()
+
+        response = client.get('/public/kiosk')
+        html = response.data.decode()
+        assert 'Active Shop' in html
+        assert 'Closed Wing' not in html
+
+    def test_kiosk_has_visually_hidden_h1(self, client, make_area, make_equipment):
+        """Kiosk page has a visually-hidden h1 for accessibility."""
+        area = make_area(name='Shop')
+        make_equipment(name='Tool', area=area)
+
+        response = client.get('/public/kiosk')
+        html = response.data.decode()
+        assert '<h1 class="visually-hidden">Equipment Status</h1>' in html
+
+    def test_kiosk_equipment_name_is_heading(self, client, make_area, make_equipment):
+        """Equipment names use h3 elements for proper heading hierarchy."""
+        area = make_area(name='Shop')
+        make_equipment(name='CNC Router', area=area)
+
+        response = client.get('/public/kiosk')
+        html = response.data.decode()
+        assert '<h3 class="kiosk-equipment-name' in html
