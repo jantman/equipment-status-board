@@ -69,7 +69,7 @@ development_status:
   epic-4: in-progress
   4-1-equipment-status-derivation-status-dashboard: done
   4-2-kiosk-display: done
-  4-3-qr-code-equipment-pages-documentation: backlog
+  4-3-qr-code-equipment-pages-documentation: ready-for-dev
   4-4-problem-reporting-via-qr-code-page: backlog
   epic-4-retrospective: optional
 
