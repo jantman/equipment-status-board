@@ -1,6 +1,6 @@
 # Story 4.1: Equipment Status Derivation & Status Dashboard
 
-Status: review
+Status: done
 
 ## Story
 
@@ -364,8 +364,25 @@ None required.
 - Fixed 1 regression in `test_auth_views.py` (already-authenticated redirect changed from `/health` to `/public/`).
 - Fixed 1 lint error (unused variable `green_equip`).
 
+### Senior Developer Review (AI)
+
+**Reviewer:** Claude Opus 4.6 (code-review workflow) — 2026-02-15
+
+**Issues Found:** 2 High, 3 Medium, 2 Low — **All fixed automatically**
+
+- **[H1] FIXED** Duplicated status derivation logic violated AC #2 "single source of truth." Extracted `_derive_status_from_records()` helper used by both `compute_equipment_status()` and `get_area_status_dashboard()`.
+- **[H2] FIXED** N+1 equipment query in `get_area_status_dashboard()` (one query per area). Refactored to fetch all non-archived equipment in a single query and group by `area_id` in Python.
+- **[M1] FIXED** Missing view test for "Down" severity showing issue description on dashboard. Added `test_issue_description_for_down_equipment`.
+- **[M2] FIXED** Missing view test for "Not Sure" displaying as yellow/bg-warning (AC #3). Added `test_not_sure_severity_displays_as_yellow`.
+- **[M3] FIXED** `sprint-status.yaml` changed but not documented in story File List. Added to File List.
+- **[L1] FIXED** `status-card-green` CSS class generated in HTML but no CSS rule. Added `status-card-green` rule with green left border for visual consistency.
+- **[L2] FIXED** Blueprint naming friction (`public_bp` with `@login_required`). Added module-level docstring explaining the intentional `@login_required` for FR34 and that Story 4.2 kiosk routes will not require login.
+
+**Test Results:** 639 passed, 0 lint errors.
+
 ### Change Log
 
+- 2026-02-15: Code review fixes — extracted shared derivation helper, fixed N+1 query, added 2 view tests, CSS/doc fixes
 - 2026-02-15: Implemented Story 4.1 — Equipment Status Derivation & Status Dashboard
 
 ### File List
@@ -383,3 +400,4 @@ Modified files:
 - esb/templates/base.html
 - esb/static/css/app.css
 - tests/test_views/test_auth_views.py
+- _bmad-output/implementation-artifacts/sprint-status.yaml

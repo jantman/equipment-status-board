@@ -134,3 +134,33 @@ class TestStatusDashboardView:
         assert 'col-sm-6' in html
         assert 'col-lg-4' in html
         assert 'col-xl-3' in html
+
+    def test_issue_description_for_down_equipment(
+        self, staff_client, make_area, make_equipment, make_repair_record,
+    ):
+        """Down (red) equipment shows issue description."""
+        area = make_area(name='Shop')
+        equip = make_equipment(name='CNC Mill', area=area)
+        make_repair_record(
+            equipment=equip, status='New', severity='Down',
+            description='Spindle motor failed',
+        )
+
+        response = staff_client.get('/public/')
+        assert b'Spindle motor failed' in response.data
+
+    def test_not_sure_severity_displays_as_yellow(
+        self, staff_client, make_area, make_equipment, make_repair_record,
+    ):
+        """'Not Sure' severity renders as yellow/bg-warning on dashboard (AC #3)."""
+        area = make_area(name='Shop')
+        equip = make_equipment(name='Mystery Tool', area=area)
+        make_repair_record(
+            equipment=equip, status='New', severity='Not Sure',
+            description='Making odd sounds',
+        )
+
+        response = staff_client.get('/public/')
+        html = response.data.decode()
+        assert 'bg-warning' in html
+        assert 'Making odd sounds' in html

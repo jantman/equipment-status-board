@@ -4,8 +4,6 @@ Single source of truth for computing equipment operational status
 from open repair records.
 """
 
-from sqlalchemy.orm import joinedload
-
 from esb.extensions import db
 from esb.models.area import Area
 from esb.models.equipment import Equipment
@@ -19,6 +17,53 @@ _SEVERITY_STATUS = {
     'Degraded': ('yellow', 'Degraded', 1),
     'Not Sure': ('yellow', 'Degraded', 2),
 }
+
+
+def _derive_status_from_records(records: list) -> dict:
+    """Derive equipment status from a list of open repair records.
+
+    Single source of truth for status derivation logic (AC #2).
+
+    Args:
+        records: List of open RepairRecord instances for one equipment item.
+
+    Returns:
+        dict with keys: color, label, issue_description, severity.
+    """
+    if not records:
+        return {
+            'color': 'green',
+            'label': 'Operational',
+            'issue_description': None,
+            'severity': None,
+        }
+
+    best_record = None
+    best_priority = 999
+
+    for record in records:
+        sev = record.severity
+        if sev in _SEVERITY_STATUS:
+            priority = _SEVERITY_STATUS[sev][2]
+            if priority < best_priority:
+                best_priority = priority
+                best_record = record
+
+    if best_record is None:
+        return {
+            'color': 'yellow',
+            'label': 'Degraded',
+            'issue_description': records[0].description,
+            'severity': None,
+        }
+
+    color, label, _ = _SEVERITY_STATUS[best_record.severity]
+    return {
+        'color': color,
+        'label': label,
+        'issue_description': best_record.description,
+        'severity': best_record.severity,
+    }
 
 
 def compute_equipment_status(equipment_id: int) -> dict:
@@ -49,43 +94,7 @@ def compute_equipment_status(equipment_id: int) -> dict:
         .all()
     )
 
-    if not open_records:
-        return {
-            'color': 'green',
-            'label': 'Operational',
-            'issue_description': None,
-            'severity': None,
-        }
-
-    # Find the highest-severity open record
-    best_record = None
-    best_priority = 999
-
-    for record in open_records:
-        sev = record.severity
-        if sev in _SEVERITY_STATUS:
-            priority = _SEVERITY_STATUS[sev][2]
-            if priority < best_priority:
-                best_priority = priority
-                best_record = record
-
-    # If no records have a recognized severity, treat as degraded (unknown severity)
-    if best_record is None:
-        # Records exist but none have severity set — use first record's description
-        return {
-            'color': 'yellow',
-            'label': 'Degraded',
-            'issue_description': open_records[0].description,
-            'severity': None,
-        }
-
-    color, label, _ = _SEVERITY_STATUS[best_record.severity]
-    return {
-        'color': color,
-        'label': label,
-        'issue_description': best_record.description,
-        'severity': best_record.severity,
-    }
+    return _derive_status_from_records(open_records)
 
 
 def get_area_status_dashboard() -> list[dict]:
@@ -116,6 +125,22 @@ def get_area_status_dashboard() -> list[dict]:
         .all()
     )
 
+    # Prefetch all non-archived equipment in one query (avoids N+1 per area)
+    all_equipment = (
+        db.session.execute(
+            db.select(Equipment)
+            .filter(Equipment.is_archived.is_(False))
+            .order_by(Equipment.name)
+        )
+        .scalars()
+        .all()
+    )
+
+    # Group equipment by area_id
+    equipment_by_area: dict[int, list[Equipment]] = {}
+    for equip in all_equipment:
+        equipment_by_area.setdefault(equip.area_id, []).append(equip)
+
     # Prefetch all open repair records for non-archived equipment in one query
     open_records = (
         db.session.execute(
@@ -125,10 +150,8 @@ def get_area_status_dashboard() -> list[dict]:
                 Equipment.is_archived.is_(False),
                 RepairRecord.status.notin_(CLOSED_STATUSES),
             )
-            .options(joinedload(RepairRecord.equipment))
         )
         .scalars()
-        .unique()
         .all()
     )
 
@@ -139,56 +162,10 @@ def get_area_status_dashboard() -> list[dict]:
 
     result = []
     for area in areas:
-        equipment_list = (
-            db.session.execute(
-                db.select(Equipment)
-                .filter(
-                    Equipment.area_id == area.id,
-                    Equipment.is_archived.is_(False),
-                )
-                .order_by(Equipment.name)
-            )
-            .scalars()
-            .all()
-        )
-
         equip_statuses = []
-        for equip in equipment_list:
+        for equip in equipment_by_area.get(area.id, []):
             equip_records = records_by_equipment.get(equip.id, [])
-            if not equip_records:
-                status = {
-                    'color': 'green',
-                    'label': 'Operational',
-                    'issue_description': None,
-                    'severity': None,
-                }
-            else:
-                # Find highest-severity record
-                best_record = None
-                best_priority = 999
-                for record in equip_records:
-                    sev = record.severity
-                    if sev in _SEVERITY_STATUS:
-                        priority = _SEVERITY_STATUS[sev][2]
-                        if priority < best_priority:
-                            best_priority = priority
-                            best_record = record
-                if best_record is None:
-                    status = {
-                        'color': 'yellow',
-                        'label': 'Degraded',
-                        'issue_description': equip_records[0].description,
-                        'severity': None,
-                    }
-                else:
-                    color, label, _ = _SEVERITY_STATUS[best_record.severity]
-                    status = {
-                        'color': color,
-                        'label': label,
-                        'issue_description': best_record.description,
-                        'severity': best_record.severity,
-                    }
-
+            status = _derive_status_from_records(equip_records)
             equip_statuses.append({
                 'equipment': equip,
                 'status': status,

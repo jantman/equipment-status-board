@@ -42,6 +42,9 @@ th.sortable:hover {
 }
 
 /* Status dashboard cards */
+.status-card-green {
+    border-left: 3px solid var(--bs-success);
+}
 .status-card-red {
     border-left: 3px solid var(--bs-danger);
 }

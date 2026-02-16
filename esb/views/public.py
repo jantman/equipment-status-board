@@ -1,4 +1,8 @@
-"""Public routes (QR pages, kiosk, status dashboard, problem report)."""
+"""Public routes (QR pages, kiosk, status dashboard, problem report).
+
+Note: The status dashboard requires @login_required (FR34 member default view).
+Story 4.2 kiosk routes on this blueprint will NOT require login.
+"""
 
 from flask import Blueprint, render_template
 from flask_login import login_required
