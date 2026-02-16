@@ -76,7 +76,7 @@ development_status:
   # Epic 5: Notification System & Static Status Page
   epic-5: in-progress
   5-1-notification-queue-background-worker: done
-  5-2-static-status-page-generation-push: backlog
+  5-2-static-status-page-generation-push: ready-for-dev
   5-3-notification-trigger-configuration: backlog
   epic-5-retrospective: optional
 
