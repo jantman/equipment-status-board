@@ -38,25 +38,15 @@ def kiosk():
     return render_template('public/kiosk.html', areas=areas)
 
 
-@public_bp.route('/equipment/<int:id>')
-def equipment_page(id):
-    """QR code equipment page -- public status, issues, and documentation link."""
-    from esb.forms.repair_forms import ProblemReportForm
-    from esb.services import equipment_service, repair_service, status_service
+def _build_equipment_page_context(equipment_id):
+    """Build shared context dict for equipment page rendering (status, open repairs, ETA)."""
+    from esb.services import repair_service, status_service
     from esb.services.repair_service import CLOSED_STATUSES
 
-    try:
-        equipment = equipment_service.get_equipment(id)
-    except ValidationError:
-        abort(404)
-
-    if equipment.is_archived:
-        abort(404)
-
-    status = status_service.compute_equipment_status(id)
+    status = status_service.compute_equipment_status(equipment_id)
 
     open_repairs = [
-        r for r in repair_service.list_repair_records(equipment_id=id)
+        r for r in repair_service.list_repair_records(equipment_id=equipment_id)
         if r.status not in CLOSED_STATUSES
     ]
 
@@ -70,6 +60,24 @@ def equipment_page(id):
                 eta = repair.eta
                 break
 
+    return status, open_repairs, eta
+
+
+@public_bp.route('/equipment/<int:id>')
+def equipment_page(id):
+    """QR code equipment page -- public status, issues, and documentation link."""
+    from esb.forms.repair_forms import ProblemReportForm
+    from esb.services import equipment_service
+
+    try:
+        equipment = equipment_service.get_equipment(id)
+    except ValidationError:
+        abort(404)
+
+    if equipment.is_archived:
+        abort(404)
+
+    status, open_repairs, eta = _build_equipment_page_context(id)
     form = ProblemReportForm()
 
     return render_template(
@@ -86,8 +94,7 @@ def equipment_page(id):
 def report_problem(id):
     """Handle problem report form submission -- public, no auth required."""
     from esb.forms.repair_forms import ProblemReportForm
-    from esb.services import equipment_service, repair_service, status_service, upload_service
-    from esb.services.repair_service import CLOSED_STATUSES
+    from esb.services import equipment_service, repair_service, upload_service
 
     form = ProblemReportForm()
 
@@ -131,20 +138,7 @@ def report_problem(id):
             flash(str(e), 'danger')
 
     # Validation failed or service error -- re-render equipment page with form errors
-    status = status_service.compute_equipment_status(id)
-    open_repairs = [
-        r for r in repair_service.list_repair_records(equipment_id=id)
-        if r.status not in CLOSED_STATUSES
-    ]
-    eta = None
-    if open_repairs:
-        for repair in sorted(
-            open_repairs,
-            key=lambda r: {'Down': 0, 'Degraded': 1, 'Not Sure': 2}.get(r.severity or '', 3),
-        ):
-            if repair.eta:
-                eta = repair.eta
-                break
+    status, open_repairs, eta = _build_equipment_page_context(id)
 
     return render_template(
         'public/equipment_page.html',
@@ -159,7 +153,7 @@ def report_problem(id):
 @public_bp.route('/equipment/<int:id>/report-confirmation')
 def report_confirmation(id):
     """Display confirmation after successful problem report submission."""
-    from esb.services import equipment_service
+    from esb.services import equipment_service, repair_service
 
     try:
         equipment = equipment_service.get_equipment(id)
@@ -168,12 +162,18 @@ def report_confirmation(id):
     if equipment.is_archived:
         abort(404)
 
+    record = None
     record_id = request.args.get('record_id', type=int)
+    if record_id:
+        try:
+            record = repair_service.get_repair_record(record_id)
+        except ValidationError:
+            pass
 
     return render_template(
         'public/report_confirmation.html',
         equipment=equipment,
-        record_id=record_id,
+        record=record,
     )
 
 

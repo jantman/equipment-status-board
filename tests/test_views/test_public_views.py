@@ -755,16 +755,16 @@ class TestProblemReportFormDisplay:
         html = response.data.decode()
         assert 'enctype="multipart/form-data"' in html
 
-    def test_form_has_aria_labels(self, client, make_area, make_equipment):
-        """Form fields have ARIA labels for accessibility."""
+    def test_form_fields_have_associated_labels(self, client, make_area, make_equipment):
+        """Form fields have associated <label for=''> elements for accessibility."""
         area = make_area(name='Shop')
         equip = make_equipment(name='Lathe', area=area)
 
         response = client.get(f'/public/equipment/{equip.id}')
         html = response.data.decode()
-        assert 'aria-label="Your Name"' in html
-        assert 'aria-label="Description"' in html
-        assert 'aria-label="Severity"' in html
+        assert 'for="reporter_name"' in html
+        assert 'for="description"' in html
+        assert 'for="severity"' in html
 
 
 class TestProblemReportSubmission:
@@ -1025,3 +1025,41 @@ class TestReportConfirmationView:
         """Confirmation page returns 404 for non-existent equipment (AC #8)."""
         response = client.get('/public/equipment/99999/report-confirmation?record_id=1')
         assert response.status_code == 404
+
+    def test_returns_404_for_archived_equipment(self, client, make_area, make_equipment):
+        """Confirmation page returns 404 for archived equipment."""
+        area = make_area(name='Shop')
+        equip = make_equipment(name='Old Tool', area=area, is_archived=True)
+
+        response = client.get(f'/public/equipment/{equip.id}/report-confirmation?record_id=1')
+        assert response.status_code == 404
+
+    def test_hides_slack_channels_when_no_slack_channel(self, client, make_area, make_equipment):
+        """Confirmation page hides Slack section when area has no slack_channel."""
+        area = make_area(name='Shop', slack_channel=None)
+        equip = make_equipment(name='Lathe', area=area)
+
+        response = client.get(f'/public/equipment/{equip.id}/report-confirmation?record_id=1')
+        html = response.data.decode()
+        assert '#oops' not in html
+        assert 'Stay Updated' not in html
+
+    def test_shows_issue_summary(self, client, db, make_area, make_equipment):
+        """Confirmation page shows submitted issue description and severity."""
+        area = make_area(name='Shop')
+        equip = make_equipment(name='Lathe', area=area)
+
+        # Create a repair record via the form submission
+        data = {
+            'reporter_name': 'Sarah Member',
+            'description': 'Motor making grinding noise',
+            'severity': 'Down',
+        }
+        post_resp = client.post(f'/public/equipment/{equip.id}/report', data=data)
+        assert post_resp.status_code == 302
+        # Follow the redirect to confirmation
+        response = client.get(post_resp.headers['Location'])
+        html = response.data.decode()
+        assert 'Issue Summary' in html
+        assert 'Motor making grinding noise' in html
+        assert 'Down' in html

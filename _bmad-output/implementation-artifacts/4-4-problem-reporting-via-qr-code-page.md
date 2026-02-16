@@ -1,6 +1,6 @@
 # Story 4.4: Problem Reporting via QR Code Page
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -669,14 +669,19 @@ Claude Opus 4.6
 ### Change Log
 
 - 2026-02-16: Implemented Story 4.4 - Problem Reporting via QR Code Page (all 10 tasks, 26 new tests, 718 total passing)
+- 2026-02-16: Code review fixes -- extracted `_build_equipment_page_context()` helper (DRY), implemented Task 5.3 issue summary on confirmation page, removed redundant aria-labels, added 3 new tests (archived confirmation 404, Slack hidden when no channel, issue summary display), 721 total passing
+
+### Infrastructure Note
+
+Rate limiting on the public POST endpoint (`/public/equipment/<id>/report`) is expected to be handled at the reverse proxy / infrastructure level, not in the application. No Flask-Limiter or similar dependency was added.
 
 ### File List
 
 - esb/forms/repair_forms.py (modified -- added ProblemReportForm class)
-- esb/views/public.py (modified -- added report_problem POST, report_confirmation GET, updated equipment_page to pass form)
-- esb/templates/public/equipment_page.html (modified -- added problem report form section)
-- esb/templates/public/report_confirmation.html (new -- confirmation page template)
+- esb/views/public.py (modified -- added report_problem POST, report_confirmation GET, updated equipment_page to pass form, extracted _build_equipment_page_context helper)
+- esb/templates/public/equipment_page.html (modified -- added problem report form section, removed redundant aria-labels)
+- esb/templates/public/report_confirmation.html (new -- confirmation page template with issue summary)
 - esb/static/css/app.css (modified -- added report form styling)
-- tests/test_views/test_public_views.py (modified -- added 26 tests in 3 test classes)
+- tests/test_views/test_public_views.py (modified -- added 29 tests in 3 test classes)
 - _bmad-output/implementation-artifacts/sprint-status.yaml (modified -- updated story status)
 - _bmad-output/implementation-artifacts/4-4-problem-reporting-via-qr-code-page.md (modified -- updated status, tasks, dev record)

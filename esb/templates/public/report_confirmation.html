@@ -8,6 +8,16 @@
   <p class="fs-5">Thank you for reporting this issue with <strong>{{ equipment.name }}</strong>.</p>
   <p class="text-muted">Your report has been received and a technician will review it.</p>
 
+  {% if record %}
+  <div class="card mt-4">
+    <div class="card-body text-start">
+      <h2 class="h5">Issue Summary</h2>
+      <p class="mb-1"><strong>Severity:</strong> {{ record.severity or 'Not Sure' }}</p>
+      <p class="mb-0">{{ record.description }}</p>
+    </div>
+  </div>
+  {% endif %}
+
   {% if equipment.area.slack_channel %}
   <div class="card mt-4">
     <div class="card-body">
