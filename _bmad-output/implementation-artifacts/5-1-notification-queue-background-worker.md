@@ -1,6 +1,6 @@
 # Story 5.1: Notification Queue & Background Worker
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -636,14 +636,15 @@ Claude Opus 4.6
 - Task 3: Created notification_service.py with queue_notification(), get_pending_notifications(), mark_delivered(), mark_failed() (exponential backoff), process_notification() dispatcher, stub handlers for slack_message and static_page_push, run_worker_loop() with SIGTERM/SIGINT graceful shutdown, mutation logging on all state changes
 - Task 4: Registered `flask worker run` CLI command with `--poll-interval` option in _register_cli()
 - Task 5: 6 model tests covering creation, defaults, JSON payload, notification_type values, repr
-- Task 6: 17 service tests covering queue_notification, get_pending_notifications filtering, mark_delivered, mark_failed with backoff verification, process_notification dispatching, stub NotImplementedError, mutation logging
+- Task 6: 39 service tests covering queue_notification (including input validation), get_pending_notifications filtering (including batch_size limit, failed status exclusion), mark_delivered (including not-found), mark_failed with backoff verification (including max retries/permanent failure, not-found), process_notification dispatching, stub NotImplementedError, mutation logging, and run_worker_loop (signal handling, delivery, error handling, graceful shutdown, polling backoff)
 - Task 7: 2 CLI tests covering command registration and poll-interval option
 - Task 8: Verified docker-compose.yml worker service and FLASK_APP env var in .env.example
-- All 749 tests pass (721 existing + 28 new), 0 ruff lint errors
+- All 768 tests pass (721 existing + 47 new), 0 ruff lint errors
 
 ### Change Log
 
 - 2026-02-16: Implemented Story 5.1 — Notification Queue & Background Worker
+- 2026-02-16: Code review fixes — input validation, null checks, max retries, batch size limit, polling backoff, import ordering, worker loop tests
 
 ### File List
 

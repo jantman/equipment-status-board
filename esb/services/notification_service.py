@@ -7,12 +7,22 @@ from datetime import UTC, datetime, timedelta
 
 from esb.extensions import db
 from esb.models.pending_notification import PendingNotification
+from esb.utils.exceptions import ValidationError
 from esb.utils.logging import log_mutation
 
 logger = logging.getLogger(__name__)
 
 # Exponential backoff schedule (in seconds): 30s, 1m, 2m, 5m, 15m, 1h max
 BACKOFF_SCHEDULE = [30, 60, 120, 300, 900, 3600]
+
+# Maximum retry attempts before marking a notification as permanently failed
+MAX_RETRIES = 10
+
+# Valid notification types accepted by the queue
+VALID_NOTIFICATION_TYPES = {'slack_message', 'static_page_push'}
+
+# Default batch size for polling queries
+DEFAULT_BATCH_SIZE = 100
 
 
 def queue_notification(
@@ -30,6 +40,12 @@ def queue_notification(
     Returns:
         The created PendingNotification.
     """
+    if notification_type not in VALID_NOTIFICATION_TYPES:
+        raise ValidationError(
+            f'Invalid notification_type: {notification_type!r}. '
+            f'Must be one of: {", ".join(sorted(VALID_NOTIFICATION_TYPES))}'
+        )
+
     notification = PendingNotification(
         notification_type=notification_type,
         target=target,
@@ -48,11 +64,14 @@ def queue_notification(
     return notification
 
 
-def get_pending_notifications() -> list[PendingNotification]:
-    """Get all notifications ready for delivery.
+def get_pending_notifications(batch_size: int = DEFAULT_BATCH_SIZE) -> list[PendingNotification]:
+    """Get notifications ready for delivery.
 
     Returns notifications where status is 'pending' and either
     next_retry_at is NULL (first attempt) or next_retry_at <= now.
+
+    Args:
+        batch_size: Maximum number of notifications to return per poll cycle.
     """
     now = datetime.now(UTC)
     return list(
@@ -66,6 +85,7 @@ def get_pending_notifications() -> list[PendingNotification]:
                 )
             )
             .order_by(PendingNotification.created_at.asc())
+            .limit(batch_size)
         ).scalars().all()
     )
 
@@ -73,6 +93,8 @@ def get_pending_notifications() -> list[PendingNotification]:
 def mark_delivered(notification_id: int) -> PendingNotification:
     """Mark a notification as successfully delivered."""
     notification = db.session.get(PendingNotification, notification_id)
+    if notification is None:
+        raise ValidationError(f'Notification {notification_id} not found')
     notification.status = 'delivered'
     notification.delivered_at = datetime.now(UTC)
     db.session.commit()
@@ -90,10 +112,29 @@ def mark_failed(notification_id: int, error_message: str) -> PendingNotification
     """Mark a notification delivery as failed with exponential backoff.
 
     Backoff schedule: 30s, 1m, 2m, 5m, 15m, max 1h.
+    After MAX_RETRIES attempts, marks the notification as permanently 'failed'.
     """
     notification = db.session.get(PendingNotification, notification_id)
+    if notification is None:
+        raise ValidationError(f'Notification {notification_id} not found')
     notification.retry_count += 1
     notification.error_message = error_message
+
+    if notification.retry_count >= MAX_RETRIES:
+        # Permanently failed — stop retrying
+        notification.status = 'failed'
+        notification.next_retry_at = None
+        db.session.commit()
+
+        log_mutation('notification.permanently_failed', 'system', {
+            'id': notification.id,
+            'type': notification.notification_type,
+            'target': notification.target,
+            'retry_count': notification.retry_count,
+            'error': error_message,
+        })
+
+        return notification
 
     # Compute backoff delay
     backoff_index = min(notification.retry_count - 1, len(BACKOFF_SCHEDULE) - 1)
@@ -175,9 +216,12 @@ def run_worker_loop(poll_interval: int = 30) -> None:
 
     logger.info('Worker started, polling every %d seconds', poll_interval)
 
+    consecutive_poll_failures = 0
+
     while not _shutdown:
         try:
             notifications = get_pending_notifications()
+            consecutive_poll_failures = 0  # Reset on successful poll
             if notifications:
                 logger.info('Processing %d pending notification(s)', len(notifications))
 
@@ -203,7 +247,15 @@ def run_worker_loop(poll_interval: int = 30) -> None:
                     )
 
         except Exception:
-            logger.error('Error in worker polling loop', exc_info=True)
+            consecutive_poll_failures += 1
+            backoff = min(poll_interval * (2 ** consecutive_poll_failures), 300)
+            logger.error(
+                'Error in worker polling loop (failure #%d, backoff %ds)',
+                consecutive_poll_failures, backoff, exc_info=True,
+            )
+            if not _shutdown:
+                time.sleep(backoff)
+                continue
 
         if not _shutdown:
             time.sleep(poll_interval)
