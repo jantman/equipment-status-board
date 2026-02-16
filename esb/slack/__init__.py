@@ -38,10 +38,14 @@ def init_slack(app):
     _bolt_app = App(token=token, signing_secret=signing_secret)
     _handler = SlackRequestHandler(_bolt_app)
 
+    # Register command and view submission handlers (Story 6.2)
+    from esb.slack.handlers import register_handlers
+    register_handlers(_bolt_app)
+
     # Register minimal event handler (Bolt requires at least one to avoid warnings)
     @_bolt_app.event('message')
     def handle_message_events(body, bolt_logger):
-        pass  # Inbound message handling is Story 6.2
+        pass
 
     # Register the blueprint with the Flask app
     app.register_blueprint(slack_bp)

@@ -1,0 +1,385 @@
+"""Block Kit modal builder functions for Slack commands."""
+
+from esb.extensions import db
+from esb.models.equipment import Equipment
+from esb.models.repair_record import REPAIR_SEVERITIES, REPAIR_STATUSES
+from esb.models.user import User
+
+
+def build_equipment_options():
+    """Build Slack static_select options for non-archived equipment.
+
+    Returns:
+        List of option dicts: [{"text": {"type": "plain_text", "text": "Name (Area)"}, "value": "id"}, ...]
+    """
+    equipment_list = db.session.execute(
+        db.select(Equipment)
+        .filter(Equipment.is_archived.is_(False))
+        .order_by(Equipment.name)
+    ).scalars().all()
+
+    options = []
+    for e in equipment_list:
+        area_name = e.area.name if e.area else 'No Area'
+        options.append({
+            'text': {'type': 'plain_text', 'text': f'{e.name} ({area_name})'[:75]},
+            'value': str(e.id),
+        })
+    return options
+
+
+def build_user_options():
+    """Build Slack static_select options for active Technician/Staff users.
+
+    Returns:
+        List of option dicts.
+    """
+    users = db.session.execute(
+        db.select(User)
+        .filter(User.is_active.is_(True), User.role.in_(['technician', 'staff']))
+        .order_by(User.username)
+    ).scalars().all()
+
+    return [
+        {
+            'text': {'type': 'plain_text', 'text': f'{u.username} ({u.role})'[:75]},
+            'value': str(u.id),
+        }
+        for u in users
+    ]
+
+
+def build_problem_report_modal(equipment_options):
+    """Build Block Kit modal for member problem reports.
+
+    Args:
+        equipment_options: List of equipment option dicts from build_equipment_options().
+
+    Returns:
+        Block Kit modal view dict.
+    """
+    return {
+        'type': 'modal',
+        'callback_id': 'problem_report_submission',
+        'title': {'type': 'plain_text', 'text': 'Report a Problem'},
+        'submit': {'type': 'plain_text', 'text': 'Submit Report'},
+        'close': {'type': 'plain_text', 'text': 'Cancel'},
+        'blocks': [
+            {
+                'type': 'input',
+                'block_id': 'equipment_block',
+                'element': {
+                    'type': 'static_select',
+                    'action_id': 'equipment_select',
+                    'placeholder': {'type': 'plain_text', 'text': 'Select equipment'},
+                    'options': equipment_options,
+                },
+                'label': {'type': 'plain_text', 'text': 'Equipment'},
+            },
+            {
+                'type': 'input',
+                'block_id': 'name_block',
+                'element': {
+                    'type': 'plain_text_input',
+                    'action_id': 'reporter_name',
+                    'placeholder': {'type': 'plain_text', 'text': 'Your name'},
+                },
+                'label': {'type': 'plain_text', 'text': 'Your Name'},
+            },
+            {
+                'type': 'input',
+                'block_id': 'description_block',
+                'element': {
+                    'type': 'plain_text_input',
+                    'action_id': 'description',
+                    'multiline': True,
+                    'placeholder': {'type': 'plain_text', 'text': 'Describe the problem'},
+                },
+                'label': {'type': 'plain_text', 'text': 'Description'},
+            },
+            {
+                'type': 'input',
+                'block_id': 'severity_block',
+                'optional': True,
+                'element': {
+                    'type': 'static_select',
+                    'action_id': 'severity',
+                    'initial_option': {
+                        'text': {'type': 'plain_text', 'text': 'Not Sure'},
+                        'value': 'Not Sure',
+                    },
+                    'options': [
+                        {'text': {'type': 'plain_text', 'text': s}, 'value': s}
+                        for s in REPAIR_SEVERITIES
+                    ],
+                },
+                'label': {'type': 'plain_text', 'text': 'Severity'},
+            },
+            {
+                'type': 'input',
+                'block_id': 'safety_risk_block',
+                'optional': True,
+                'element': {
+                    'type': 'checkboxes',
+                    'action_id': 'safety_risk',
+                    'options': [
+                        {
+                            'text': {'type': 'plain_text', 'text': 'This is a safety risk'},
+                            'value': 'safety_risk',
+                        },
+                    ],
+                },
+                'label': {'type': 'plain_text', 'text': 'Safety Risk'},
+            },
+            {
+                'type': 'input',
+                'block_id': 'consumable_block',
+                'optional': True,
+                'element': {
+                    'type': 'checkboxes',
+                    'action_id': 'consumable',
+                    'options': [
+                        {
+                            'text': {'type': 'plain_text', 'text': 'This is a consumable item'},
+                            'value': 'consumable',
+                        },
+                    ],
+                },
+                'label': {'type': 'plain_text', 'text': 'Consumable'},
+            },
+        ],
+    }
+
+
+def build_repair_create_modal(equipment_options, user_options):
+    """Build Block Kit modal for technician/staff repair record creation.
+
+    Args:
+        equipment_options: List of equipment option dicts from build_equipment_options().
+        user_options: List of user option dicts from build_user_options().
+
+    Returns:
+        Block Kit modal view dict.
+    """
+    assignee_element = {
+        'type': 'static_select',
+        'action_id': 'assignee',
+        'placeholder': {'type': 'plain_text', 'text': 'Select assignee'},
+        'options': user_options,
+    } if user_options else {
+        'type': 'static_select',
+        'action_id': 'assignee',
+        'placeholder': {'type': 'plain_text', 'text': 'No users available'},
+        'options': [{'text': {'type': 'plain_text', 'text': 'None'}, 'value': 'none'}],
+    }
+
+    return {
+        'type': 'modal',
+        'callback_id': 'repair_create_submission',
+        'title': {'type': 'plain_text', 'text': 'Create Repair Record'},
+        'submit': {'type': 'plain_text', 'text': 'Create Record'},
+        'close': {'type': 'plain_text', 'text': 'Cancel'},
+        'blocks': [
+            {
+                'type': 'input',
+                'block_id': 'equipment_block',
+                'element': {
+                    'type': 'static_select',
+                    'action_id': 'equipment_select',
+                    'placeholder': {'type': 'plain_text', 'text': 'Select equipment'},
+                    'options': equipment_options,
+                },
+                'label': {'type': 'plain_text', 'text': 'Equipment'},
+            },
+            {
+                'type': 'input',
+                'block_id': 'description_block',
+                'element': {
+                    'type': 'plain_text_input',
+                    'action_id': 'description',
+                    'multiline': True,
+                    'placeholder': {'type': 'plain_text', 'text': 'Describe the issue'},
+                },
+                'label': {'type': 'plain_text', 'text': 'Description'},
+            },
+            {
+                'type': 'input',
+                'block_id': 'severity_block',
+                'optional': True,
+                'element': {
+                    'type': 'static_select',
+                    'action_id': 'severity',
+                    'placeholder': {'type': 'plain_text', 'text': 'Select severity'},
+                    'options': [
+                        {'text': {'type': 'plain_text', 'text': s}, 'value': s}
+                        for s in REPAIR_SEVERITIES
+                    ],
+                },
+                'label': {'type': 'plain_text', 'text': 'Severity'},
+            },
+            {
+                'type': 'input',
+                'block_id': 'assignee_block',
+                'optional': True,
+                'element': assignee_element,
+                'label': {'type': 'plain_text', 'text': 'Assignee'},
+            },
+            {
+                'type': 'input',
+                'block_id': 'status_block',
+                'optional': True,
+                'element': {
+                    'type': 'static_select',
+                    'action_id': 'status',
+                    'initial_option': {
+                        'text': {'type': 'plain_text', 'text': 'New'},
+                        'value': 'New',
+                    },
+                    'options': [
+                        {'text': {'type': 'plain_text', 'text': s}, 'value': s}
+                        for s in REPAIR_STATUSES
+                    ],
+                },
+                'label': {'type': 'plain_text', 'text': 'Status'},
+            },
+        ],
+    }
+
+
+def build_repair_update_modal(repair_record, status_options, severity_options, user_options):
+    """Build Block Kit modal for updating an existing repair record.
+
+    Args:
+        repair_record: RepairRecord model instance with current values.
+        status_options: List of status option dicts (all REPAIR_STATUSES).
+        severity_options: List of severity option dicts (all REPAIR_SEVERITIES).
+        user_options: List of user option dicts from build_user_options().
+
+    Returns:
+        Block Kit modal view dict with pre-populated values and private_metadata.
+    """
+    blocks = [
+        {
+            'type': 'input',
+            'block_id': 'status_block',
+            'element': {
+                'type': 'static_select',
+                'action_id': 'status',
+                'initial_option': {
+                    'text': {'type': 'plain_text', 'text': repair_record.status},
+                    'value': repair_record.status,
+                },
+                'options': status_options,
+            },
+            'label': {'type': 'plain_text', 'text': 'Status'},
+        },
+        {
+            'type': 'input',
+            'block_id': 'severity_block',
+            'optional': True,
+            'element': {
+                'type': 'static_select',
+                'action_id': 'severity',
+                'placeholder': {'type': 'plain_text', 'text': 'Select severity'},
+                'options': severity_options,
+            },
+            'label': {'type': 'plain_text', 'text': 'Severity'},
+        },
+    ]
+
+    # Set initial severity if present
+    if repair_record.severity:
+        blocks[1]['element']['initial_option'] = {
+            'text': {'type': 'plain_text', 'text': repair_record.severity},
+            'value': repair_record.severity,
+        }
+
+    # Assignee block
+    assignee_block = {
+        'type': 'input',
+        'block_id': 'assignee_block',
+        'optional': True,
+        'element': {
+            'type': 'static_select',
+            'action_id': 'assignee',
+            'placeholder': {'type': 'plain_text', 'text': 'Select assignee'},
+            'options': user_options,
+        },
+        'label': {'type': 'plain_text', 'text': 'Assignee'},
+    } if user_options else {
+        'type': 'input',
+        'block_id': 'assignee_block',
+        'optional': True,
+        'element': {
+            'type': 'static_select',
+            'action_id': 'assignee',
+            'placeholder': {'type': 'plain_text', 'text': 'No users available'},
+            'options': [{'text': {'type': 'plain_text', 'text': 'None'}, 'value': 'none'}],
+        },
+        'label': {'type': 'plain_text', 'text': 'Assignee'},
+    }
+
+    # Set initial assignee if present
+    if repair_record.assignee_id and user_options:
+        for opt in user_options:
+            if opt['value'] == str(repair_record.assignee_id):
+                assignee_block['element']['initial_option'] = opt
+                break
+
+    blocks.append(assignee_block)
+
+    # ETA block
+    eta_block = {
+        'type': 'input',
+        'block_id': 'eta_block',
+        'optional': True,
+        'element': {
+            'type': 'datepicker',
+            'action_id': 'eta',
+            'placeholder': {'type': 'plain_text', 'text': 'Select a date'},
+        },
+        'label': {'type': 'plain_text', 'text': 'ETA'},
+    }
+    if repair_record.eta:
+        eta_block['element']['initial_date'] = repair_record.eta.strftime('%Y-%m-%d')
+    blocks.append(eta_block)
+
+    # Specialist description block
+    specialist_block = {
+        'type': 'input',
+        'block_id': 'specialist_block',
+        'optional': True,
+        'element': {
+            'type': 'plain_text_input',
+            'action_id': 'specialist_description',
+            'placeholder': {'type': 'plain_text', 'text': 'Specialist details'},
+        },
+        'label': {'type': 'plain_text', 'text': 'Specialist Description'},
+    }
+    if repair_record.specialist_description:
+        specialist_block['element']['initial_value'] = repair_record.specialist_description
+    blocks.append(specialist_block)
+
+    # Note block (always empty - for adding a new note)
+    blocks.append({
+        'type': 'input',
+        'block_id': 'note_block',
+        'optional': True,
+        'element': {
+            'type': 'plain_text_input',
+            'action_id': 'note',
+            'multiline': True,
+            'placeholder': {'type': 'plain_text', 'text': 'Add a note'},
+        },
+        'label': {'type': 'plain_text', 'text': 'Note'},
+    })
+
+    return {
+        'type': 'modal',
+        'callback_id': 'repair_update_submission',
+        'title': {'type': 'plain_text', 'text': 'Update Repair'},
+        'submit': {'type': 'plain_text', 'text': 'Update Record'},
+        'close': {'type': 'plain_text', 'text': 'Cancel'},
+        'private_metadata': str(repair_record.id),
+        'blocks': blocks,
+    }

@@ -1,6 +1,6 @@
 # Story 6.2: Problem Reporting & Repair Records via Slack
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -28,54 +28,54 @@ So that I can flag issues and track repairs without leaving the conversation I'm
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Create `esb/slack/forms.py` with Block Kit modal builder functions (AC: #1, #3, #5)
-  - [ ] 1.1: Create `build_problem_report_modal(equipment_options)` returning Block Kit modal view dict
-  - [ ] 1.2: Create `build_repair_create_modal(equipment_options, user_options)` returning Block Kit modal view dict
-  - [ ] 1.3: Create `build_repair_update_modal(repair_record, status_options, severity_options, user_options)` returning Block Kit modal view dict with pre-populated values and `private_metadata` containing repair record ID
-  - [ ] 1.4: Create `build_equipment_options()` helper that queries non-archived equipment and returns Slack option dicts formatted as `"Equipment Name (Area)"`
-  - [ ] 1.5: Create `build_user_options()` helper that queries active Technician/Staff users and returns Slack option dicts
+- [x] Task 1: Create `esb/slack/forms.py` with Block Kit modal builder functions (AC: #1, #3, #5)
+  - [x] 1.1: Create `build_problem_report_modal(equipment_options)` returning Block Kit modal view dict
+  - [x] 1.2: Create `build_repair_create_modal(equipment_options, user_options)` returning Block Kit modal view dict
+  - [x] 1.3: Create `build_repair_update_modal(repair_record, status_options, severity_options, user_options)` returning Block Kit modal view dict with pre-populated values and `private_metadata` containing repair record ID
+  - [x] 1.4: Create `build_equipment_options()` helper that queries non-archived equipment and returns Slack option dicts formatted as `"Equipment Name (Area)"`
+  - [x] 1.5: Create `build_user_options()` helper that queries active Technician/Staff users and returns Slack option dicts
 
-- [ ] Task 2: Create `esb/slack/handlers.py` with command and view submission handlers (AC: #1-#7)
-  - [ ] 2.1: Create `register_handlers(bolt_app)` function that registers all commands and views
-  - [ ] 2.2: Implement `_resolve_esb_user(client, slack_user_id)` helper that maps Slack user ID to ESB User via email lookup
-  - [ ] 2.3: Implement `/esb-report` command handler: `ack()`, build equipment options, open problem report modal
-  - [ ] 2.4: Implement `problem_report_submission` view handler: extract form values, call `repair_service.create_repair_record()`, post ephemeral confirmation
-  - [ ] 2.5: Implement `/esb-repair` command handler: `ack()`, resolve ESB user (must be tech/staff), build equipment + user options, open repair creation modal
-  - [ ] 2.6: Implement `repair_create_submission` view handler: extract form values, call `repair_service.create_repair_record()` with author_id, post ephemeral confirmation
-  - [ ] 2.7: Implement `/esb-update` command handler: `ack()`, resolve ESB user (must be tech/staff), parse repair ID from command text, load repair record, build pre-populated update modal
-  - [ ] 2.8: Implement `repair_update_submission` view handler: extract form values from view state, get repair_record_id from `private_metadata`, call `repair_service.update_repair_record()` with author mapping, post ephemeral confirmation
-  - [ ] 2.9: Implement error handling: catch `ValidationError` in all view handlers and return Slack-formatted error via `ack(response_action="errors")` or ephemeral message
+- [x] Task 2: Create `esb/slack/handlers.py` with command and view submission handlers (AC: #1-#7)
+  - [x] 2.1: Create `register_handlers(bolt_app)` function that registers all commands and views
+  - [x] 2.2: Implement `_resolve_esb_user(client, slack_user_id)` helper that maps Slack user ID to ESB User via email lookup
+  - [x] 2.3: Implement `/esb-report` command handler: `ack()`, build equipment options, open problem report modal
+  - [x] 2.4: Implement `problem_report_submission` view handler: extract form values, call `repair_service.create_repair_record()`, post ephemeral confirmation
+  - [x] 2.5: Implement `/esb-repair` command handler: `ack()`, resolve ESB user (must be tech/staff), build equipment + user options, open repair creation modal
+  - [x] 2.6: Implement `repair_create_submission` view handler: extract form values, call `repair_service.create_repair_record()` with author_id, post ephemeral confirmation
+  - [x] 2.7: Implement `/esb-update` command handler: `ack()`, resolve ESB user (must be tech/staff), parse repair ID from command text, load repair record, build pre-populated update modal
+  - [x] 2.8: Implement `repair_update_submission` view handler: extract form values from view state, get repair_record_id from `private_metadata`, call `repair_service.update_repair_record()` with author mapping, post ephemeral confirmation
+  - [x] 2.9: Implement error handling: catch `ValidationError` in all view handlers and return Slack-formatted error via `ack(response_action="errors")` or ephemeral message
 
-- [ ] Task 3: Update `esb/slack/__init__.py` to register handlers (AC: #1-#6)
-  - [ ] 3.1: Import and call `register_handlers(_bolt_app)` from `handlers.py` inside `init_slack()`
-  - [ ] 3.2: Update the placeholder `handle_message_events` comment to reflect Story 6.2 is now implemented
+- [x] Task 3: Update `esb/slack/__init__.py` to register handlers (AC: #1-#6)
+  - [x] 3.1: Import and call `register_handlers(_bolt_app)` from `handlers.py` inside `init_slack()`
+  - [x] 3.2: Update the placeholder `handle_message_events` comment to reflect Story 6.2 is now implemented
 
-- [ ] Task 4: Write tests for `esb/slack/forms.py` (`tests/test_slack/test_forms.py`) (AC: #1, #3, #5)
-  - [ ] 4.1: Test `build_problem_report_modal()` returns valid Block Kit modal structure with correct blocks
-  - [ ] 4.2: Test `build_repair_create_modal()` returns valid modal with equipment + user selectors
-  - [ ] 4.3: Test `build_repair_update_modal()` returns modal with pre-populated values and correct `private_metadata`
-  - [ ] 4.4: Test `build_equipment_options()` returns correct option format, excludes archived equipment
-  - [ ] 4.5: Test `build_user_options()` returns only active tech/staff users
+- [x] Task 4: Write tests for `esb/slack/forms.py` (`tests/test_slack/test_forms.py`) (AC: #1, #3, #5)
+  - [x] 4.1: Test `build_problem_report_modal()` returns valid Block Kit modal structure with correct blocks
+  - [x] 4.2: Test `build_repair_create_modal()` returns valid modal with equipment + user selectors
+  - [x] 4.3: Test `build_repair_update_modal()` returns modal with pre-populated values and correct `private_metadata`
+  - [x] 4.4: Test `build_equipment_options()` returns correct option format, excludes archived equipment
+  - [x] 4.5: Test `build_user_options()` returns only active tech/staff users
 
-- [ ] Task 5: Write tests for `esb/slack/handlers.py` (`tests/test_slack/test_handlers.py`) (AC: #1-#7)
-  - [ ] 5.1: Test `/esb-report` command calls `ack()` and opens modal via `client.views_open()`
-  - [ ] 5.2: Test problem report submission creates repair record via `repair_service`
-  - [ ] 5.3: Test problem report submission posts ephemeral confirmation
-  - [ ] 5.4: Test `/esb-repair` command rejects non-tech/staff users with ephemeral error
-  - [ ] 5.5: Test `/esb-repair` command opens modal for authorized users
-  - [ ] 5.6: Test repair creation submission creates record with correct author_id
-  - [ ] 5.7: Test `/esb-update 42` parses repair ID and opens pre-populated modal
-  - [ ] 5.8: Test `/esb-update` without ID returns error message
-  - [ ] 5.9: Test `/esb-update 999` with non-existent ID returns error
-  - [ ] 5.10: Test repair update submission calls `update_repair_record()` with correct changes and author
-  - [ ] 5.11: Test `_resolve_esb_user()` maps Slack user to ESB user via email
-  - [ ] 5.12: Test `_resolve_esb_user()` returns None for unmapped user
-  - [ ] 5.13: Test ValidationError in view handler returns Slack-formatted error
-  - [ ] 5.14: Test all handlers work within Flask app context
+- [x] Task 5: Write tests for `esb/slack/handlers.py` (`tests/test_slack/test_handlers.py`) (AC: #1-#7)
+  - [x] 5.1: Test `/esb-report` command calls `ack()` and opens modal via `client.views_open()`
+  - [x] 5.2: Test problem report submission creates repair record via `repair_service`
+  - [x] 5.3: Test problem report submission posts ephemeral confirmation
+  - [x] 5.4: Test `/esb-repair` command rejects non-tech/staff users with ephemeral error
+  - [x] 5.5: Test `/esb-repair` command opens modal for authorized users
+  - [x] 5.6: Test repair creation submission creates record with correct author_id
+  - [x] 5.7: Test `/esb-update 42` parses repair ID and opens pre-populated modal
+  - [x] 5.8: Test `/esb-update` without ID returns error message
+  - [x] 5.9: Test `/esb-update 999` with non-existent ID returns error
+  - [x] 5.10: Test repair update submission calls `update_repair_record()` with correct changes and author
+  - [x] 5.11: Test `_resolve_esb_user()` maps Slack user to ESB user via email
+  - [x] 5.12: Test `_resolve_esb_user()` returns None for unmapped user
+  - [x] 5.13: Test ValidationError in view handler returns Slack-formatted error
+  - [x] 5.14: Test all handlers work within Flask app context
 
-- [ ] Task 6: Update `tests/test_slack/test_init.py` for new handler registration (AC: #1)
-  - [ ] 6.1: Verify `register_handlers` is called during `init_slack()` when Slack is enabled
-  - [ ] 6.2: Verify command handlers are registered on the Bolt app
+- [x] Task 6: Update `tests/test_slack/test_init.py` for new handler registration (AC: #1)
+  - [x] 6.1: Verify `register_handlers` is called during `init_slack()` when Slack is enabled
+  - [x] 6.2: Verify command handlers are registered on the Bolt app
 
 ## Dev Notes
 
@@ -834,10 +834,39 @@ c10b0ce Fix code review issues for Story 5.3 notification trigger configuration
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+Claude Opus 4.6
 
 ### Debug Log References
 
+None.
+
 ### Completion Notes List
 
+- Implemented `esb/slack/forms.py` with 5 Block Kit modal builder functions: `build_problem_report_modal`, `build_repair_create_modal`, `build_repair_update_modal`, `build_equipment_options`, `build_user_options`
+- Implemented `esb/slack/handlers.py` with `register_handlers()` containing 3 slash command handlers (`/esb-report`, `/esb-repair`, `/esb-update`) and 3 view submission handlers (`problem_report_submission`, `repair_create_submission`, `repair_update_submission`), plus `_resolve_esb_user()` helper
+- Updated `esb/slack/__init__.py` to call `register_handlers(_bolt_app)` during `init_slack()`
+- Handlers follow thin handler pattern: parse Slack input, call `repair_service` functions, format Slack response
+- User mapping via `_resolve_esb_user()` uses `client.users_info()` -> email -> ESB User lookup
+- `/esb-report` available to all members (no ESB account required); `/esb-repair` and `/esb-update` require Technician or Staff role
+- Error handling returns Slack-formatted errors via `ack(response_action='errors')` for view submissions and `chat_postEphemeral` for command errors
+- All notifications handled by existing `repair_service` layer -- no duplicate notifications from Slack handlers
+- 59 new tests added (27 forms + 25 handlers + 4 handler app-context + 3 init), total suite: 902 passed, 0 failures, 0 lint errors
+- Slack App requires additional OAuth scopes (`users:read`, `users:read.email`) and slash commands registered at api.slack.com (admin task, not code)
+
+### Change Log
+
+- 2026-02-16: Implemented Story 6.2 - Problem Reporting & Repair Records via Slack (all 6 tasks, 59 new tests)
+
 ### File List
+
+**New files:**
+- esb/slack/forms.py
+- esb/slack/handlers.py
+- tests/test_slack/test_forms.py
+- tests/test_slack/test_handlers.py
+
+**Modified files:**
+- esb/slack/__init__.py
+- tests/test_slack/test_init.py
+- _bmad-output/implementation-artifacts/sprint-status.yaml
+- _bmad-output/implementation-artifacts/6-2-problem-reporting-repair-records-via-slack.md

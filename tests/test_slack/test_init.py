@@ -110,6 +110,26 @@ class TestSlackEnabled:
                     content_type='application/json')
         self.mock_handler.handle.assert_called_once()
 
+    def test_register_handlers_called(self):
+        """6.1: register_handlers is called during init_slack() when Slack is enabled."""
+        # register_handlers registers commands and views on the bolt app
+        # Verify command handlers were registered
+        assert self.mock_bolt_app.command.called
+
+    def test_command_handlers_registered(self):
+        """6.2: Command handlers are registered on the Bolt app."""
+        command_calls = [call[0][0] for call in self.mock_bolt_app.command.call_args_list]
+        assert '/esb-report' in command_calls
+        assert '/esb-repair' in command_calls
+        assert '/esb-update' in command_calls
+
+    def test_view_handlers_registered(self):
+        """View submission handlers are registered on the Bolt app."""
+        view_calls = [call[0][0] for call in self.mock_bolt_app.view.call_args_list]
+        assert 'problem_report_submission' in view_calls
+        assert 'repair_create_submission' in view_calls
+        assert 'repair_update_submission' in view_calls
+
     def test_bolt_app_event_handler_registered(self):
         """A 'message' event handler is registered on the Bolt app."""
         self.mock_bolt_app.event.assert_called_with('message')
