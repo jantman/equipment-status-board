@@ -1,6 +1,6 @@
 # Story 4.3: QR Code Equipment Pages & Documentation
 
-Status: review
+Status: done
 
 ## Story
 
