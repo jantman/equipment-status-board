@@ -199,3 +199,69 @@ class TestGetAreaStatusDashboard:
         result = status_service.get_area_status_dashboard()
         area_names = [r['area'].name for r in result]
         assert area_names == ['Electronics Lab', 'Metal Shop', 'Woodshop']
+
+
+class TestGetEquipmentStatusDetail:
+    """Tests for get_equipment_status_detail()."""
+
+    def test_green_no_open_records(self, app, make_equipment):
+        """Green equipment returns None eta/assignee."""
+        equipment = make_equipment()
+        result = status_service.get_equipment_status_detail(equipment.id)
+        assert result['color'] == 'green'
+        assert result['label'] == 'Operational'
+        assert result['eta'] is None
+        assert result['assignee_name'] is None
+
+    def test_down_with_eta(self, app, make_equipment, make_repair_record):
+        """Down status includes eta from repair record."""
+        from datetime import date
+        equipment = make_equipment()
+        make_repair_record(
+            equipment=equipment, status='New', severity='Down',
+            description='Motor burned out', eta=date(2026, 2, 20),
+        )
+        result = status_service.get_equipment_status_detail(equipment.id)
+        assert result['color'] == 'red'
+        assert result['label'] == 'Down'
+        assert result['eta'] == date(2026, 2, 20)
+
+    def test_down_with_assignee(self, app, make_equipment, make_repair_record):
+        """Down status includes assignee_name."""
+        from tests.conftest import _create_user
+        tech = _create_user('technician', username='marcus')
+        equipment = make_equipment()
+        make_repair_record(
+            equipment=equipment, status='Assigned', severity='Down',
+            description='Motor issue', assignee_id=tech.id,
+        )
+        result = status_service.get_equipment_status_detail(equipment.id)
+        assert result['color'] == 'red'
+        assert result['assignee_name'] == 'marcus'
+
+    def test_not_found(self, app):
+        """Raises EquipmentNotFound for nonexistent equipment ID."""
+        with pytest.raises(EquipmentNotFound):
+            status_service.get_equipment_status_detail(99999)
+
+    def test_multiple_records_highest_severity(self, app, make_equipment, make_repair_record):
+        """Returns data from highest-severity record."""
+        from datetime import date
+        from tests.conftest import _create_user
+        tech = _create_user('technician', username='techuser')
+        equipment = make_equipment()
+        make_repair_record(
+            equipment=equipment, status='New', severity='Degraded',
+            description='Minor issue', eta=date(2026, 3, 1),
+        )
+        make_repair_record(
+            equipment=equipment, status='Assigned', severity='Down',
+            description='Critical failure', eta=date(2026, 2, 20),
+            assignee_id=tech.id,
+        )
+        result = status_service.get_equipment_status_detail(equipment.id)
+        assert result['color'] == 'red'
+        assert result['label'] == 'Down'
+        assert result['issue_description'] == 'Critical failure'
+        assert result['eta'] == date(2026, 2, 20)
+        assert result['assignee_name'] == 'techuser'

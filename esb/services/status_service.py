@@ -97,6 +97,63 @@ def compute_equipment_status(equipment_id: int) -> dict:
     return _derive_status_from_records(open_records)
 
 
+def get_equipment_status_detail(equipment_id: int) -> dict:
+    """Get equipment status with repair detail for Slack status bot.
+
+    Returns dict with keys:
+        - color: 'green' | 'yellow' | 'red'
+        - label: 'Operational' | 'Degraded' | 'Down'
+        - issue_description: str | None
+        - severity: str | None
+        - eta: date | None (from highest-severity open repair record)
+        - assignee_name: str | None (from highest-severity open repair record)
+
+    Raises:
+        EquipmentNotFound: if equipment_id doesn't exist.
+    """
+    equipment = db.session.get(Equipment, equipment_id)
+    if equipment is None:
+        raise EquipmentNotFound(f'Equipment with id {equipment_id} not found')
+
+    open_records = (
+        db.session.execute(
+            db.select(RepairRecord)
+            .filter(
+                RepairRecord.equipment_id == equipment_id,
+                RepairRecord.status.notin_(CLOSED_STATUSES),
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    status = _derive_status_from_records(open_records)
+
+    eta = None
+    assignee_name = None
+    if open_records:
+        best_record = None
+        best_priority = 999
+        for record in open_records:
+            sev = record.severity
+            if sev in _SEVERITY_STATUS:
+                priority = _SEVERITY_STATUS[sev][2]
+                if priority < best_priority:
+                    best_priority = priority
+                    best_record = record
+        if best_record is None:
+            best_record = open_records[0]
+        eta = best_record.eta
+        if best_record.assignee:
+            assignee_name = best_record.assignee.username
+
+    return {
+        **status,
+        'eta': eta,
+        'assignee_name': assignee_name,
+    }
+
+
 def get_area_status_dashboard() -> list[dict]:
     """Get all non-archived areas with their non-archived equipment and computed statuses.
 

@@ -867,3 +867,77 @@ class TestGetEquipmentLinks:
         eq = make_equipment()
         result = get_equipment_links(eq.id)
         assert result == []
+
+
+class TestSearchEquipmentByName:
+    """Tests for equipment_service.search_equipment_by_name()."""
+
+    def test_exact_match(self, app, make_area, make_equipment):
+        """search_equipment_by_name() returns equipment on exact name match."""
+        from esb.services.equipment_service import search_equipment_by_name
+
+        area = make_area('Woodshop', '#wood')
+        make_equipment('SawStop', 'SawStop', 'PCS', area=area)
+
+        result = search_equipment_by_name('SawStop')
+        assert len(result) == 1
+        assert result[0].name == 'SawStop'
+
+    def test_partial_match(self, app, make_area, make_equipment):
+        """search_equipment_by_name() returns equipment on partial name match."""
+        from esb.services.equipment_service import search_equipment_by_name
+
+        area = make_area('Woodshop', '#wood')
+        make_equipment('SawStop #1', 'SawStop', 'PCS', area=area)
+
+        result = search_equipment_by_name('Stop')
+        assert len(result) == 1
+        assert result[0].name == 'SawStop #1'
+
+    def test_case_insensitive(self, app, make_area, make_equipment):
+        """search_equipment_by_name() is case-insensitive."""
+        from esb.services.equipment_service import search_equipment_by_name
+
+        area = make_area('Woodshop', '#wood')
+        make_equipment('SawStop', 'SawStop', 'PCS', area=area)
+
+        result = search_equipment_by_name('sawstop')
+        assert len(result) == 1
+        assert result[0].name == 'SawStop'
+
+    def test_multiple_matches(self, app, make_area, make_equipment):
+        """search_equipment_by_name() returns all matching equipment."""
+        from esb.services.equipment_service import search_equipment_by_name
+
+        area = make_area('Woodshop', '#wood')
+        make_equipment('Band Saw', 'Jet', 'JWBS', area=area)
+        make_equipment('SawStop #1', 'SawStop', 'PCS', area=area)
+        make_equipment('Scroll Saw', 'DeWalt', 'DW788', area=area)
+        make_equipment('Drill Press', 'JET', 'JDP-17', area=area)
+
+        result = search_equipment_by_name('Saw')
+        assert len(result) == 3
+        names = [e.name for e in result]
+        assert names == ['Band Saw', 'SawStop #1', 'Scroll Saw']
+
+    def test_no_match(self, app, make_area, make_equipment):
+        """search_equipment_by_name() returns empty list when nothing matches."""
+        from esb.services.equipment_service import search_equipment_by_name
+
+        area = make_area('Woodshop', '#wood')
+        make_equipment('SawStop', 'SawStop', 'PCS', area=area)
+
+        result = search_equipment_by_name('Welder')
+        assert result == []
+
+    def test_excludes_archived(self, app, make_area, make_equipment):
+        """search_equipment_by_name() excludes archived equipment."""
+        from esb.services.equipment_service import search_equipment_by_name
+
+        area = make_area('Woodshop', '#wood')
+        make_equipment('Active Saw', 'SawStop', 'PCS', area=area)
+        make_equipment('Archived Saw', 'OldCo', 'Old', area=area, is_archived=True)
+
+        result = search_equipment_by_name('Saw')
+        assert len(result) == 1
+        assert result[0].name == 'Active Saw'

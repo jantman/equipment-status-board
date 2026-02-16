@@ -388,3 +388,126 @@ class TestBuildRepairUpdateModal:
 
         note_block = [b for b in modal['blocks'] if b['block_id'] == 'note_block'][0]
         assert 'initial_value' not in note_block['element']
+
+
+class TestFormatStatusSummary:
+    """Tests for format_status_summary()."""
+
+    def test_multiple_areas(self, app, make_area, make_equipment, make_repair_record):
+        """Formats all areas with correct counts."""
+        from esb.services import status_service
+        from esb.slack.forms import format_status_summary
+
+        area1 = make_area('Woodshop', '#wood')
+        area2 = make_area('Metal Shop', '#metal')
+        make_equipment('SawStop', 'SawStop', 'PCS', area=area1)
+        eq2 = make_equipment('Band Saw', 'Jet', 'JWBS', area=area1)
+        make_repair_record(equipment=eq2, status='New', severity='Degraded', description='Belt issue')
+        make_equipment('Welder', 'Lincoln', '210MP', area=area2)
+
+        dashboard = status_service.get_area_status_dashboard()
+        result = format_status_summary(dashboard)
+
+        assert 'Equipment Status Summary' in result
+        assert 'Woodshop' in result
+        assert 'Metal Shop' in result
+        assert '1 :white_check_mark: operational' in result
+        assert '1 :warning: degraded' in result
+
+    def test_empty(self, app):
+        """Returns 'No equipment' for empty dashboard."""
+        from esb.slack.forms import format_status_summary
+
+        result = format_status_summary([])
+        assert result == 'No equipment has been registered yet.'
+
+    def test_all_green(self, app, make_area, make_equipment):
+        """All counts show 0 for degraded/down when all green."""
+        from esb.services import status_service
+        from esb.slack.forms import format_status_summary
+
+        area = make_area('Lab', '#lab')
+        make_equipment('Scope', 'Tek', 'TDS', area=area)
+        make_equipment('DMM', 'Fluke', '87V', area=area)
+
+        dashboard = status_service.get_area_status_dashboard()
+        result = format_status_summary(dashboard)
+
+        assert '2 :white_check_mark: operational' in result
+        assert '0 :warning: degraded' in result
+        assert '0 :x: down' in result
+
+
+class TestFormatEquipmentStatusDetail:
+    """Tests for format_equipment_status_detail()."""
+
+    def test_green(self, app, make_equipment):
+        """Green shows emoji + name + Operational, no issue block."""
+        from esb.slack.forms import format_equipment_status_detail
+
+        equip = make_equipment('SawStop #1', 'SawStop', 'PCS')
+        detail = {
+            'color': 'green', 'label': 'Operational',
+            'issue_description': None, 'severity': None,
+            'eta': None, 'assignee_name': None,
+        }
+        result = format_equipment_status_detail(equip, detail)
+        assert ':white_check_mark:' in result
+        assert 'SawStop #1' in result
+        assert 'Operational' in result
+        assert '>' not in result  # No blockquote lines
+
+    def test_down_with_details(self, app, make_equipment):
+        """Down shows description, ETA, assignee."""
+        from datetime import date
+        from esb.slack.forms import format_equipment_status_detail
+
+        equip = make_equipment('SawStop #1', 'SawStop', 'PCS')
+        detail = {
+            'color': 'red', 'label': 'Down',
+            'issue_description': 'Motor makes grinding noise',
+            'severity': 'Down',
+            'eta': date(2026, 2, 20),
+            'assignee_name': 'Marcus',
+        }
+        result = format_equipment_status_detail(equip, detail)
+        assert ':x:' in result
+        assert 'Down' in result
+        assert '> Motor makes grinding noise' in result
+        assert '> ETA: Feb 20, 2026' in result
+        assert '> Assigned to: Marcus' in result
+
+    def test_degraded_no_eta(self, app, make_equipment):
+        """Degraded shows description but no ETA line."""
+        from esb.slack.forms import format_equipment_status_detail
+
+        equip = make_equipment('Band Saw', 'Jet', 'JWBS')
+        detail = {
+            'color': 'yellow', 'label': 'Degraded',
+            'issue_description': 'Belt slipping',
+            'severity': 'Degraded',
+            'eta': None, 'assignee_name': None,
+        }
+        result = format_equipment_status_detail(equip, detail)
+        assert ':warning:' in result
+        assert 'Degraded' in result
+        assert '> Belt slipping' in result
+        assert 'ETA' not in result
+
+
+class TestFormatEquipmentList:
+    """Tests for format_equipment_list()."""
+
+    def test_lists_matches(self, app, make_area, make_equipment):
+        """Lists matching equipment with area names."""
+        from esb.slack.forms import format_equipment_list
+
+        area = make_area('Woodshop', '#wood')
+        eq1 = make_equipment('Band Saw', 'Jet', 'JWBS', area=area)
+        eq2 = make_equipment('SawStop #1', 'SawStop', 'PCS', area=area)
+
+        result = format_equipment_list([eq1, eq2], 'saw')
+        assert 'Multiple equipment items match "saw"' in result
+        assert 'Band Saw (Woodshop)' in result
+        assert 'SawStop #1 (Woodshop)' in result
+        assert '/esb-status' in result

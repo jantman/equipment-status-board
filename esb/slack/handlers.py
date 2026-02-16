@@ -211,6 +211,39 @@ def register_handlers(bolt_app):
             text=f':white_check_mark: Repair record #{record.id} created for *{equipment_name}*',
         )
 
+    @bolt_app.command('/esb-status')
+    def handle_esb_status(ack, body, client):
+        ack()
+        search_term = body.get('text', '').strip()
+
+        if not search_term:
+            from esb.services import status_service
+            dashboard = status_service.get_area_status_dashboard()
+            from esb.slack.forms import format_status_summary
+            text = format_status_summary(dashboard)
+        else:
+            from esb.services import equipment_service, status_service
+            matches = equipment_service.search_equipment_by_name(search_term)
+            if len(matches) == 0:
+                text = (
+                    f':mag: Equipment not found: "{search_term}"\n'
+                    'Check the spelling or use the full equipment name. '
+                    'Try `/esb-status` with no arguments to see all equipment.'
+                )
+            elif len(matches) == 1:
+                detail = status_service.get_equipment_status_detail(matches[0].id)
+                from esb.slack.forms import format_equipment_status_detail
+                text = format_equipment_status_detail(matches[0], detail)
+            else:
+                from esb.slack.forms import format_equipment_list
+                text = format_equipment_list(matches, search_term)
+
+        client.chat_postEphemeral(
+            channel=body['channel_id'],
+            user=body['user_id'],
+            text=text,
+        )
+
     @bolt_app.command('/esb-update')
     def handle_esb_update(ack, body, client):
         ack()

@@ -1,4 +1,89 @@
-"""Block Kit modal builder functions for Slack commands."""
+"""Block Kit modal builder and message formatting functions for Slack commands."""
+
+
+_STATUS_EMOJI = {
+    'green': ':white_check_mark:',
+    'yellow': ':warning:',
+    'red': ':x:',
+}
+
+
+def format_status_summary(dashboard_data):
+    """Format area status dashboard data as Slack mrkdwn text.
+
+    Args:
+        dashboard_data: List of dicts from status_service.get_area_status_dashboard().
+
+    Returns:
+        Formatted mrkdwn string for ephemeral Slack message.
+    """
+    if not dashboard_data or all(not area_data['equipment'] for area_data in dashboard_data):
+        return 'No equipment has been registered yet.'
+
+    lines = [':bar_chart: *Equipment Status Summary*\n']
+
+    for area_data in dashboard_data:
+        area = area_data['area']
+        equipment_list = area_data['equipment']
+        if not equipment_list:
+            continue
+
+        counts = {'green': 0, 'yellow': 0, 'red': 0}
+        for equip_data in equipment_list:
+            color = equip_data['status']['color']
+            counts[color] = counts.get(color, 0) + 1
+
+        lines.append(
+            f"*{area.name}* — "
+            f"{counts['green']} :white_check_mark: operational, "
+            f"{counts['yellow']} :warning: degraded, "
+            f"{counts['red']} :x: down"
+        )
+
+    return '\n'.join(lines)
+
+
+def format_equipment_status_detail(equipment, status_detail):
+    """Format single equipment status detail as Slack mrkdwn text.
+
+    Args:
+        equipment: Equipment model instance.
+        status_detail: Dict from status_service.get_equipment_status_detail().
+
+    Returns:
+        Formatted mrkdwn string.
+    """
+    emoji = _STATUS_EMOJI.get(status_detail['color'], ':grey_question:')
+    area_name = equipment.area.name if equipment.area else 'No Area'
+    text = f"{emoji} *{equipment.name}* ({area_name}) — {status_detail['label']}"
+
+    if status_detail['color'] != 'green':
+        if status_detail.get('issue_description'):
+            text += f"\n> {status_detail['issue_description']}"
+        if status_detail.get('eta'):
+            text += f"\n> ETA: {status_detail['eta'].strftime('%b %d, %Y')}"
+        if status_detail.get('assignee_name'):
+            text += f"\n> Assigned to: {status_detail['assignee_name']}"
+
+    return text
+
+
+def format_equipment_list(matches, search_term):
+    """Format a list of matching equipment for disambiguation.
+
+    Args:
+        matches: List of Equipment model instances.
+        search_term: Original search string from the user.
+
+    Returns:
+        Formatted mrkdwn string.
+    """
+    lines = [f'Multiple equipment items match "{search_term}":']
+    for equip in matches:
+        area_name = equip.area.name if equip.area else 'No Area'
+        lines.append(f'\u2022 {equip.name} ({area_name})')
+    lines.append('\nPlease be more specific. Try `/esb-status [full name]`')
+    return '\n'.join(lines)
 
 
 def build_equipment_options():

@@ -617,6 +617,154 @@ class TestResolveEsbUser:
         assert user is None
 
 
+class TestEsbStatusCommand:
+    """Tests for /esb-status command handler."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, app, db):
+        self.app = app
+        self.db = db
+        self.area = _create_area(name='Woodshop', slack_channel='#woodshop')
+        self.equipment = _create_equipment(name='SawStop', area=self.area)
+        self.handlers = _register_and_capture(app)
+
+    def test_handler_registered(self):
+        """Verify /esb-status is registered on bolt_app."""
+        assert 'command:/esb-status' in self.handlers
+
+    def test_no_args_shows_summary(self):
+        """/esb-status with no args shows area summary."""
+        ack = MagicMock()
+        client = MagicMock()
+        body = {
+            'trigger_id': 'T123',
+            'user_id': 'U123',
+            'channel_id': 'C123',
+            'text': '',
+        }
+
+        self.handlers['command:/esb-status'](ack=ack, body=body, client=client)
+
+        ack.assert_called_once()
+        client.chat_postEphemeral.assert_called_once()
+        response_text = client.chat_postEphemeral.call_args.kwargs['text']
+        assert 'Equipment Status Summary' in response_text
+
+    def test_exact_match_shows_detail(self):
+        """Single match shows equipment detail."""
+        ack = MagicMock()
+        client = MagicMock()
+        body = {
+            'trigger_id': 'T123',
+            'user_id': 'U123',
+            'channel_id': 'C123',
+            'text': 'SawStop',
+        }
+
+        self.handlers['command:/esb-status'](ack=ack, body=body, client=client)
+
+        ack.assert_called_once()
+        client.chat_postEphemeral.assert_called_once()
+        response_text = client.chat_postEphemeral.call_args.kwargs['text']
+        assert 'SawStop' in response_text
+        assert 'Operational' in response_text
+
+    def test_no_match_shows_error(self):
+        """Posts 'Equipment not found' for no matches."""
+        ack = MagicMock()
+        client = MagicMock()
+        body = {
+            'trigger_id': 'T123',
+            'user_id': 'U123',
+            'channel_id': 'C123',
+            'text': 'NonexistentThing',
+        }
+
+        self.handlers['command:/esb-status'](ack=ack, body=body, client=client)
+
+        ack.assert_called_once()
+        client.chat_postEphemeral.assert_called_once()
+        response_text = client.chat_postEphemeral.call_args.kwargs['text']
+        assert 'Equipment not found' in response_text
+
+    def test_multiple_matches_shows_list(self):
+        """Posts disambiguation list for multiple matches."""
+        _create_equipment(name='Band Saw', area=self.area)
+
+        ack = MagicMock()
+        client = MagicMock()
+        body = {
+            'trigger_id': 'T123',
+            'user_id': 'U123',
+            'channel_id': 'C123',
+            'text': 'Saw',
+        }
+
+        self.handlers['command:/esb-status'](ack=ack, body=body, client=client)
+
+        ack.assert_called_once()
+        client.chat_postEphemeral.assert_called_once()
+        response_text = client.chat_postEphemeral.call_args.kwargs['text']
+        assert 'Multiple equipment items match' in response_text
+        assert 'Band Saw' in response_text
+        assert 'SawStop' in response_text
+
+    def test_partial_match_single(self):
+        """Partial name with one match shows detail."""
+        ack = MagicMock()
+        client = MagicMock()
+        body = {
+            'trigger_id': 'T123',
+            'user_id': 'U123',
+            'channel_id': 'C123',
+            'text': 'Stop',
+        }
+
+        self.handlers['command:/esb-status'](ack=ack, body=body, client=client)
+
+        ack.assert_called_once()
+        client.chat_postEphemeral.assert_called_once()
+        response_text = client.chat_postEphemeral.call_args.kwargs['text']
+        assert 'SawStop' in response_text
+
+    def test_ack_called_immediately(self):
+        """ack() is called before any other operations."""
+        ack = MagicMock()
+        client = MagicMock()
+        body = {
+            'trigger_id': 'T123',
+            'user_id': 'U123',
+            'channel_id': 'C123',
+            'text': '',
+        }
+
+        self.handlers['command:/esb-status'](ack=ack, body=body, client=client)
+
+        ack.assert_called_once()
+
+    def test_empty_dashboard(self):
+        """No equipment returns appropriate message."""
+        from esb.models.equipment import Equipment
+        Equipment.query.delete()
+        self.db.session.commit()
+
+        ack = MagicMock()
+        client = MagicMock()
+        body = {
+            'trigger_id': 'T123',
+            'user_id': 'U123',
+            'channel_id': 'C123',
+            'text': '',
+        }
+
+        self.handlers['command:/esb-status'](ack=ack, body=body, client=client)
+
+        ack.assert_called_once()
+        client.chat_postEphemeral.assert_called_once()
+        response_text = client.chat_postEphemeral.call_args.kwargs['text']
+        assert 'No equipment' in response_text
+
+
 class TestHandlersWithFlaskAppContext:
     """5.14: Test all handlers work within Flask app context."""
 

@@ -388,6 +388,27 @@ def delete_equipment_link(
     log_mutation('equipment_link.deleted', deleted_by, log_data)
 
 
+def search_equipment_by_name(search_term: str) -> list[Equipment]:
+    """Search for non-archived equipment by name (case-insensitive partial match).
+
+    Args:
+        search_term: Search string to match against equipment names.
+
+    Returns:
+        List of matching Equipment instances, ordered by name.
+    """
+    return list(
+        db.session.execute(
+            db.select(Equipment)
+            .filter(
+                Equipment.is_archived.is_(False),
+                Equipment.name.ilike(f'%{search_term}%'),
+            )
+            .order_by(Equipment.name)
+        ).scalars().all()
+    )
+
+
 def get_equipment_links(equipment_id: int) -> list[ExternalLink]:
     """Get all external links for an equipment item, ordered by created_at desc."""
     return list(
