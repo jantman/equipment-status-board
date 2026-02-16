@@ -27,6 +27,34 @@ def _serialize(value):
     return str(value) if value is not None else None
 
 
+def _queue_slack_notification(equipment, event_type, extra_payload=None):
+    """Queue a slack_message notification for a repair event.
+
+    Args:
+        equipment: Equipment model instance (must have area relationship loaded).
+        event_type: One of 'new_report', 'resolved', 'severity_changed', 'eta_updated'.
+        extra_payload: Additional payload fields to merge.
+    """
+    from esb.services import notification_service
+
+    payload = {
+        'event_type': event_type,
+        'equipment_id': equipment.id,
+        'equipment_name': equipment.name,
+        'area_name': equipment.area.name if equipment.area else 'Unknown',
+    }
+    if extra_payload:
+        payload.update(extra_payload)
+
+    target = equipment.area.slack_channel if equipment.area and equipment.area.slack_channel else '#general'
+
+    notification_service.queue_notification(
+        notification_type='slack_message',
+        target=target,
+        payload=payload,
+    )
+
+
 def create_repair_record(
     equipment_id: int,
     description: str,
@@ -133,6 +161,16 @@ def create_repair_record(
         target='status_change',
         payload={'trigger': 'repair_record_created', 'equipment_id': equipment_id},
     )
+
+    # Queue Slack notification if new_report trigger is enabled
+    from esb.services import config_service
+    if config_service.get_config('notify_new_report', 'true') == 'true':
+        _queue_slack_notification(equipment, 'new_report', {
+            'severity': severity,
+            'description': description.strip(),
+            'reporter_name': reporter_name,
+            'has_safety_risk': has_safety_risk,
+        })
 
     return record
 
@@ -408,6 +446,34 @@ def update_repair_record(
                 'changes': list(audit_changes.keys()),
             },
         )
+
+    # Queue Slack notifications based on trigger configuration
+    from esb.services import config_service
+
+    # Resolved trigger: status changed to a resolved/closed status
+    resolved_statuses = {'Resolved', 'Closed - No Issue Found', 'Closed - Duplicate'}
+    if 'status' in audit_changes and audit_changes['status'][1] in resolved_statuses:
+        if config_service.get_config('notify_resolved', 'true') == 'true':
+            _queue_slack_notification(record.equipment, 'resolved', {
+                'old_status': audit_changes['status'][0],
+                'new_status': audit_changes['status'][1],
+            })
+
+    # Severity changed trigger
+    if 'severity' in audit_changes:
+        if config_service.get_config('notify_severity_changed', 'true') == 'true':
+            _queue_slack_notification(record.equipment, 'severity_changed', {
+                'old_severity': audit_changes['severity'][0],
+                'new_severity': audit_changes['severity'][1],
+            })
+
+    # ETA updated trigger
+    if 'eta' in audit_changes:
+        if config_service.get_config('notify_eta_updated', 'true') == 'true':
+            _queue_slack_notification(record.equipment, 'eta_updated', {
+                'eta': str(audit_changes['eta'][1]) if audit_changes['eta'][1] else None,
+                'old_eta': str(audit_changes['eta'][0]) if audit_changes['eta'][0] else None,
+            })
 
     return record
 

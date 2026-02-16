@@ -699,9 +699,11 @@ class TestAppConfig:
             json.loads(r.message) for r in capture.records
             if 'app_config.updated' in r.message
         ]
-        assert len(entries) == 1
-        assert entries[0]['data']['key'] == 'tech_doc_edit_enabled'
-        assert entries[0]['data']['new_value'] == 'true'
+        # All 5 config fields are saved (1 permission + 4 triggers)
+        assert len(entries) == 5
+        tech_doc_entries = [e for e in entries if e['data']['key'] == 'tech_doc_edit_enabled']
+        assert len(tech_doc_entries) == 1
+        assert tech_doc_entries[0]['data']['new_value'] == 'true'
 
     def test_config_nav_tab_visible(self, staff_client, staff_user):
         """Config tab is visible in admin navigation."""
@@ -714,6 +716,73 @@ class TestAppConfig:
         resp = client.get('/admin/config')
         assert resp.status_code == 302
         assert '/auth/login' in resp.headers['Location']
+
+
+class TestAppConfigNotificationTriggers:
+    """Tests for notification trigger configuration in /admin/config."""
+
+    def test_config_shows_notification_triggers(self, staff_client, staff_user):
+        """Config page shows notification trigger toggles."""
+        resp = staff_client.get('/admin/config')
+        assert resp.status_code == 200
+        assert b'Notification Triggers' in resp.data
+        assert b'notify_new_report' in resp.data
+        assert b'notify_resolved' in resp.data
+        assert b'notify_severity_changed' in resp.data
+        assert b'notify_eta_updated' in resp.data
+
+    def test_triggers_enabled_by_default(self, staff_client, staff_user):
+        """Triggers are checked (enabled) by default when no config exists."""
+        resp = staff_client.get('/admin/config')
+        assert resp.status_code == 200
+        # All four trigger checkboxes should be checked by default
+        assert resp.data.count(b'checked') >= 4
+
+    def test_disable_trigger(self, staff_client, staff_user):
+        """Staff can disable a notification trigger."""
+        resp = staff_client.post('/admin/config', data={
+            'tech_doc_edit_enabled': 'y',
+            'notify_new_report': 'y',
+            'notify_resolved': 'y',
+            'notify_severity_changed': 'y',
+            # notify_eta_updated NOT included = disabled
+        }, follow_redirects=True)
+        assert resp.status_code == 200
+        assert b'Configuration updated successfully' in resp.data
+
+        from esb.services import config_service
+        assert config_service.get_config('notify_eta_updated') == 'false'
+
+    def test_enable_trigger(self, staff_client, staff_user):
+        """Staff can enable a notification trigger."""
+        from esb.services import config_service
+        config_service.set_config('notify_new_report', 'false', changed_by='test')
+
+        resp = staff_client.post('/admin/config', data={
+            'notify_new_report': 'y',
+        }, follow_redirects=True)
+        assert resp.status_code == 200
+        assert b'Configuration updated successfully' in resp.data
+        assert config_service.get_config('notify_new_report') == 'true'
+
+    def test_trigger_config_mutation_logging(self, staff_client, staff_user, capture):
+        """Trigger config changes log mutations."""
+        capture.records.clear()
+        staff_client.post('/admin/config', data={
+            'notify_new_report': 'y',
+        })
+        entries = [
+            json.loads(r.message) for r in capture.records
+            if 'app_config.updated' in r.message
+        ]
+        # At least one notification trigger config change logged
+        notify_entries = [e for e in entries if e['data']['key'].startswith('notify_')]
+        assert len(notify_entries) >= 1
+
+    def test_technician_cannot_access_config(self, tech_client):
+        """Technician gets 403 on config page."""
+        resp = tech_client.get('/admin/config')
+        assert resp.status_code == 403
 
 
 class TestAreaMutationLogging:

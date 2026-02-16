@@ -225,11 +225,43 @@ def app_config():
         form.tech_doc_edit_enabled.data = (
             config_service.get_config('tech_doc_edit_enabled', 'false') == 'true'
         )
+        form.notify_new_report.data = (
+            config_service.get_config('notify_new_report', 'true') == 'true'
+        )
+        form.notify_resolved.data = (
+            config_service.get_config('notify_resolved', 'true') == 'true'
+        )
+        form.notify_severity_changed.data = (
+            config_service.get_config('notify_severity_changed', 'true') == 'true'
+        )
+        form.notify_eta_updated.data = (
+            config_service.get_config('notify_eta_updated', 'true') == 'true'
+        )
 
     if form.validate_on_submit():
         config_service.set_config(
             'tech_doc_edit_enabled',
             'true' if form.tech_doc_edit_enabled.data else 'false',
+            changed_by=current_user.username,
+        )
+        config_service.set_config(
+            'notify_new_report',
+            'true' if form.notify_new_report.data else 'false',
+            changed_by=current_user.username,
+        )
+        config_service.set_config(
+            'notify_resolved',
+            'true' if form.notify_resolved.data else 'false',
+            changed_by=current_user.username,
+        )
+        config_service.set_config(
+            'notify_severity_changed',
+            'true' if form.notify_severity_changed.data else 'false',
+            changed_by=current_user.username,
+        )
+        config_service.set_config(
+            'notify_eta_updated',
+            'true' if form.notify_eta_updated.data else 'false',
             changed_by=current_user.username,
         )
         flash('Configuration updated successfully.', 'success')

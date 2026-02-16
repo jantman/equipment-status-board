@@ -34,6 +34,10 @@ class AppConfigForm(FlaskForm):
     """Form for application configuration settings."""
 
     tech_doc_edit_enabled = BooleanField('Allow Technicians to edit equipment documentation')
+    notify_new_report = BooleanField('New problem report submitted')
+    notify_resolved = BooleanField('Repair record resolved or closed')
+    notify_severity_changed = BooleanField('Severity level changed')
+    notify_eta_updated = BooleanField('ETA set or updated')
     submit = SubmitField('Save Configuration')
 
 

@@ -242,6 +242,281 @@ class TestUpdateRepairRecordStaticPageHook:
         assert len(notifications) == 0
 
 
+class TestCreateRepairRecordSlackNotification:
+    """Test slack_message notification queuing on repair record creation."""
+
+    def test_slack_notification_queued_when_trigger_enabled(self, app, make_area, make_equipment, staff_user, capture):
+        """create_repair_record() queues slack_message when notify_new_report is enabled (default)."""
+        from esb.models.pending_notification import PendingNotification
+
+        area = make_area(name='Woodshop', slack_channel='#woodshop')
+        equip = make_equipment(name='SawStop', area=area)
+
+        repair_service.create_repair_record(
+            equipment_id=equip.id, description='Motor broken',
+            created_by='staffuser', reporter_name='Test User', severity='Down',
+            author_id=staff_user.id,
+        )
+
+        notifications = _db.session.execute(
+            _db.select(PendingNotification).filter_by(notification_type='slack_message')
+        ).scalars().all()
+        assert len(notifications) == 1
+        assert notifications[0].target == '#woodshop'
+        assert notifications[0].payload['event_type'] == 'new_report'
+        assert notifications[0].payload['equipment_name'] == 'SawStop'
+        assert notifications[0].payload['area_name'] == 'Woodshop'
+
+    def test_no_slack_notification_when_trigger_disabled(self, app, make_area, make_equipment, staff_user, capture):
+        """create_repair_record() does NOT queue slack_message when notify_new_report is disabled."""
+        from esb.models.pending_notification import PendingNotification
+        from esb.services import config_service
+
+        config_service.set_config('notify_new_report', 'false', changed_by='test')
+
+        area = make_area(name='Woodshop', slack_channel='#woodshop')
+        equip = make_equipment(name='SawStop', area=area)
+
+        repair_service.create_repair_record(
+            equipment_id=equip.id, description='Motor broken',
+            created_by='staffuser', reporter_name='Test User', severity='Down',
+            author_id=staff_user.id,
+        )
+
+        notifications = _db.session.execute(
+            _db.select(PendingNotification).filter_by(notification_type='slack_message')
+        ).scalars().all()
+        assert len(notifications) == 0
+
+    def test_slack_payload_contains_correct_fields(self, app, make_area, make_equipment, staff_user, capture):
+        """slack_message payload contains all expected fields."""
+        from esb.models.pending_notification import PendingNotification
+
+        area = make_area(name='Woodshop', slack_channel='#woodshop')
+        equip = make_equipment(name='SawStop', area=area)
+
+        repair_service.create_repair_record(
+            equipment_id=equip.id, description='Motor broken',
+            created_by='staffuser', reporter_name='Test User', severity='Down',
+            has_safety_risk=True, author_id=staff_user.id,
+        )
+
+        notification = _db.session.execute(
+            _db.select(PendingNotification).filter_by(notification_type='slack_message')
+        ).scalar_one()
+        payload = notification.payload
+        assert payload['event_type'] == 'new_report'
+        assert payload['equipment_id'] == equip.id
+        assert payload['equipment_name'] == 'SawStop'
+        assert payload['area_name'] == 'Woodshop'
+        assert payload['severity'] == 'Down'
+        assert payload['description'] == 'Motor broken'
+        assert payload['reporter_name'] == 'Test User'
+        assert payload['has_safety_risk'] is True
+
+
+class TestUpdateRepairRecordSlackNotification:
+    """Test slack_message notification queuing on repair record updates."""
+
+    def test_resolved_status_queues_notification(self, app, make_area, make_equipment, staff_user, capture):
+        """update_repair_record() with status->Resolved queues slack_message when notify_resolved is enabled."""
+        from esb.models.pending_notification import PendingNotification
+
+        area = make_area(name='Woodshop', slack_channel='#woodshop')
+        equip = make_equipment(name='SawStop', area=area)
+        record = RepairRecord(equipment_id=equip.id, description='Test', status='In Progress')
+        _db.session.add(record)
+        _db.session.commit()
+
+        repair_service.update_repair_record(
+            record.id, 'staffuser', author_id=staff_user.id, status='Resolved',
+        )
+
+        notifications = _db.session.execute(
+            _db.select(PendingNotification).filter_by(notification_type='slack_message')
+        ).scalars().all()
+        assert len(notifications) == 1
+        assert notifications[0].payload['event_type'] == 'resolved'
+        assert notifications[0].payload['old_status'] == 'In Progress'
+        assert notifications[0].payload['new_status'] == 'Resolved'
+
+    def test_resolved_status_no_notification_when_disabled(self, app, make_area, make_equipment, staff_user, capture):
+        """update_repair_record() with status->Resolved does NOT queue slack_message when disabled."""
+        from esb.models.pending_notification import PendingNotification
+        from esb.services import config_service
+
+        config_service.set_config('notify_resolved', 'false', changed_by='test')
+
+        area = make_area(name='Woodshop', slack_channel='#woodshop')
+        equip = make_equipment(name='SawStop', area=area)
+        record = RepairRecord(equipment_id=equip.id, description='Test', status='In Progress')
+        _db.session.add(record)
+        _db.session.commit()
+
+        repair_service.update_repair_record(
+            record.id, 'staffuser', author_id=staff_user.id, status='Resolved',
+        )
+
+        notifications = _db.session.execute(
+            _db.select(PendingNotification).filter_by(notification_type='slack_message')
+        ).scalars().all()
+        assert len(notifications) == 0
+
+    def test_severity_change_queues_notification(self, app, make_area, make_equipment, staff_user, capture):
+        """update_repair_record() with severity change queues slack_message when enabled."""
+        from esb.models.pending_notification import PendingNotification
+
+        area = make_area(name='Woodshop', slack_channel='#woodshop')
+        equip = make_equipment(name='SawStop', area=area)
+        record = RepairRecord(equipment_id=equip.id, description='Test', severity='Degraded')
+        _db.session.add(record)
+        _db.session.commit()
+
+        repair_service.update_repair_record(
+            record.id, 'staffuser', author_id=staff_user.id, severity='Down',
+        )
+
+        notifications = _db.session.execute(
+            _db.select(PendingNotification).filter_by(notification_type='slack_message')
+        ).scalars().all()
+        assert len(notifications) == 1
+        assert notifications[0].payload['event_type'] == 'severity_changed'
+        assert notifications[0].payload['old_severity'] == 'Degraded'
+        assert notifications[0].payload['new_severity'] == 'Down'
+
+    def test_severity_change_no_notification_when_disabled(self, app, make_area, make_equipment, staff_user, capture):
+        """update_repair_record() with severity change does NOT queue when disabled."""
+        from esb.models.pending_notification import PendingNotification
+        from esb.services import config_service
+
+        config_service.set_config('notify_severity_changed', 'false', changed_by='test')
+
+        area = make_area(name='Woodshop', slack_channel='#woodshop')
+        equip = make_equipment(name='SawStop', area=area)
+        record = RepairRecord(equipment_id=equip.id, description='Test', severity='Degraded')
+        _db.session.add(record)
+        _db.session.commit()
+
+        repair_service.update_repair_record(
+            record.id, 'staffuser', author_id=staff_user.id, severity='Down',
+        )
+
+        notifications = _db.session.execute(
+            _db.select(PendingNotification).filter_by(notification_type='slack_message')
+        ).scalars().all()
+        assert len(notifications) == 0
+
+    def test_eta_change_queues_notification(self, app, make_area, make_equipment, staff_user, capture):
+        """update_repair_record() with ETA change queues slack_message when enabled."""
+        from datetime import date
+
+        from esb.models.pending_notification import PendingNotification
+
+        area = make_area(name='Woodshop', slack_channel='#woodshop')
+        equip = make_equipment(name='SawStop', area=area)
+        record = RepairRecord(equipment_id=equip.id, description='Test')
+        _db.session.add(record)
+        _db.session.commit()
+
+        repair_service.update_repair_record(
+            record.id, 'staffuser', author_id=staff_user.id, eta=date(2026, 3, 15),
+        )
+
+        notifications = _db.session.execute(
+            _db.select(PendingNotification).filter_by(notification_type='slack_message')
+        ).scalars().all()
+        assert len(notifications) == 1
+        assert notifications[0].payload['event_type'] == 'eta_updated'
+        assert notifications[0].payload['eta'] == '2026-03-15'
+
+    def test_eta_change_no_notification_when_disabled(self, app, make_area, make_equipment, staff_user, capture):
+        """update_repair_record() with ETA change does NOT queue when disabled."""
+        from datetime import date
+
+        from esb.models.pending_notification import PendingNotification
+        from esb.services import config_service
+
+        config_service.set_config('notify_eta_updated', 'false', changed_by='test')
+
+        area = make_area(name='Woodshop', slack_channel='#woodshop')
+        equip = make_equipment(name='SawStop', area=area)
+        record = RepairRecord(equipment_id=equip.id, description='Test')
+        _db.session.add(record)
+        _db.session.commit()
+
+        repair_service.update_repair_record(
+            record.id, 'staffuser', author_id=staff_user.id, eta=date(2026, 3, 15),
+        )
+
+        notifications = _db.session.execute(
+            _db.select(PendingNotification).filter_by(notification_type='slack_message')
+        ).scalars().all()
+        assert len(notifications) == 0
+
+    def test_multiple_triggers_in_one_update(self, app, make_area, make_equipment, staff_user, capture):
+        """Multiple triggers in one update (severity change + status->Resolved) queue multiple notifications."""
+        from esb.models.pending_notification import PendingNotification
+
+        area = make_area(name='Woodshop', slack_channel='#woodshop')
+        equip = make_equipment(name='SawStop', area=area)
+        record = RepairRecord(equipment_id=equip.id, description='Test', status='In Progress', severity='Degraded')
+        _db.session.add(record)
+        _db.session.commit()
+
+        repair_service.update_repair_record(
+            record.id, 'staffuser', author_id=staff_user.id,
+            status='Resolved', severity='Down',
+        )
+
+        notifications = _db.session.execute(
+            _db.select(PendingNotification).filter_by(notification_type='slack_message')
+        ).scalars().all()
+        event_types = {n.payload['event_type'] for n in notifications}
+        assert 'resolved' in event_types
+        assert 'severity_changed' in event_types
+        assert len(notifications) == 2
+
+    def test_non_resolved_status_does_not_queue_resolved(self, app, make_area, make_equipment, staff_user, capture):
+        """Status change to non-resolved status does NOT queue resolved notification."""
+        from esb.models.pending_notification import PendingNotification
+
+        area = make_area(name='Woodshop', slack_channel='#woodshop')
+        equip = make_equipment(name='SawStop', area=area)
+        record = RepairRecord(equipment_id=equip.id, description='Test', status='New')
+        _db.session.add(record)
+        _db.session.commit()
+
+        repair_service.update_repair_record(
+            record.id, 'staffuser', author_id=staff_user.id, status='In Progress',
+        )
+
+        notifications = _db.session.execute(
+            _db.select(PendingNotification).filter_by(notification_type='slack_message')
+        ).scalars().all()
+        assert len(notifications) == 0
+
+    def test_closed_no_issue_queues_resolved(self, app, make_area, make_equipment, staff_user, capture):
+        """Status change to 'Closed - No Issue Found' queues resolved notification."""
+        from esb.models.pending_notification import PendingNotification
+
+        area = make_area(name='Woodshop', slack_channel='#woodshop')
+        equip = make_equipment(name='SawStop', area=area)
+        record = RepairRecord(equipment_id=equip.id, description='Test', status='In Progress')
+        _db.session.add(record)
+        _db.session.commit()
+
+        repair_service.update_repair_record(
+            record.id, 'staffuser', author_id=staff_user.id, status='Closed - No Issue Found',
+        )
+
+        notifications = _db.session.execute(
+            _db.select(PendingNotification).filter_by(notification_type='slack_message')
+        ).scalars().all()
+        assert len(notifications) == 1
+        assert notifications[0].payload['event_type'] == 'resolved'
+        assert notifications[0].payload['new_status'] == 'Closed - No Issue Found'
+
+
 class TestGetRepairRecord:
     """Tests for get_repair_record()."""
 

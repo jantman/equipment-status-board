@@ -1,6 +1,6 @@
 # Story 5.3: Notification Trigger Configuration
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -28,48 +28,48 @@ So that the team gets notified about important changes without being overwhelmed
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Add notification trigger fields to `AppConfigForm` in `esb/forms/admin_forms.py` (AC: #1, #2)
-  - [ ] 1.1: Add `BooleanField` for `notify_new_report` with label "New problem report submitted"
-  - [ ] 1.2: Add `BooleanField` for `notify_resolved` with label "Repair record resolved"
-  - [ ] 1.3: Add `BooleanField` for `notify_severity_changed` with label "Severity changed"
-  - [ ] 1.4: Add `BooleanField` for `notify_eta_updated` with label "ETA set or updated"
+- [x] Task 1: Add notification trigger fields to `AppConfigForm` in `esb/forms/admin_forms.py` (AC: #1, #2)
+  - [x] 1.1: Add `BooleanField` for `notify_new_report` with label "New problem report submitted"
+  - [x] 1.2: Add `BooleanField` for `notify_resolved` with label "Repair record resolved"
+  - [x] 1.3: Add `BooleanField` for `notify_severity_changed` with label "Severity changed"
+  - [x] 1.4: Add `BooleanField` for `notify_eta_updated` with label "ETA set or updated"
 
-- [ ] Task 2: Update admin config view in `esb/views/admin.py` (AC: #1, #3, #6, #7)
-  - [ ] 2.1: On GET, populate the 4 trigger fields from AppConfig via `config_service.get_config()` (default 'true')
-  - [ ] 2.2: On POST, save each trigger field via `config_service.set_config()` with `changed_by=current_user.username`
-  - [ ] 2.3: Mutation logging already handled by `config_service.set_config()` -- no extra code needed
+- [x] Task 2: Update admin config view in `esb/views/admin.py` (AC: #1, #3, #6, #7)
+  - [x] 2.1: On GET, populate the 4 trigger fields from AppConfig via `config_service.get_config()` (default 'true')
+  - [x] 2.2: On POST, save each trigger field via `config_service.set_config()` with `changed_by=current_user.username`
+  - [x] 2.3: Mutation logging already handled by `config_service.set_config()` -- no extra code needed
 
-- [ ] Task 3: Update admin config template `esb/templates/admin/config.html` (AC: #1, #2)
-  - [ ] 3.1: Add a "Notification Triggers" Bootstrap card section after the existing "Permissions" card
-  - [ ] 3.2: Display each trigger as a `form-check form-switch` toggle with descriptive labels
-  - [ ] 3.3: Add form-text explaining: "These control which events queue Slack notifications. Slack delivery requires Epic 6."
+- [x] Task 3: Update admin config template `esb/templates/admin/config.html` (AC: #1, #2)
+  - [x] 3.1: Add a "Notification Triggers" Bootstrap card section after the existing "Permissions" card
+  - [x] 3.2: Display each trigger as a `form-check form-switch` toggle with descriptive labels
+  - [x] 3.3: Add form-text explaining: "These control which events queue Slack notifications. Slack delivery requires Epic 6."
 
-- [ ] Task 4: Add notification trigger checking and `slack_message` queuing in `esb/services/repair_service.py` (AC: #4, #5, #6)
-  - [ ] 4.1: Create a helper function `_queue_slack_notification(equipment, event_type, extra_payload=None)` that builds and queues a `slack_message` notification with the standard payload structure
-  - [ ] 4.2: In `create_repair_record()`, after commit: check `notify_new_report` config, if enabled queue `slack_message` with event_type='new_report'
-  - [ ] 4.3: In `update_repair_record()`, after commit: check `notify_resolved` config when status changes to a resolved/closed status, if enabled queue `slack_message` with event_type='resolved'
-  - [ ] 4.4: In `update_repair_record()`, after commit: check `notify_severity_changed` config when severity changes, if enabled queue `slack_message` with event_type='severity_changed'
-  - [ ] 4.5: In `update_repair_record()`, after commit: check `notify_eta_updated` config when ETA changes, if enabled queue `slack_message` with event_type='eta_updated'
+- [x] Task 4: Add notification trigger checking and `slack_message` queuing in `esb/services/repair_service.py` (AC: #4, #5, #6)
+  - [x] 4.1: Create a helper function `_queue_slack_notification(equipment, event_type, extra_payload=None)` that builds and queues a `slack_message` notification with the standard payload structure
+  - [x] 4.2: In `create_repair_record()`, after commit: check `notify_new_report` config, if enabled queue `slack_message` with event_type='new_report'
+  - [x] 4.3: In `update_repair_record()`, after commit: check `notify_resolved` config when status changes to a resolved/closed status, if enabled queue `slack_message` with event_type='resolved'
+  - [x] 4.4: In `update_repair_record()`, after commit: check `notify_severity_changed` config when severity changes, if enabled queue `slack_message` with event_type='severity_changed'
+  - [x] 4.5: In `update_repair_record()`, after commit: check `notify_eta_updated` config when ETA changes, if enabled queue `slack_message` with event_type='eta_updated'
 
-- [ ] Task 5: Write admin view tests in `tests/test_views/test_admin_views.py` (AC: #1, #2, #3, #6, #7)
-  - [ ] 5.1: Test GET `/admin/config` shows notification trigger toggles
-  - [ ] 5.2: Test GET shows triggers enabled by default (when no AppConfig entries exist)
-  - [ ] 5.3: Test POST disabling a trigger stores 'false' in AppConfig
-  - [ ] 5.4: Test POST enabling a trigger stores 'true' in AppConfig
-  - [ ] 5.5: Test mutation logging on trigger config changes
-  - [ ] 5.6: Test Technician cannot access config page (403)
+- [x] Task 5: Write admin view tests in `tests/test_views/test_admin_views.py` (AC: #1, #2, #3, #6, #7)
+  - [x] 5.1: Test GET `/admin/config` shows notification trigger toggles
+  - [x] 5.2: Test GET shows triggers enabled by default (when no AppConfig entries exist)
+  - [x] 5.3: Test POST disabling a trigger stores 'false' in AppConfig
+  - [x] 5.4: Test POST enabling a trigger stores 'true' in AppConfig
+  - [x] 5.5: Test mutation logging on trigger config changes
+  - [x] 5.6: Test Technician cannot access config page (403)
 
-- [ ] Task 6: Write repair service trigger tests in `tests/test_services/test_repair_service.py` (AC: #4, #5)
-  - [ ] 6.1: Test `create_repair_record()` queues `slack_message` when `notify_new_report` is enabled (default)
-  - [ ] 6.2: Test `create_repair_record()` does NOT queue `slack_message` when `notify_new_report` is disabled
-  - [ ] 6.3: Test `update_repair_record()` with status→Resolved queues `slack_message` when `notify_resolved` is enabled
-  - [ ] 6.4: Test `update_repair_record()` with status→Resolved does NOT queue `slack_message` when `notify_resolved` is disabled
-  - [ ] 6.5: Test `update_repair_record()` with severity change queues `slack_message` when `notify_severity_changed` is enabled
-  - [ ] 6.6: Test `update_repair_record()` with severity change does NOT queue `slack_message` when `notify_severity_changed` is disabled
-  - [ ] 6.7: Test `update_repair_record()` with ETA change queues `slack_message` when `notify_eta_updated` is enabled
-  - [ ] 6.8: Test `update_repair_record()` with ETA change does NOT queue `slack_message` when `notify_eta_updated` is disabled
-  - [ ] 6.9: Test `slack_message` payload contains correct fields (equipment_name, area_name, severity, event_type, has_safety_risk)
-  - [ ] 6.10: Test multiple triggers in one update (e.g., severity change + status→Resolved) queues multiple notifications
+- [x] Task 6: Write repair service trigger tests in `tests/test_services/test_repair_service.py` (AC: #4, #5)
+  - [x] 6.1: Test `create_repair_record()` queues `slack_message` when `notify_new_report` is enabled (default)
+  - [x] 6.2: Test `create_repair_record()` does NOT queue `slack_message` when `notify_new_report` is disabled
+  - [x] 6.3: Test `update_repair_record()` with status→Resolved queues `slack_message` when `notify_resolved` is enabled
+  - [x] 6.4: Test `update_repair_record()` with status→Resolved does NOT queue `slack_message` when `notify_resolved` is disabled
+  - [x] 6.5: Test `update_repair_record()` with severity change queues `slack_message` when `notify_severity_changed` is enabled
+  - [x] 6.6: Test `update_repair_record()` with severity change does NOT queue `slack_message` when `notify_severity_changed` is disabled
+  - [x] 6.7: Test `update_repair_record()` with ETA change queues `slack_message` when `notify_eta_updated` is enabled
+  - [x] 6.8: Test `update_repair_record()` with ETA change does NOT queue `slack_message` when `notify_eta_updated` is disabled
+  - [x] 6.9: Test `slack_message` payload contains correct fields (equipment_name, area_name, severity, event_type, has_safety_risk)
+  - [x] 6.10: Test multiple triggers in one update (e.g., severity change + status→Resolved) queues multiple notifications
 
 ## Dev Notes
 
@@ -658,10 +658,32 @@ This is expected behavior. When Epic 6 implements `_deliver_slack_message()`, ne
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+Claude Opus 4.6
 
 ### Debug Log References
 
+- Existing test `TestAppConfig::test_config_mutation_logging` needed update: now expects 5 mutation log entries (1 permission + 4 triggers) instead of 1
+
 ### Completion Notes List
 
+- Task 1: Added 4 BooleanField entries to AppConfigForm for notification triggers
+- Task 2: Extended app_config() view to populate triggers on GET (default 'true') and save on POST via config_service
+- Task 3: Added "Notification Triggers" section to config.html with form-switch toggles and descriptive help text
+- Task 4: Added `_queue_slack_notification()` helper and trigger hooks in `create_repair_record()` and `update_repair_record()`. Each trigger checks config fresh per call for immediate effect. Resolved trigger covers all 3 closure statuses. Multiple triggers in one update queue independently.
+- Task 5: 6 admin view tests covering toggle display, defaults, enable/disable, mutation logging, and 403 for technicians
+- Task 6: 10 repair service tests covering all 4 trigger types (enabled/disabled), payload fields, multiple triggers, and edge cases (non-resolved status, Closed - No Issue Found)
+- Updated existing `test_config_mutation_logging` to account for 5 config fields being saved per POST
+- All 813 tests pass (was 795, +18 new). 0 lint errors.
+
+### Change Log
+
+- 2026-02-16: Implemented Story 5.3 - Notification trigger configuration with admin UI toggles and repair service slack_message hooks
+
 ### File List
+
+- esb/forms/admin_forms.py (modified - added 4 BooleanField entries)
+- esb/views/admin.py (modified - extended app_config route for trigger fields)
+- esb/templates/admin/config.html (modified - added Notification Triggers section)
+- esb/services/repair_service.py (modified - added _queue_slack_notification helper and trigger hooks)
+- tests/test_views/test_admin_views.py (modified - added TestAppConfigNotificationTriggers class, updated existing mutation logging test)
+- tests/test_services/test_repair_service.py (modified - added TestCreateRepairRecordSlackNotification and TestUpdateRepairRecordSlackNotification classes)

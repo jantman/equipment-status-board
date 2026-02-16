@@ -23,6 +23,49 @@
                     Equipment core fields (name, manufacturer, model, etc.) remain Staff-only.
                 </div>
             </div>
+            <h5 class="mt-4">Notification Triggers</h5>
+            <p class="text-muted mb-3">Control which events queue Slack notifications. All triggers are enabled by default. Slack delivery requires Epic 6.</p>
+
+            <div class="mb-3">
+                <div class="form-check form-switch">
+                    {{ form.notify_new_report(class="form-check-input", role="switch") }}
+                    <label class="form-check-label" for="{{ form.notify_new_report.id }}">
+                        {{ form.notify_new_report.label.text }}
+                    </label>
+                </div>
+                <div class="form-text">Notify when a new problem report is submitted or repair record created.</div>
+            </div>
+
+            <div class="mb-3">
+                <div class="form-check form-switch">
+                    {{ form.notify_resolved(class="form-check-input", role="switch") }}
+                    <label class="form-check-label" for="{{ form.notify_resolved.id }}">
+                        {{ form.notify_resolved.label.text }}
+                    </label>
+                </div>
+                <div class="form-text">Notify when a repair record is resolved or closed.</div>
+            </div>
+
+            <div class="mb-3">
+                <div class="form-check form-switch">
+                    {{ form.notify_severity_changed(class="form-check-input", role="switch") }}
+                    <label class="form-check-label" for="{{ form.notify_severity_changed.id }}">
+                        {{ form.notify_severity_changed.label.text }}
+                    </label>
+                </div>
+                <div class="form-text">Notify when a repair record's severity level changes.</div>
+            </div>
+
+            <div class="mb-3">
+                <div class="form-check form-switch">
+                    {{ form.notify_eta_updated(class="form-check-input", role="switch") }}
+                    <label class="form-check-label" for="{{ form.notify_eta_updated.id }}">
+                        {{ form.notify_eta_updated.label.text }}
+                    </label>
+                </div>
+                <div class="form-text">Notify when an ETA is set or updated on a repair record.</div>
+            </div>
+
             {{ form.submit(class="btn btn-primary") }}
         </form>
     </div>
