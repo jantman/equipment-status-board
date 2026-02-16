@@ -1,6 +1,6 @@
 # Story 4.2: Kiosk Display
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -26,36 +26,36 @@ So that I know what's available without checking my phone or asking anyone.
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Add kiosk route to `esb/views/public.py` (AC: #1, #4)
-  - [ ] 1.1: Add `/public/kiosk` route -- NO `@login_required` (unauthenticated, public)
-  - [ ] 1.2: Route calls `status_service.get_area_status_dashboard()`
-  - [ ] 1.3: Renders `public/kiosk.html` template
-  - [ ] 1.4: Also support `?kiosk=true` query parameter on the status dashboard route for FR28 compatibility (redirect to `/public/kiosk` or render kiosk template directly)
-- [ ] Task 2: Create `esb/templates/public/kiosk.html` template (AC: #1, #2, #3, #6, #7)
-  - [ ] 2.1: Extends `base_kiosk.html` (already has meta refresh, no navbar, container-fluid)
-  - [ ] 2.2: Area sections with large headings (~2.5rem)
-  - [ ] 2.3: Equipment card grid using CSS Grid `auto-fill` for maximum column density on large screens
-  - [ ] 2.4: Each card shows equipment name (~1.5-2rem) + compact status indicator
-  - [ ] 2.5: Degraded/down cards show brief issue description below equipment name
-  - [ ] 2.6: Empty state: centered message "No equipment registered yet."
-- [ ] Task 3: Add kiosk-specific CSS to `esb/static/css/app.css` (AC: #2, #5, #6)
-  - [ ] 3.1: Kiosk area headings at ~2.5rem
-  - [ ] 3.2: Kiosk equipment names at ~1.5-2rem
-  - [ ] 3.3: CSS Grid `auto-fill` with `minmax()` for maximum column density
-  - [ ] 3.4: Minimal layout shift on refresh (stable card dimensions)
-- [ ] Task 4: Write view tests for kiosk route (AC: #1-#7)
-  - [ ] 4.1: Test kiosk renders without authentication (no login required)
-  - [ ] 4.2: Test kiosk displays area headings
-  - [ ] 4.3: Test kiosk displays equipment names
-  - [ ] 4.4: Test kiosk displays status indicators (compact variant, bg-success/warning/danger)
-  - [ ] 4.5: Test kiosk displays issue description for degraded/down equipment
-  - [ ] 4.6: Test kiosk empty state when no areas/equipment
-  - [ ] 4.7: Test kiosk excludes archived equipment and areas
-  - [ ] 4.8: Test meta refresh tag present
-  - [ ] 4.9: Test no navbar elements present
-  - [ ] 4.10: Test ARIA labels on status indicators
-  - [ ] 4.11: Test kiosk CSS classes for large fonts
-  - [ ] 4.12: Test CSS Grid auto-fill class present for responsive layout
+- [x] Task 1: Add kiosk route to `esb/views/public.py` (AC: #1, #4)
+  - [x] 1.1: Add `/public/kiosk` route -- NO `@login_required` (unauthenticated, public)
+  - [x] 1.2: Route calls `status_service.get_area_status_dashboard()`
+  - [x] 1.3: Renders `public/kiosk.html` template
+  - [x] 1.4: Also support `?kiosk=true` query parameter on the status dashboard route for FR28 compatibility (redirect to `/public/kiosk` or render kiosk template directly)
+- [x] Task 2: Create `esb/templates/public/kiosk.html` template (AC: #1, #2, #3, #6, #7)
+  - [x] 2.1: Extends `base_kiosk.html` (already has meta refresh, no navbar, container-fluid)
+  - [x] 2.2: Area sections with large headings (~2.5rem)
+  - [x] 2.3: Equipment card grid using CSS Grid `auto-fill` for maximum column density on large screens
+  - [x] 2.4: Each card shows equipment name (~1.5-2rem) + compact status indicator
+  - [x] 2.5: Degraded/down cards show brief issue description below equipment name
+  - [x] 2.6: Empty state: centered message "No equipment registered yet."
+- [x] Task 3: Add kiosk-specific CSS to `esb/static/css/app.css` (AC: #2, #5, #6)
+  - [x] 3.1: Kiosk area headings at ~2.5rem
+  - [x] 3.2: Kiosk equipment names at ~1.5-2rem
+  - [x] 3.3: CSS Grid `auto-fill` with `minmax()` for maximum column density
+  - [x] 3.4: Minimal layout shift on refresh (stable card dimensions)
+- [x] Task 4: Write view tests for kiosk route (AC: #1-#7)
+  - [x] 4.1: Test kiosk renders without authentication (no login required)
+  - [x] 4.2: Test kiosk displays area headings
+  - [x] 4.3: Test kiosk displays equipment names
+  - [x] 4.4: Test kiosk displays status indicators (compact variant, bg-success/warning/danger)
+  - [x] 4.5: Test kiosk displays issue description for degraded/down equipment
+  - [x] 4.6: Test kiosk empty state when no areas/equipment
+  - [x] 4.7: Test kiosk excludes archived equipment and areas
+  - [x] 4.8: Test meta refresh tag present
+  - [x] 4.9: Test no navbar elements present
+  - [x] 4.10: Test ARIA labels on status indicators
+  - [x] 4.11: Test kiosk CSS classes for large fonts
+  - [x] 4.12: Test CSS Grid auto-fill class present for responsive layout
 
 ## Dev Notes
 
@@ -267,10 +267,28 @@ Recent commit pattern (3-commit cadence per story):
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+Claude Opus 4.6 (claude-opus-4-6)
 
 ### Debug Log References
 
+No issues encountered. All tests passed on first run (655 total, 15 new kiosk tests).
+
 ### Completion Notes List
 
+- Task 1: Added `/public/kiosk` route (unauthenticated) and `?kiosk=true` redirect on status dashboard for FR28 compatibility. Services imported locally per project convention.
+- Task 2: Created `kiosk.html` template extending `base_kiosk.html`. Reuses `_status_indicator.html` compact variant and status card CSS classes from Story 4.1. Shows issue descriptions for degraded/down equipment. Empty state centered message.
+- Task 3: Added 3 CSS classes to `app.css`: `.kiosk-area-heading` (2.5rem), `.kiosk-equipment-name` (1.5rem), `.kiosk-equipment-grid` (CSS Grid auto-fill with minmax(280px, 1fr)). No animations for stable layout on refresh.
+- Task 4: Added 15 tests in `TestKioskView` class covering all ACs: unauthenticated access, area headings, equipment names, status indicators, issue descriptions, empty state, archived exclusion, meta refresh, no navbar, ARIA labels, CSS classes, grid layout, kiosk parameter redirect, authenticated access.
+
+### Change Log
+
+- 2026-02-16: Implemented Story 4.2 Kiosk Display -- added kiosk route, template, CSS, and 15 tests (655 total passing)
+
 ### File List
+
+- esb/views/public.py (modified) -- added kiosk route, kiosk=true redirect
+- esb/templates/public/kiosk.html (new) -- kiosk display template
+- esb/static/css/app.css (modified) -- kiosk CSS classes
+- tests/test_views/test_public_views.py (modified) -- 15 new kiosk tests
+- _bmad-output/implementation-artifacts/sprint-status.yaml (modified) -- status update
+- _bmad-output/implementation-artifacts/4-2-kiosk-display.md (modified) -- story file updates

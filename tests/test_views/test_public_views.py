@@ -164,3 +164,163 @@ class TestStatusDashboardView:
         html = response.data.decode()
         assert 'bg-warning' in html
         assert 'Making odd sounds' in html
+
+
+class TestKioskView:
+    """Tests for the kiosk display route."""
+
+    def test_kiosk_renders_without_authentication(self, client, make_area, make_equipment):
+        """Kiosk page is accessible without login (AC #1)."""
+        area = make_area(name='Workshop')
+        make_equipment(name='Table Saw', area=area)
+
+        response = client.get('/public/kiosk')
+        assert response.status_code == 200
+        assert b'Table Saw' in response.data
+
+    def test_kiosk_area_headings_displayed(self, client, make_area, make_equipment):
+        """Kiosk displays area headings (AC #2)."""
+        area1 = make_area(name='Metal Shop')
+        area2 = make_area(name='Wood Shop')
+        make_equipment(name='Welder', area=area1)
+        make_equipment(name='Bandsaw', area=area2)
+
+        response = client.get('/public/kiosk')
+        assert b'Metal Shop' in response.data
+        assert b'Wood Shop' in response.data
+
+    def test_kiosk_equipment_names_displayed(self, client, make_area, make_equipment):
+        """Kiosk displays equipment names (AC #2)."""
+        area = make_area(name='Shop')
+        make_equipment(name='CNC Router', area=area)
+        make_equipment(name='Drill Press', area=area)
+
+        response = client.get('/public/kiosk')
+        assert b'CNC Router' in response.data
+        assert b'Drill Press' in response.data
+
+    def test_kiosk_status_indicators(
+        self, client, make_area, make_equipment, make_repair_record,
+    ):
+        """Kiosk displays compact status indicators with color classes (AC #7)."""
+        area = make_area(name='Shop')
+        make_equipment(name='Good Tool', area=area)
+        yellow_equip = make_equipment(name='Iffy Tool', area=area)
+        red_equip = make_equipment(name='Broken Tool', area=area)
+
+        make_repair_record(equipment=yellow_equip, status='New', severity='Degraded')
+        make_repair_record(equipment=red_equip, status='New', severity='Down')
+
+        response = client.get('/public/kiosk')
+        html = response.data.decode()
+        assert 'bg-success' in html
+        assert 'bg-warning' in html
+        assert 'bg-danger' in html
+
+    def test_kiosk_issue_description_degraded(
+        self, client, make_area, make_equipment, make_repair_record,
+    ):
+        """Degraded equipment shows issue description on kiosk (AC #3)."""
+        area = make_area(name='Shop')
+        equip = make_equipment(name='Lathe', area=area)
+        make_repair_record(
+            equipment=equip, status='New', severity='Degraded',
+            description='Belt needs replacement',
+        )
+
+        response = client.get('/public/kiosk')
+        assert b'Belt needs replacement' in response.data
+
+    def test_kiosk_issue_description_down(
+        self, client, make_area, make_equipment, make_repair_record,
+    ):
+        """Down equipment shows issue description on kiosk (AC #3)."""
+        area = make_area(name='Shop')
+        equip = make_equipment(name='CNC Mill', area=area)
+        make_repair_record(
+            equipment=equip, status='New', severity='Down',
+            description='Spindle motor failed',
+        )
+
+        response = client.get('/public/kiosk')
+        assert b'Spindle motor failed' in response.data
+
+    def test_kiosk_empty_state(self, client):
+        """Kiosk shows empty state when no areas/equipment (AC #1)."""
+        response = client.get('/public/kiosk')
+        assert response.status_code == 200
+        assert b'No equipment registered yet.' in response.data
+
+    def test_kiosk_excludes_archived_equipment(self, client, make_area, make_equipment):
+        """Archived equipment is excluded from kiosk display."""
+        area = make_area(name='Shop')
+        make_equipment(name='Active Tool', area=area)
+        make_equipment(name='Retired Tool', area=area, is_archived=True)
+
+        response = client.get('/public/kiosk')
+        assert b'Active Tool' in response.data
+        assert b'Retired Tool' not in response.data
+
+    def test_kiosk_meta_refresh_tag(self, client):
+        """Kiosk includes meta refresh tag for auto-refresh (AC #4)."""
+        response = client.get('/public/kiosk')
+        html = response.data.decode()
+        assert 'meta http-equiv="refresh" content="60"' in html
+
+    def test_kiosk_no_navbar(self, client, make_area, make_equipment):
+        """Kiosk has no navbar elements (AC #1)."""
+        area = make_area(name='Shop')
+        make_equipment(name='Tool', area=area)
+
+        response = client.get('/public/kiosk')
+        html = response.data.decode()
+        assert '<nav' not in html
+        assert 'navbar' not in html
+
+    def test_kiosk_status_aria_labels(
+        self, client, make_area, make_equipment, make_repair_record,
+    ):
+        """Kiosk status indicators include ARIA labels (AC #7)."""
+        area = make_area(name='Shop')
+        equip = make_equipment(name='Printer', area=area)
+        make_repair_record(equipment=equip, status='New', severity='Down')
+
+        response = client.get('/public/kiosk')
+        html = response.data.decode()
+        assert 'aria-label="Equipment status: Down"' in html
+
+    def test_kiosk_css_classes_large_fonts(self, client, make_area, make_equipment):
+        """Kiosk uses CSS classes for large fonts (AC #2)."""
+        area = make_area(name='Shop')
+        make_equipment(name='Tool', area=area)
+
+        response = client.get('/public/kiosk')
+        html = response.data.decode()
+        assert 'kiosk-area-heading' in html
+        assert 'kiosk-equipment-name' in html
+
+    def test_kiosk_grid_auto_fill_class(self, client, make_area, make_equipment):
+        """Kiosk uses CSS Grid auto-fill for responsive layout (AC #6)."""
+        area = make_area(name='Shop')
+        make_equipment(name='Tool', area=area)
+
+        response = client.get('/public/kiosk')
+        html = response.data.decode()
+        assert 'kiosk-equipment-grid' in html
+
+    def test_kiosk_param_redirects_to_kiosk(self, staff_client):
+        """?kiosk=true on dashboard redirects to /public/kiosk (AC #1)."""
+        response = staff_client.get('/public/?kiosk=true')
+        assert response.status_code == 302
+        assert '/public/kiosk' in response.headers['Location']
+
+    def test_kiosk_accessible_by_authenticated_user(
+        self, staff_client, make_area, make_equipment,
+    ):
+        """Authenticated users can also access the kiosk route."""
+        area = make_area(name='Shop')
+        make_equipment(name='Tool', area=area)
+
+        response = staff_client.get('/public/kiosk')
+        assert response.status_code == 200
+        assert b'Tool' in response.data

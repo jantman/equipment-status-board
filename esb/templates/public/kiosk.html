@@ -1,0 +1,36 @@
+{% extends "base_kiosk.html" %}
+
+{% block title %}Equipment Status - Kiosk{% endblock %}
+
+{% block content %}
+{% if not areas %}
+<div class="text-center py-5">
+  <p class="fs-3 text-muted">No equipment registered yet.</p>
+</div>
+{% else %}
+  {% for area_data in areas %}
+  <section class="mb-4">
+    <h2 class="kiosk-area-heading mb-3">{{ area_data.area.name }}</h2>
+    {% if area_data.equipment %}
+    <div class="kiosk-equipment-grid">
+      {% for item in area_data.equipment %}
+      <div class="card h-100 status-card status-card-{{ item.status.color }}">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-start">
+            <span class="kiosk-equipment-name fw-bold">{{ item.equipment.name }}</span>
+            {% set status = item.status %}
+            {% set variant = 'compact' %}
+            {% include 'components/_status_indicator.html' %}
+          </div>
+          {% if item.status.color != 'green' and item.status.issue_description %}
+          <p class="card-text text-muted mt-2 mb-0">{{ item.status.issue_description }}</p>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </section>
+  {% endfor %}
+{% endif %}
+{% endblock %}
