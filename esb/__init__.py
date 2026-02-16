@@ -41,6 +41,10 @@ def create_app(config_name='default'):
     # Register blueprints
     register_blueprints(app)
 
+    # Initialize Slack integration (conditional on SLACK_BOT_TOKEN)
+    from esb.slack import init_slack
+    init_slack(app)
+
     # Register custom Jinja2 filters
     register_filters(app)
 

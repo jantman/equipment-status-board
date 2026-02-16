@@ -1,6 +1,6 @@
 # Story 6.1: Slack App Setup & Outbound Notifications
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -34,74 +34,74 @@ So that the community stays informed without checking the web app.
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Add `slack-bolt` dependency to `requirements.txt` (AC: #1)
-  - [ ] 1.1: Add `slack-bolt>=1.27.0` to `requirements.txt`
-  - [ ] 1.2: Install in venv and verify import works
+- [x] Task 1: Add `slack-bolt` dependency to `requirements.txt` (AC: #1)
+  - [x] 1.1: Add `slack-bolt>=1.27.0` to `requirements.txt`
+  - [x] 1.2: Install in venv and verify import works
 
-- [ ] Task 2: Set up the Slack Bolt app in `esb/slack/__init__.py` (AC: #1, #2, #3)
-  - [ ] 2.1: Create Bolt `App` instance with `token` and `signing_secret` from Flask config
-  - [ ] 2.2: Create `SlackRequestHandler` for Flask integration
-  - [ ] 2.3: Create `init_slack(app)` function that conditionally sets up Slack based on `SLACK_BOT_TOKEN` availability
-  - [ ] 2.4: Register a Flask Blueprint `slack_bp` at `/slack` with a `/events` POST route
-  - [ ] 2.5: Exempt `/slack/events` from CSRF protection (Slack uses signing secret validation)
-  - [ ] 2.6: Register a minimal `@bolt_app.event("message")` handler (required by Bolt to avoid warnings)
+- [x] Task 2: Set up the Slack Bolt app in `esb/slack/__init__.py` (AC: #1, #2, #3)
+  - [x] 2.1: Create Bolt `App` instance with `token` and `signing_secret` from Flask config
+  - [x] 2.2: Create `SlackRequestHandler` for Flask integration
+  - [x] 2.3: Create `init_slack(app)` function that conditionally sets up Slack based on `SLACK_BOT_TOKEN` availability
+  - [x] 2.4: Register a Flask Blueprint `slack_bp` at `/slack` with a `/events` POST route
+  - [x] 2.5: Exempt `/slack/events` from CSRF protection (Slack uses signing secret validation)
+  - [x] 2.6: Register a minimal `@bolt_app.event("message")` handler (required by Bolt to avoid warnings)
 
-- [ ] Task 3: Integrate Slack into the Flask app factory (`esb/__init__.py`) (AC: #1, #2)
-  - [ ] 3.1: Call `init_slack(app)` in `create_app()` AFTER extension initialization
-  - [ ] 3.2: Guard the call so it's skipped when `SLACK_BOT_TOKEN` is empty (AC: #2)
+- [x] Task 3: Integrate Slack into the Flask app factory (`esb/__init__.py`) (AC: #1, #2)
+  - [x] 3.1: Call `init_slack(app)` in `create_app()` AFTER extension initialization
+  - [x] 3.2: Guard the call so it's skipped when `SLACK_BOT_TOKEN` is empty (AC: #2)
 
-- [ ] Task 4: Implement `_deliver_slack_message()` in `esb/services/notification_service.py` (AC: #4, #5, #6, #7, #8, #9, #10)
-  - [ ] 4.1: Replace the `NotImplementedError` stub with actual Slack WebClient delivery
-  - [ ] 4.2: Use `current_app.config['SLACK_BOT_TOKEN']` to create WebClient instance
-  - [ ] 4.3: Format messages based on `payload['event_type']` using `_format_slack_message()` helper
-  - [ ] 4.4: Post to the notification's `target` channel
-  - [ ] 4.5: If token is not configured, raise `RuntimeError` so the worker retries later
-  - [ ] 4.6: Let Slack SDK exceptions propagate naturally (worker marks as failed + retries)
+- [x] Task 4: Implement `_deliver_slack_message()` in `esb/services/notification_service.py` (AC: #4, #5, #6, #7, #8, #9, #10)
+  - [x] 4.1: Replace the `NotImplementedError` stub with actual Slack WebClient delivery
+  - [x] 4.2: Use `current_app.config['SLACK_BOT_TOKEN']` to create WebClient instance
+  - [x] 4.3: Format messages based on `payload['event_type']` using `_format_slack_message()` helper
+  - [x] 4.4: Post to the notification's `target` channel
+  - [x] 4.5: If token is not configured, raise `RuntimeError` so the worker retries later
+  - [x] 4.6: Let Slack SDK exceptions propagate naturally (worker marks as failed + retries)
 
-- [ ] Task 5: Implement dual-channel posting (area channel + `#oops`) (AC: #5, #6)
-  - [ ] 5.1: After posting to the `target` channel, also post to `#oops`
-  - [ ] 5.2: Use a configurable `SLACK_OOPS_CHANNEL` env var (default: `#oops`)
-  - [ ] 5.3: Skip `#oops` post if target is already `#oops` or `#general`
-  - [ ] 5.4: Failures to post to `#oops` should be logged but NOT prevent the primary notification from being marked as delivered
+- [x] Task 5: Implement dual-channel posting (area channel + `#oops`) (AC: #5, #6)
+  - [x] 5.1: After posting to the `target` channel, also post to `#oops`
+  - [x] 5.2: Use a configurable `SLACK_OOPS_CHANNEL` env var (default: `#oops`)
+  - [x] 5.3: Skip `#oops` post if target is already `#oops` or `#general`
+  - [x] 5.4: Failures to post to `#oops` should be logged but NOT prevent the primary notification from being marked as delivered
 
-- [ ] Task 6: Implement message formatting for all 4 event types (AC: #5, #6, #7, #8, #9)
-  - [ ] 6.1: Create `_format_slack_message(payload)` helper returning `(text, blocks)` tuple
-  - [ ] 6.2: `new_report` format: equipment name, area, severity badge, description, reporter, safety risk highlight
-  - [ ] 6.3: `resolved` format: equipment name, area, old/new status, "back in service" messaging
-  - [ ] 6.4: `severity_changed` format: equipment name, area, old/new severity levels
-  - [ ] 6.5: `eta_updated` format: equipment name, area, new ETA (and old ETA if available)
-  - [ ] 6.6: Safety risk: prepend bold warning text when `has_safety_risk` is truthy in payload
-  - [ ] 6.7: Fallback `text` parameter for all messages (Slack requires it for notifications/accessibility)
+- [x] Task 6: Implement message formatting for all 4 event types (AC: #5, #6, #7, #8, #9)
+  - [x] 6.1: Create `_format_slack_message(payload)` helper returning `(text, blocks)` tuple
+  - [x] 6.2: `new_report` format: equipment name, area, severity badge, description, reporter, safety risk highlight
+  - [x] 6.3: `resolved` format: equipment name, area, old/new status, "back in service" messaging
+  - [x] 6.4: `severity_changed` format: equipment name, area, old/new severity levels
+  - [x] 6.5: `eta_updated` format: equipment name, area, new ETA (and old ETA if available)
+  - [x] 6.6: Safety risk: prepend bold warning text when `has_safety_risk` is truthy in payload
+  - [x] 6.7: Fallback `text` parameter for all messages (Slack requires it for notifications/accessibility)
 
-- [ ] Task 7: Add `SLACK_OOPS_CHANNEL` to configuration (AC: #5, #6)
-  - [ ] 7.1: Add `SLACK_OOPS_CHANNEL` to `esb/config.py` (default: `#oops`)
-  - [ ] 7.2: Add `SLACK_OOPS_CHANNEL=` to `.env` file
+- [x] Task 7: Add `SLACK_OOPS_CHANNEL` to configuration (AC: #5, #6)
+  - [x] 7.1: Add `SLACK_OOPS_CHANNEL` to `esb/config.py` (default: `#oops`)
+  - [x] 7.2: Add `SLACK_OOPS_CHANNEL=` to `.env` file
 
-- [ ] Task 8: Write tests for Slack module setup (`tests/test_slack/`) (AC: #1, #2, #3)
-  - [ ] 8.1: Create `tests/test_slack/__init__.py`
-  - [ ] 8.2: Create `tests/test_slack/test_init.py` with tests for `init_slack()`
-  - [ ] 8.3: Test Slack module loads when `SLACK_BOT_TOKEN` is configured
-  - [ ] 8.4: Test Slack module is NOT loaded when `SLACK_BOT_TOKEN` is empty
-  - [ ] 8.5: Test `/slack/events` route exists and is CSRF-exempt when Slack is configured
-  - [ ] 8.6: Test app starts cleanly without slack-bolt import issues
+- [x] Task 8: Write tests for Slack module setup (`tests/test_slack/`) (AC: #1, #2, #3)
+  - [x] 8.1: Create `tests/test_slack/__init__.py`
+  - [x] 8.2: Create `tests/test_slack/test_init.py` with tests for `init_slack()`
+  - [x] 8.3: Test Slack module loads when `SLACK_BOT_TOKEN` is configured
+  - [x] 8.4: Test Slack module is NOT loaded when `SLACK_BOT_TOKEN` is empty
+  - [x] 8.5: Test `/slack/events` route exists and is CSRF-exempt when Slack is configured
+  - [x] 8.6: Test app starts cleanly without slack-bolt import issues
 
-- [ ] Task 9: Write tests for `_deliver_slack_message()` and `_format_slack_message()` (`tests/test_services/test_notification_service.py`) (AC: #4, #5, #6, #7, #8, #9, #10)
-  - [ ] 9.1: Test `_deliver_slack_message()` calls WebClient `chat_postMessage` with correct channel and text
-  - [ ] 9.2: Test `_deliver_slack_message()` posts to `#oops` as second channel
-  - [ ] 9.3: Test `_deliver_slack_message()` raises RuntimeError when no SLACK_BOT_TOKEN configured
-  - [ ] 9.4: Test Slack SDK errors propagate (worker will retry)
-  - [ ] 9.5: Test `_format_slack_message()` for `new_report` event type
-  - [ ] 9.6: Test `_format_slack_message()` for `resolved` event type
-  - [ ] 9.7: Test `_format_slack_message()` for `severity_changed` event type
-  - [ ] 9.8: Test `_format_slack_message()` for `eta_updated` event type
-  - [ ] 9.9: Test safety risk highlighting is present when `has_safety_risk` is true
-  - [ ] 9.10: Test `#oops` failure is logged but doesn't fail delivery
-  - [ ] 9.11: Test skips `#oops` when target is already `#oops` or `#general`
-  - [ ] 9.12: Update existing `test_slack_stub_raises_not_implemented` test to reflect new behavior (stub removed)
+- [x] Task 9: Write tests for `_deliver_slack_message()` and `_format_slack_message()` (`tests/test_services/test_notification_service.py`) (AC: #4, #5, #6, #7, #8, #9, #10)
+  - [x] 9.1: Test `_deliver_slack_message()` calls WebClient `chat_postMessage` with correct channel and text
+  - [x] 9.2: Test `_deliver_slack_message()` posts to `#oops` as second channel
+  - [x] 9.3: Test `_deliver_slack_message()` raises RuntimeError when no SLACK_BOT_TOKEN configured
+  - [x] 9.4: Test Slack SDK errors propagate (worker will retry)
+  - [x] 9.5: Test `_format_slack_message()` for `new_report` event type
+  - [x] 9.6: Test `_format_slack_message()` for `resolved` event type
+  - [x] 9.7: Test `_format_slack_message()` for `severity_changed` event type
+  - [x] 9.8: Test `_format_slack_message()` for `eta_updated` event type
+  - [x] 9.9: Test safety risk highlighting is present when `has_safety_risk` is true
+  - [x] 9.10: Test `#oops` failure is logged but doesn't fail delivery
+  - [x] 9.11: Test skips `#oops` when target is already `#oops` or `#general`
+  - [x] 9.12: Update existing `test_slack_stub_raises_not_implemented` test to reflect new behavior (stub removed)
 
-- [ ] Task 10: Update existing tests that mock `_deliver_slack_message` (AC: #4)
-  - [ ] 10.1: Update `TestRunWorkerLoop` tests that expect `NotImplementedError` from `_deliver_slack_message`
-  - [ ] 10.2: Ensure all worker loop tests properly mock the WebClient so no actual Slack calls are made
+- [x] Task 10: Update existing tests that mock `_deliver_slack_message` (AC: #4)
+  - [x] 10.1: Update `TestRunWorkerLoop` tests that expect `NotImplementedError` from `_deliver_slack_message`
+  - [x] 10.2: Ensure all worker loop tests properly mock the WebClient so no actual Slack calls are made
 
 ## Dev Notes
 
@@ -622,10 +622,43 @@ Recent commit pattern (3-commit cadence per story):
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+Claude Opus 4.6 (claude-opus-4-6)
 
 ### Debug Log References
 
+None.
+
 ### Completion Notes List
 
+- Task 1: Added `slack-bolt>=1.27.0` to requirements.txt alongside existing `slack_sdk>=3.39.0`
+- Task 2: Implemented full `esb/slack/__init__.py` with `init_slack(app)`, `slack_bp` Blueprint at `/slack`, `/events` POST route, CSRF exemption, and minimal `message` event handler
+- Task 3: Integrated `init_slack(app)` call in `create_app()` after blueprint registration and CSRF init
+- Task 4: Replaced `_deliver_slack_message()` NotImplementedError stub with actual Slack WebClient delivery using `current_app.config` for token
+- Task 5: Dual-channel posting implemented — posts to primary target channel then to `#oops` (configurable via `SLACK_OOPS_CHANNEL`), skips `#oops` if target is already `#oops` or `#general`, `#oops` failures logged but don't fail delivery
+- Task 6: Implemented `_format_slack_message()` returning `(text, blocks)` tuple for all 4 event types: `new_report`, `resolved`, `severity_changed`, `eta_updated` with safety risk highlighting via `:warning:` emoji + bold text
+- Task 7: Added `SLACK_OOPS_CHANNEL` to `esb/config.py` (default `#oops`) and `.env`
+- Task 8: Created `tests/test_slack/` package with 11 tests covering: disabled state, enabled state with mocked Bolt, CSRF exemption, signing secret missing scenario
+- Task 9: Added 18 tests for `_deliver_slack_message()` and `_format_slack_message()` covering all delivery paths, error propagation, dual-channel logic, all 4 event type formats, safety risk highlighting, and fallback handling
+- Task 10: Updated old `test_slack_stub_raises_not_implemented` → `test_slack_delivery_raises_runtime_error_without_token`; updated `test_marks_failed_on_not_implemented_error` → `test_marks_failed_on_runtime_error` to match new behavior
+
+### Implementation Plan
+
+- Followed story Dev Notes code patterns exactly for `esb/slack/__init__.py` and `_deliver_slack_message()`
+- Used `patch.object(Config, ...)` pattern for Slack-enabled tests since Config class attributes are evaluated at import time
+- Patched `slack_bolt.App` and `slack_sdk.WebClient` at source (not module-level) since they are imported locally inside functions
+
 ### File List
+
+- requirements.txt (modified — added slack-bolt)
+- esb/slack/__init__.py (modified — full Bolt app setup)
+- esb/__init__.py (modified — added init_slack call)
+- esb/config.py (modified — added SLACK_OOPS_CHANNEL)
+- esb/services/notification_service.py (modified — replaced stub, added _format_slack_message)
+- .env (modified — added SLACK_OOPS_CHANNEL)
+- tests/test_slack/__init__.py (new)
+- tests/test_slack/test_init.py (new — 11 tests)
+- tests/test_services/test_notification_service.py (modified — 18 new tests, 2 updated)
+
+### Change Log
+
+- 2026-02-16: Implemented Story 6.1 — Slack App setup with Bolt, outbound notification delivery via WebClient, dual-channel posting, message formatting for all 4 event types, 28 new/updated tests (843 total passing, 0 lint errors)

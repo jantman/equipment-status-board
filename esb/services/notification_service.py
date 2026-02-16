@@ -178,11 +178,118 @@ def process_notification(notification: PendingNotification) -> None:
 
 
 def _deliver_slack_message(notification: PendingNotification) -> None:
-    """Deliver a Slack message notification.
+    """Deliver a Slack message notification via WebClient.
 
-    Stub -- actual Slack API delivery will be implemented in Epic 6 (Story 6.1).
+    Posts the message to the notification's target channel and also to
+    the configured #oops channel (for visibility).
+
+    Raises:
+        RuntimeError: if SLACK_BOT_TOKEN is not configured.
+        slack_sdk.errors.SlackApiError: on Slack API errors (worker will retry).
     """
-    raise NotImplementedError('Slack message delivery not yet implemented (Epic 6)')
+    from flask import current_app
+
+    token = current_app.config.get('SLACK_BOT_TOKEN', '')
+    if not token:
+        raise RuntimeError(
+            'SLACK_BOT_TOKEN not configured -- cannot deliver Slack messages'
+        )
+
+    from slack_sdk import WebClient
+    from slack_sdk.errors import SlackApiError
+
+    client = WebClient(token=token)
+    payload = notification.payload or {}
+    text, blocks = _format_slack_message(payload)
+
+    # Post to primary target channel (area-specific or #general)
+    client.chat_postMessage(
+        channel=notification.target,
+        text=text,
+        blocks=blocks,
+    )
+    logger.info(
+        'Slack message delivered to %s (notification=%d)',
+        notification.target, notification.id,
+    )
+
+    # Post to #oops for cross-area visibility
+    oops_channel = current_app.config.get('SLACK_OOPS_CHANNEL', '#oops')
+    if notification.target not in (oops_channel, '#general'):
+        try:
+            client.chat_postMessage(
+                channel=oops_channel,
+                text=text,
+                blocks=blocks,
+            )
+            logger.info(
+                'Slack message also delivered to %s (notification=%d)',
+                oops_channel, notification.id,
+            )
+        except SlackApiError:
+            logger.warning(
+                'Failed to post to %s (notification=%d), primary delivery succeeded',
+                oops_channel, notification.id,
+                exc_info=True,
+            )
+
+
+def _format_slack_message(payload: dict) -> tuple[str, list | None]:
+    """Format a Slack notification message based on event type.
+
+    Args:
+        payload: Notification payload dict with 'event_type' and event-specific fields.
+
+    Returns:
+        Tuple of (text, blocks) where text is the fallback and blocks is the rich format.
+        blocks may be None if simple text is sufficient.
+    """
+    event_type = payload.get('event_type', 'unknown')
+    equipment_name = payload.get('equipment_name', 'Unknown Equipment')
+    area_name = payload.get('area_name', 'Unknown Area')
+
+    # Safety risk prefix
+    safety_prefix = ''
+    if payload.get('has_safety_risk'):
+        safety_prefix = ':warning: *SAFETY RISK* :warning: '
+
+    if event_type == 'new_report':
+        severity = payload.get('severity', 'Unknown')
+        description = payload.get('description', '')
+        reporter = payload.get('reporter_name', 'Unknown')
+        text = (
+            f'{safety_prefix}New problem report: *{equipment_name}* ({area_name})\n'
+            f'Severity: {severity} | Reported by: {reporter}\n'
+            f'{description}'
+        )
+
+    elif event_type == 'resolved':
+        new_status = payload.get('new_status', 'Resolved')
+        text = (
+            f':white_check_mark: *{equipment_name}* ({area_name}) is back in service\n'
+            f'Status: {new_status}'
+        )
+
+    elif event_type == 'severity_changed':
+        old_severity = payload.get('old_severity', 'Unknown')
+        new_severity = payload.get('new_severity', 'Unknown')
+        text = (
+            f'{safety_prefix}Severity changed: *{equipment_name}* ({area_name})\n'
+            f'{old_severity} -> {new_severity}'
+        )
+
+    elif event_type == 'eta_updated':
+        eta = payload.get('eta', 'Unknown')
+        old_eta = payload.get('old_eta')
+        eta_text = f'ETA: {eta}'
+        if old_eta:
+            eta_text = f'ETA updated: {old_eta} -> {eta}'
+        text = f'ETA update: *{equipment_name}* ({area_name})\n{eta_text}'
+
+    else:
+        text = f'Equipment notification: *{equipment_name}* ({area_name})'
+
+    return text, None  # blocks=None for v1 -- plain text with mrkdwn formatting
 
 
 def _deliver_static_page_push(notification: PendingNotification) -> None:

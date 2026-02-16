@@ -278,10 +278,14 @@ class TestProcessNotification:
             process_notification(n)
             mock.assert_called_once_with(n)
 
-    def test_slack_stub_raises_not_implemented(self, app):
-        """_deliver_slack_message raises NotImplementedError."""
-        n = _create_notification(notification_type='slack_message')
-        with pytest.raises(NotImplementedError):
+    def test_slack_delivery_raises_runtime_error_without_token(self, app):
+        """_deliver_slack_message raises RuntimeError when no SLACK_BOT_TOKEN configured."""
+        n = _create_notification(notification_type='slack_message',
+                                 payload={'event_type': 'new_report',
+                                          'equipment_name': 'Test', 'area_name': 'Area',
+                                          'severity': 'Down', 'description': 'Broken',
+                                          'reporter_name': 'User', 'has_safety_risk': False})
+        with pytest.raises(RuntimeError, match='SLACK_BOT_TOKEN not configured'):
             notification_service._deliver_slack_message(n)
 
     def test_static_page_push_no_longer_raises_not_implemented(self, app):
@@ -379,10 +383,11 @@ class TestRunWorkerLoop:
         saved = _db.session.get(PendingNotification, n.id)
         assert saved.status == 'delivered'
 
-    def test_marks_failed_on_not_implemented_error(self, app):
-        """run_worker_loop marks notification failed on NotImplementedError."""
+    def test_marks_failed_on_runtime_error(self, app):
+        """run_worker_loop marks notification failed on RuntimeError from _deliver_slack_message."""
         n = _create_notification()
 
+        # No SLACK_BOT_TOKEN configured → RuntimeError
         with patch('esb.services.notification_service.time') as mock_time, \
              patch('esb.services.notification_service.signal'):
             mock_time.sleep.side_effect = KeyboardInterrupt
@@ -395,7 +400,7 @@ class TestRunWorkerLoop:
         _db.session.expire(n)
         saved = _db.session.get(PendingNotification, n.id)
         assert saved.retry_count == 1
-        assert 'not yet implemented' in saved.error_message
+        assert 'SLACK_BOT_TOKEN not configured' in saved.error_message
 
     def test_marks_failed_on_general_exception(self, app):
         """run_worker_loop marks notification failed on general delivery error."""
@@ -540,3 +545,305 @@ class TestRunWorkerLoop:
         assert sleep_calls[0] == 10
         # Second call: success, normal poll_interval (5s)
         assert sleep_calls[1] == 5
+
+
+class TestDeliverSlackMessage:
+    """Tests for _deliver_slack_message()."""
+
+    def test_posts_to_target_channel(self, app):
+        """_deliver_slack_message posts to the notification target channel."""
+        app.config['SLACK_BOT_TOKEN'] = 'xoxb-test-token'
+        n = _create_notification(
+            notification_type='slack_message',
+            target='#woodshop',
+            payload={'event_type': 'new_report', 'equipment_name': 'SawStop',
+                     'area_name': 'Woodshop', 'severity': 'Down',
+                     'description': 'Broken', 'reporter_name': 'Test',
+                     'has_safety_risk': False},
+        )
+
+        from unittest.mock import MagicMock
+        mock_client = MagicMock()
+        with patch('slack_sdk.WebClient',
+                   return_value=mock_client):
+            notification_service._deliver_slack_message(n)
+
+        calls = mock_client.chat_postMessage.call_args_list
+        assert len(calls) == 2  # primary + #oops
+        assert calls[0].kwargs['channel'] == '#woodshop'
+
+    def test_posts_to_oops_channel(self, app):
+        """_deliver_slack_message posts to #oops as secondary channel."""
+        app.config['SLACK_BOT_TOKEN'] = 'xoxb-test-token'
+        n = _create_notification(
+            notification_type='slack_message',
+            target='#woodshop',
+            payload={'event_type': 'new_report', 'equipment_name': 'SawStop',
+                     'area_name': 'Woodshop', 'severity': 'Down',
+                     'description': 'Broken', 'reporter_name': 'Test',
+                     'has_safety_risk': False},
+        )
+
+        from unittest.mock import MagicMock
+        mock_client = MagicMock()
+        with patch('slack_sdk.WebClient',
+                   return_value=mock_client):
+            notification_service._deliver_slack_message(n)
+
+        calls = mock_client.chat_postMessage.call_args_list
+        assert calls[1].kwargs['channel'] == '#oops'
+
+    def test_raises_runtime_error_without_token(self, app):
+        """_deliver_slack_message raises RuntimeError when no SLACK_BOT_TOKEN."""
+        n = _create_notification(
+            notification_type='slack_message',
+            target='#test',
+            payload={'event_type': 'new_report', 'equipment_name': 'Test',
+                     'area_name': 'Area', 'severity': 'Down',
+                     'description': 'Broken', 'reporter_name': 'User',
+                     'has_safety_risk': False},
+        )
+        with pytest.raises(RuntimeError, match='SLACK_BOT_TOKEN not configured'):
+            notification_service._deliver_slack_message(n)
+
+    def test_slack_api_errors_propagate(self, app):
+        """Slack SDK errors from primary channel propagate for worker retry."""
+        app.config['SLACK_BOT_TOKEN'] = 'xoxb-test-token'
+        n = _create_notification(
+            notification_type='slack_message',
+            target='#test',
+            payload={'event_type': 'resolved', 'equipment_name': 'Test',
+                     'area_name': 'Area', 'new_status': 'Resolved'},
+        )
+
+        from slack_sdk.errors import SlackApiError
+        from unittest.mock import MagicMock
+
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.data = {'ok': False, 'error': 'channel_not_found'}
+        mock_client.chat_postMessage.side_effect = SlackApiError(
+            message='channel_not_found', response=mock_response,
+        )
+        with patch('slack_sdk.WebClient',
+                   return_value=mock_client):
+            with pytest.raises(SlackApiError):
+                notification_service._deliver_slack_message(n)
+
+    def test_oops_failure_logged_but_delivery_succeeds(self, app):
+        """Failure to post to #oops is logged but doesn't fail delivery."""
+        app.config['SLACK_BOT_TOKEN'] = 'xoxb-test-token'
+        n = _create_notification(
+            notification_type='slack_message',
+            target='#woodshop',
+            payload={'event_type': 'new_report', 'equipment_name': 'SawStop',
+                     'area_name': 'Woodshop', 'severity': 'Down',
+                     'description': 'Broken', 'reporter_name': 'Test',
+                     'has_safety_risk': False},
+        )
+
+        from slack_sdk.errors import SlackApiError
+        from unittest.mock import MagicMock
+
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.data = {'ok': False, 'error': 'channel_not_found'}
+
+        def side_effect(**kwargs):
+            if kwargs.get('channel') == '#oops':
+                raise SlackApiError(
+                    message='channel_not_found', response=mock_response,
+                )
+            return MagicMock()
+
+        mock_client.chat_postMessage.side_effect = side_effect
+        with patch('slack_sdk.WebClient',
+                   return_value=mock_client):
+            # Should NOT raise
+            notification_service._deliver_slack_message(n)
+
+        # Primary channel was called
+        assert mock_client.chat_postMessage.call_count == 2
+
+    def test_skips_oops_when_target_is_oops(self, app):
+        """Skips #oops post when target is already #oops."""
+        app.config['SLACK_BOT_TOKEN'] = 'xoxb-test-token'
+        n = _create_notification(
+            notification_type='slack_message',
+            target='#oops',
+            payload={'event_type': 'new_report', 'equipment_name': 'Test',
+                     'area_name': 'Area', 'severity': 'Down',
+                     'description': 'Broken', 'reporter_name': 'User',
+                     'has_safety_risk': False},
+        )
+
+        from unittest.mock import MagicMock
+        mock_client = MagicMock()
+        with patch('slack_sdk.WebClient',
+                   return_value=mock_client):
+            notification_service._deliver_slack_message(n)
+
+        assert mock_client.chat_postMessage.call_count == 1
+        assert mock_client.chat_postMessage.call_args.kwargs['channel'] == '#oops'
+
+    def test_skips_oops_when_target_is_general(self, app):
+        """Skips #oops post when target is #general."""
+        app.config['SLACK_BOT_TOKEN'] = 'xoxb-test-token'
+        n = _create_notification(
+            notification_type='slack_message',
+            target='#general',
+            payload={'event_type': 'resolved', 'equipment_name': 'Test',
+                     'area_name': 'Area', 'new_status': 'Resolved'},
+        )
+
+        from unittest.mock import MagicMock
+        mock_client = MagicMock()
+        with patch('slack_sdk.WebClient',
+                   return_value=mock_client):
+            notification_service._deliver_slack_message(n)
+
+        assert mock_client.chat_postMessage.call_count == 1
+
+
+class TestFormatSlackMessage:
+    """Tests for _format_slack_message()."""
+
+    def test_new_report_format(self):
+        """new_report message includes equipment name, area, severity, description, reporter."""
+        text, blocks = notification_service._format_slack_message({
+            'event_type': 'new_report',
+            'equipment_name': 'SawStop',
+            'area_name': 'Woodshop',
+            'severity': 'Down',
+            'description': 'Motor makes grinding noise',
+            'reporter_name': 'John',
+            'has_safety_risk': False,
+        })
+
+        assert '*SawStop*' in text
+        assert 'Woodshop' in text
+        assert 'Down' in text
+        assert 'Motor makes grinding noise' in text
+        assert 'John' in text
+        assert blocks is None
+
+    def test_resolved_format(self):
+        """resolved message includes equipment name, area, back in service."""
+        text, blocks = notification_service._format_slack_message({
+            'event_type': 'resolved',
+            'equipment_name': 'SawStop',
+            'area_name': 'Woodshop',
+            'new_status': 'Resolved',
+        })
+
+        assert '*SawStop*' in text
+        assert 'Woodshop' in text
+        assert 'back in service' in text
+        assert 'Resolved' in text
+        assert blocks is None
+
+    def test_severity_changed_format(self):
+        """severity_changed message includes old and new severity levels."""
+        text, blocks = notification_service._format_slack_message({
+            'event_type': 'severity_changed',
+            'equipment_name': 'SawStop',
+            'area_name': 'Woodshop',
+            'old_severity': 'Degraded',
+            'new_severity': 'Down',
+        })
+
+        assert '*SawStop*' in text
+        assert 'Woodshop' in text
+        assert 'Degraded' in text
+        assert 'Down' in text
+        assert blocks is None
+
+    def test_eta_updated_format(self):
+        """eta_updated message includes new ETA."""
+        text, blocks = notification_service._format_slack_message({
+            'event_type': 'eta_updated',
+            'equipment_name': 'SawStop',
+            'area_name': 'Woodshop',
+            'eta': '2026-02-20',
+        })
+
+        assert '*SawStop*' in text
+        assert 'Woodshop' in text
+        assert '2026-02-20' in text
+        assert blocks is None
+
+    def test_eta_updated_with_old_eta(self):
+        """eta_updated message shows old and new ETA when old_eta is present."""
+        text, blocks = notification_service._format_slack_message({
+            'event_type': 'eta_updated',
+            'equipment_name': 'SawStop',
+            'area_name': 'Woodshop',
+            'eta': '2026-02-20',
+            'old_eta': '2026-02-18',
+        })
+
+        assert '2026-02-18' in text
+        assert '2026-02-20' in text
+
+    def test_safety_risk_highlighted_new_report(self):
+        """Safety risk is prominently highlighted for new_report when has_safety_risk is True."""
+        text, blocks = notification_service._format_slack_message({
+            'event_type': 'new_report',
+            'equipment_name': 'SawStop',
+            'area_name': 'Woodshop',
+            'severity': 'Down',
+            'description': 'Blade guard missing',
+            'reporter_name': 'John',
+            'has_safety_risk': True,
+        })
+
+        assert ':warning:' in text
+        assert '*SAFETY RISK*' in text
+
+    def test_safety_risk_highlighted_severity_changed(self):
+        """Safety risk is highlighted for severity_changed when has_safety_risk is True."""
+        text, blocks = notification_service._format_slack_message({
+            'event_type': 'severity_changed',
+            'equipment_name': 'SawStop',
+            'area_name': 'Woodshop',
+            'old_severity': 'Degraded',
+            'new_severity': 'Down',
+            'has_safety_risk': True,
+        })
+
+        assert ':warning:' in text
+        assert '*SAFETY RISK*' in text
+
+    def test_no_safety_risk_when_false(self):
+        """No safety risk prefix when has_safety_risk is False."""
+        text, blocks = notification_service._format_slack_message({
+            'event_type': 'new_report',
+            'equipment_name': 'Test',
+            'area_name': 'Area',
+            'severity': 'Down',
+            'description': 'Issue',
+            'reporter_name': 'User',
+            'has_safety_risk': False,
+        })
+
+        assert ':warning:' not in text
+        assert 'SAFETY RISK' not in text
+
+    def test_unknown_event_type_fallback(self):
+        """Unknown event type returns generic message."""
+        text, blocks = notification_service._format_slack_message({
+            'event_type': 'unknown_type',
+            'equipment_name': 'Test',
+            'area_name': 'Area',
+        })
+
+        assert '*Test*' in text
+        assert 'Area' in text
+        assert blocks is None
+
+    def test_empty_payload_fallback(self):
+        """Empty payload returns generic message with defaults."""
+        text, blocks = notification_service._format_slack_message({})
+
+        assert 'Unknown Equipment' in text
+        assert 'Unknown Area' in text

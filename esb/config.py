@@ -18,6 +18,7 @@ class Config:
     PERMANENT_SESSION_LIFETIME = timedelta(hours=12)
     SLACK_BOT_TOKEN = os.environ.get('SLACK_BOT_TOKEN', '')
     SLACK_SIGNING_SECRET = os.environ.get('SLACK_SIGNING_SECRET', '')
+    SLACK_OOPS_CHANNEL = os.environ.get('SLACK_OOPS_CHANNEL', '#oops')
     STATIC_PAGE_PUSH_METHOD = os.environ.get('STATIC_PAGE_PUSH_METHOD', 'local')
     STATIC_PAGE_PUSH_TARGET = os.environ.get('STATIC_PAGE_PUSH_TARGET', '')
 
