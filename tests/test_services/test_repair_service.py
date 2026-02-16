@@ -516,6 +516,45 @@ class TestUpdateRepairRecordSlackNotification:
         assert notifications[0].payload['event_type'] == 'resolved'
         assert notifications[0].payload['new_status'] == 'Closed - No Issue Found'
 
+    def test_closed_duplicate_queues_resolved(self, app, make_area, make_equipment, staff_user, capture):
+        """Status change to 'Closed - Duplicate' queues resolved notification."""
+        from esb.models.pending_notification import PendingNotification
+
+        area = make_area(name='Woodshop', slack_channel='#woodshop')
+        equip = make_equipment(name='SawStop', area=area)
+        record = RepairRecord(equipment_id=equip.id, description='Test', status='In Progress')
+        _db.session.add(record)
+        _db.session.commit()
+
+        repair_service.update_repair_record(
+            record.id, 'staffuser', author_id=staff_user.id, status='Closed - Duplicate',
+        )
+
+        notifications = _db.session.execute(
+            _db.select(PendingNotification).filter_by(notification_type='slack_message')
+        ).scalars().all()
+        assert len(notifications) == 1
+        assert notifications[0].payload['event_type'] == 'resolved'
+        assert notifications[0].payload['new_status'] == 'Closed - Duplicate'
+
+    def test_slack_notification_fallback_target_when_no_slack_channel(self, app, make_area, make_equipment, staff_user, capture):
+        """Notification target falls back to '#general' when area has no slack_channel."""
+        from esb.models.pending_notification import PendingNotification
+
+        area = make_area(name='No Slack Area', slack_channel=None)
+        equip = make_equipment(name='SawStop', area=area)
+
+        repair_service.create_repair_record(
+            equipment_id=equip.id, description='Motor broken',
+            created_by='staffuser', severity='Down', author_id=staff_user.id,
+        )
+
+        notification = _db.session.execute(
+            _db.select(PendingNotification).filter_by(notification_type='slack_message')
+        ).scalar_one()
+        assert notification.target == '#general'
+        assert notification.payload['area_name'] == 'No Slack Area'
+
 
 class TestGetRepairRecord:
     """Tests for get_repair_record()."""

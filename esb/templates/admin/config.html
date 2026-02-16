@@ -8,11 +8,14 @@
 
 <h2>App Configuration</h2>
 
-<div class="card">
-    <div class="card-body">
-        <form method="post">
-            {{ form.hidden_tag() }}
-            <h5>Technician Permissions</h5>
+<form method="post">
+    {{ form.hidden_tag() }}
+
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="card-title mb-0">Technician Permissions</h5>
+        </div>
+        <div class="card-body">
             <div class="form-check mb-3">
                 {{ form.tech_doc_edit_enabled(class="form-check-input") }}
                 <label class="form-check-label" for="{{ form.tech_doc_edit_enabled.id }}">
@@ -23,7 +26,14 @@
                     Equipment core fields (name, manufacturer, model, etc.) remain Staff-only.
                 </div>
             </div>
-            <h5 class="mt-4">Notification Triggers</h5>
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="card-title mb-0">Notification Triggers</h5>
+        </div>
+        <div class="card-body">
             <p class="text-muted mb-3">Control which events queue Slack notifications. All triggers are enabled by default. Slack delivery requires Epic 6.</p>
 
             <div class="mb-3">
@@ -65,9 +75,9 @@
                 </div>
                 <div class="form-text">Notify when an ETA is set or updated on a repair record.</div>
             </div>
-
-            {{ form.submit(class="btn btn-primary") }}
-        </form>
+        </div>
     </div>
-</div>
+
+    {{ form.submit(class="btn btn-primary") }}
+</form>
 {% endblock %}

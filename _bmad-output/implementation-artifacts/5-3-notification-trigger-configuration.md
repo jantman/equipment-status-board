@@ -1,6 +1,6 @@
 # Story 5.3: Notification Trigger Configuration
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -674,10 +674,12 @@ Claude Opus 4.6
 - Task 6: 10 repair service tests covering all 4 trigger types (enabled/disabled), payload fields, multiple triggers, and edge cases (non-resolved status, Closed - No Issue Found)
 - Updated existing `test_config_mutation_logging` to account for 5 config fields being saved per POST
 - All 813 tests pass (was 795, +18 new). 0 lint errors.
+- Code review: Fixed 7 issues (3M, 4L). All 815 tests pass (+2 new). 0 lint errors.
 
 ### Change Log
 
 - 2026-02-16: Implemented Story 5.3 - Notification trigger configuration with admin UI toggles and repair service slack_message hooks
+- 2026-02-16: Code review fixes - replaced duplicate resolved_statuses with CLOSED_STATUSES constant, config POST only saves changed values, split template into separate cards, added tests for #general fallback target and Closed - Duplicate status, improved trigger default assertion specificity, gated notification imports behind audit_changes check
 
 ### File List
 

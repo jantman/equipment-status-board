@@ -448,32 +448,32 @@ def update_repair_record(
         )
 
     # Queue Slack notifications based on trigger configuration
-    from esb.services import config_service
+    if audit_changes:
+        from esb.services import config_service
 
-    # Resolved trigger: status changed to a resolved/closed status
-    resolved_statuses = {'Resolved', 'Closed - No Issue Found', 'Closed - Duplicate'}
-    if 'status' in audit_changes and audit_changes['status'][1] in resolved_statuses:
-        if config_service.get_config('notify_resolved', 'true') == 'true':
-            _queue_slack_notification(record.equipment, 'resolved', {
-                'old_status': audit_changes['status'][0],
-                'new_status': audit_changes['status'][1],
-            })
+        # Resolved trigger: status changed to a resolved/closed status
+        if 'status' in audit_changes and audit_changes['status'][1] in CLOSED_STATUSES:
+            if config_service.get_config('notify_resolved', 'true') == 'true':
+                _queue_slack_notification(record.equipment, 'resolved', {
+                    'old_status': audit_changes['status'][0],
+                    'new_status': audit_changes['status'][1],
+                })
 
-    # Severity changed trigger
-    if 'severity' in audit_changes:
-        if config_service.get_config('notify_severity_changed', 'true') == 'true':
-            _queue_slack_notification(record.equipment, 'severity_changed', {
-                'old_severity': audit_changes['severity'][0],
-                'new_severity': audit_changes['severity'][1],
-            })
+        # Severity changed trigger
+        if 'severity' in audit_changes:
+            if config_service.get_config('notify_severity_changed', 'true') == 'true':
+                _queue_slack_notification(record.equipment, 'severity_changed', {
+                    'old_severity': audit_changes['severity'][0],
+                    'new_severity': audit_changes['severity'][1],
+                })
 
-    # ETA updated trigger
-    if 'eta' in audit_changes:
-        if config_service.get_config('notify_eta_updated', 'true') == 'true':
-            _queue_slack_notification(record.equipment, 'eta_updated', {
-                'eta': str(audit_changes['eta'][1]) if audit_changes['eta'][1] else None,
-                'old_eta': str(audit_changes['eta'][0]) if audit_changes['eta'][0] else None,
-            })
+        # ETA updated trigger
+        if 'eta' in audit_changes:
+            if config_service.get_config('notify_eta_updated', 'true') == 'true':
+                _queue_slack_notification(record.equipment, 'eta_updated', {
+                    'eta': str(audit_changes['eta'][1]) if audit_changes['eta'][1] else None,
+                    'old_eta': str(audit_changes['eta'][0]) if audit_changes['eta'][0] else None,
+                })
 
     return record
 

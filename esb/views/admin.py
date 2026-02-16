@@ -239,31 +239,17 @@ def app_config():
         )
 
     if form.validate_on_submit():
-        config_service.set_config(
-            'tech_doc_edit_enabled',
-            'true' if form.tech_doc_edit_enabled.data else 'false',
-            changed_by=current_user.username,
-        )
-        config_service.set_config(
-            'notify_new_report',
-            'true' if form.notify_new_report.data else 'false',
-            changed_by=current_user.username,
-        )
-        config_service.set_config(
-            'notify_resolved',
-            'true' if form.notify_resolved.data else 'false',
-            changed_by=current_user.username,
-        )
-        config_service.set_config(
-            'notify_severity_changed',
-            'true' if form.notify_severity_changed.data else 'false',
-            changed_by=current_user.username,
-        )
-        config_service.set_config(
-            'notify_eta_updated',
-            'true' if form.notify_eta_updated.data else 'false',
-            changed_by=current_user.username,
-        )
+        config_keys = [
+            ('tech_doc_edit_enabled', 'false'),
+            ('notify_new_report', 'true'),
+            ('notify_resolved', 'true'),
+            ('notify_severity_changed', 'true'),
+            ('notify_eta_updated', 'true'),
+        ]
+        for key, default in config_keys:
+            new_value = 'true' if getattr(form, key).data else 'false'
+            if config_service.get_config(key, default) != new_value:
+                config_service.set_config(key, new_value, changed_by=current_user.username)
         flash('Configuration updated successfully.', 'success')
         return redirect(url_for('admin.app_config'))
 

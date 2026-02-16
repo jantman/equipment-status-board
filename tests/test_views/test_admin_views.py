@@ -699,7 +699,7 @@ class TestAppConfig:
             json.loads(r.message) for r in capture.records
             if 'app_config.updated' in r.message
         ]
-        # All 5 config fields are saved (1 permission + 4 triggers)
+        # All 5 values change from defaults (tech_doc false→true, triggers true→false)
         assert len(entries) == 5
         tech_doc_entries = [e for e in entries if e['data']['key'] == 'tech_doc_edit_enabled']
         assert len(tech_doc_entries) == 1
@@ -735,8 +735,18 @@ class TestAppConfigNotificationTriggers:
         """Triggers are checked (enabled) by default when no config exists."""
         resp = staff_client.get('/admin/config')
         assert resp.status_code == 200
-        # All four trigger checkboxes should be checked by default
-        assert resp.data.count(b'checked') >= 4
+        html = resp.data.decode()
+        # Each trigger input should be rendered with checked attribute
+        for field_name in ('notify_new_report', 'notify_resolved',
+                           'notify_severity_changed', 'notify_eta_updated'):
+            # Find the input tag for this field and verify it has 'checked'
+            idx = html.find(f'id="{field_name}"')
+            assert idx != -1, f'{field_name} input not found'
+            # Look at the surrounding input tag (within 200 chars before the id)
+            tag_start = html.rfind('<input', max(0, idx - 200), idx)
+            tag_end = html.find('>', idx)
+            input_tag = html[tag_start:tag_end + 1]
+            assert 'checked' in input_tag, f'{field_name} should be checked by default'
 
     def test_disable_trigger(self, staff_client, staff_user):
         """Staff can disable a notification trigger."""
