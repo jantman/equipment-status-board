@@ -96,10 +96,16 @@ class TestSlackEnabled:
         self.mock_handler.handle.assert_called_once()
 
     def test_slack_blueprint_csrf_exempt(self):
-        """The slack blueprint is CSRF exempt."""
+        """The slack blueprint is CSRF exempt (control: non-exempt route is blocked)."""
         self.app.config['WTF_CSRF_ENABLED'] = True
         self.mock_handler.handle.return_value = ('ok', 200, {})
         client = self.app.test_client()
+
+        # Control: a CSRF-protected POST route is rejected without token
+        resp = client.post('/admin/users/1/role', data={'role': 'staff'})
+        assert resp.status_code in (400, 302)  # 400 CSRF error or 302 login redirect
+
+        # Test: the Slack route is NOT rejected (CSRF exempt)
         client.post('/slack/events', data=b'{}',
                     content_type='application/json')
         self.mock_handler.handle.assert_called_once()

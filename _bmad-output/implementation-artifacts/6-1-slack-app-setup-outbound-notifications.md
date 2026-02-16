@@ -1,6 +1,6 @@
 # Story 6.1: Slack App Setup & Outbound Notifications
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -661,4 +661,5 @@ None.
 
 ### Change Log
 
-- 2026-02-16: Implemented Story 6.1 — Slack App setup with Bolt, outbound notification delivery via WebClient, dual-channel posting, message formatting for all 4 event types, 28 new/updated tests (843 total passing, 0 lint errors)
+- 2026-02-16: Implemented Story 6.1 — Slack App setup with Bolt, outbound notification delivery via WebClient, dual-channel posting, message formatting for all 4 event types, 30 new/updated tests (843 total passing, 0 lint errors)
+- 2026-02-16: Code review fixes — broadened #oops exception catch to `except Exception` (H1), added tests for custom SLACK_OOPS_CHANNEL config (H2), WebClient token verification (H3), #oops network error resilience; fixed stale docstring (H4), strengthened CSRF exemption test with control case (M5), moved safety_prefix into event-specific branches (M6), renamed shadowed logger parameter (M7)

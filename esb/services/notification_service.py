@@ -162,7 +162,6 @@ def process_notification(notification: PendingNotification) -> None:
         notification: The PendingNotification to process.
 
     Raises:
-        NotImplementedError: For notification types not yet implemented.
         ValueError: For unknown notification types.
     """
     handlers = {
@@ -196,7 +195,6 @@ def _deliver_slack_message(notification: PendingNotification) -> None:
         )
 
     from slack_sdk import WebClient
-    from slack_sdk.errors import SlackApiError
 
     client = WebClient(token=token)
     payload = notification.payload or {}
@@ -226,7 +224,7 @@ def _deliver_slack_message(notification: PendingNotification) -> None:
                 'Slack message also delivered to %s (notification=%d)',
                 oops_channel, notification.id,
             )
-        except SlackApiError:
+        except Exception:
             logger.warning(
                 'Failed to post to %s (notification=%d), primary delivery succeeded',
                 oops_channel, notification.id,
@@ -248,12 +246,8 @@ def _format_slack_message(payload: dict) -> tuple[str, list | None]:
     equipment_name = payload.get('equipment_name', 'Unknown Equipment')
     area_name = payload.get('area_name', 'Unknown Area')
 
-    # Safety risk prefix
-    safety_prefix = ''
-    if payload.get('has_safety_risk'):
-        safety_prefix = ':warning: *SAFETY RISK* :warning: '
-
     if event_type == 'new_report':
+        safety_prefix = ':warning: *SAFETY RISK* :warning: ' if payload.get('has_safety_risk') else ''
         severity = payload.get('severity', 'Unknown')
         description = payload.get('description', '')
         reporter = payload.get('reporter_name', 'Unknown')
@@ -271,6 +265,7 @@ def _format_slack_message(payload: dict) -> tuple[str, list | None]:
         )
 
     elif event_type == 'severity_changed':
+        safety_prefix = ':warning: *SAFETY RISK* :warning: ' if payload.get('has_safety_risk') else ''
         old_severity = payload.get('old_severity', 'Unknown')
         new_severity = payload.get('new_severity', 'Unknown')
         text = (

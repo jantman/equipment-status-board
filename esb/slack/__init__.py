@@ -40,7 +40,7 @@ def init_slack(app):
 
     # Register minimal event handler (Bolt requires at least one to avoid warnings)
     @_bolt_app.event('message')
-    def handle_message_events(body, logger):
+    def handle_message_events(body, bolt_logger):
         pass  # Inbound message handling is Story 6.2
 
     # Register the blueprint with the Flask app

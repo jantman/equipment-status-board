@@ -82,7 +82,7 @@ development_status:
 
   # Epic 6: Slack Integration
   epic-6: in-progress
-  6-1-slack-app-setup-outbound-notifications: review
+  6-1-slack-app-setup-outbound-notifications: done
   6-2-problem-reporting-repair-records-via-slack: backlog
   6-3-slack-status-bot: backlog
   epic-6-retrospective: optional

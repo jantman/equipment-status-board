@@ -704,6 +704,77 @@ class TestDeliverSlackMessage:
 
         assert mock_client.chat_postMessage.call_count == 1
 
+    def test_uses_custom_oops_channel_from_config(self, app):
+        """Secondary post goes to custom SLACK_OOPS_CHANNEL config value."""
+        app.config['SLACK_BOT_TOKEN'] = 'xoxb-test-token'
+        app.config['SLACK_OOPS_CHANNEL'] = '#equipment-issues'
+        n = _create_notification(
+            notification_type='slack_message',
+            target='#woodshop',
+            payload={'event_type': 'new_report', 'equipment_name': 'SawStop',
+                     'area_name': 'Woodshop', 'severity': 'Down',
+                     'description': 'Broken', 'reporter_name': 'Test',
+                     'has_safety_risk': False},
+        )
+
+        from unittest.mock import MagicMock
+        mock_client = MagicMock()
+        with patch('slack_sdk.WebClient',
+                   return_value=mock_client):
+            notification_service._deliver_slack_message(n)
+
+        calls = mock_client.chat_postMessage.call_args_list
+        assert len(calls) == 2
+        assert calls[0].kwargs['channel'] == '#woodshop'
+        assert calls[1].kwargs['channel'] == '#equipment-issues'
+
+    def test_webclient_receives_correct_token(self, app):
+        """WebClient is constructed with the correct SLACK_BOT_TOKEN."""
+        app.config['SLACK_BOT_TOKEN'] = 'xoxb-test-token'
+        n = _create_notification(
+            notification_type='slack_message',
+            target='#woodshop',
+            payload={'event_type': 'resolved', 'equipment_name': 'Test',
+                     'area_name': 'Area', 'new_status': 'Resolved'},
+        )
+
+        from unittest.mock import MagicMock
+        mock_client = MagicMock()
+        with patch('slack_sdk.WebClient',
+                   return_value=mock_client) as mock_cls:
+            notification_service._deliver_slack_message(n)
+
+        mock_cls.assert_called_once_with(token='xoxb-test-token')
+
+    def test_oops_network_error_does_not_fail_delivery(self, app):
+        """Non-SlackApiError exceptions from #oops post don't fail delivery."""
+        app.config['SLACK_BOT_TOKEN'] = 'xoxb-test-token'
+        n = _create_notification(
+            notification_type='slack_message',
+            target='#woodshop',
+            payload={'event_type': 'new_report', 'equipment_name': 'SawStop',
+                     'area_name': 'Woodshop', 'severity': 'Down',
+                     'description': 'Broken', 'reporter_name': 'Test',
+                     'has_safety_risk': False},
+        )
+
+        from unittest.mock import MagicMock
+
+        mock_client = MagicMock()
+
+        def side_effect(**kwargs):
+            if kwargs.get('channel') == '#oops':
+                raise ConnectionError('Network unreachable')
+            return MagicMock()
+
+        mock_client.chat_postMessage.side_effect = side_effect
+        with patch('slack_sdk.WebClient',
+                   return_value=mock_client):
+            # Should NOT raise
+            notification_service._deliver_slack_message(n)
+
+        assert mock_client.chat_postMessage.call_count == 2
+
 
 class TestFormatSlackMessage:
     """Tests for _format_slack_message()."""
