@@ -691,6 +691,49 @@ class TestEquipmentInfoView:
         assert 'Back to Status' in html
 
 
+class TestServeUploadView:
+    """Tests for the public file serving route."""
+
+    def test_serves_equipment_file(self, client, app, make_area, make_equipment, tmp_path):
+        """Serves a file from the equipment uploads directory."""
+        area = make_area(name='Shop')
+        equip = make_equipment(name='Lathe', area=area)
+
+        # Create a file in the expected upload path
+        equip_dir = tmp_path / 'equipment' / str(equip.id) / 'docs'
+        equip_dir.mkdir(parents=True)
+        test_file = equip_dir / 'manual.pdf'
+        test_file.write_bytes(b'%PDF-fake-content')
+
+        app.config['UPLOAD_PATH'] = str(tmp_path)
+        response = client.get(f'/public/uploads/equipment/{equip.id}/docs/manual.pdf')
+        assert response.status_code == 200
+        assert response.data == b'%PDF-fake-content'
+
+    def test_rejects_directory_traversal(self, client, app, tmp_path):
+        """Rejects paths containing '..' for directory traversal prevention."""
+        app.config['UPLOAD_PATH'] = str(tmp_path)
+        response = client.get('/public/uploads/equipment/../../../etc/passwd')
+        assert response.status_code == 404
+
+    def test_rejects_non_equipment_paths(self, client, app, tmp_path):
+        """Rejects paths that don't start with 'equipment/' to prevent access to other uploads."""
+        # Create a repair photo that should NOT be publicly accessible
+        repair_dir = tmp_path / 'repair' / '1' / 'photos'
+        repair_dir.mkdir(parents=True)
+        (repair_dir / 'secret.jpg').write_bytes(b'secret-photo')
+
+        app.config['UPLOAD_PATH'] = str(tmp_path)
+        response = client.get('/public/uploads/repair/1/photos/secret.jpg')
+        assert response.status_code == 404
+
+    def test_returns_404_for_missing_file(self, client, app, tmp_path):
+        """Returns 404 when requested file does not exist."""
+        app.config['UPLOAD_PATH'] = str(tmp_path)
+        response = client.get('/public/uploads/equipment/1/docs/nonexistent.pdf')
+        assert response.status_code == 404
+
+
 class TestProblemReportFormDisplay:
     """Tests for problem report form display on equipment page (AC: #3, #4)."""
 

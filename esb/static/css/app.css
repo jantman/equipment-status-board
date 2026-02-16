@@ -70,11 +70,10 @@ th.sortable:hover {
     max-width: 600px;
     margin: 0 auto;
 }
-.qr-issues-list .card-body a,
-.qr-issues-list .card-body .btn,
 .doc-download-link,
 .photo-thumbnail-link,
-.external-links-list a {
+.external-links-list a,
+.report-submit-btn {
     min-height: 44px;
     min-width: 44px;
 }

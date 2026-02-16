@@ -211,8 +211,12 @@ def equipment_info(id):
 
 @public_bp.route('/uploads/<path:filepath>')
 def serve_upload(filepath):
-    """Serve uploaded files (documents, photos) publicly."""
-    if '..' in filepath:
+    """Serve uploaded equipment files (documents, photos) publicly.
+
+    Only serves files under equipment/ subdirectories to prevent
+    unauthorized access to repair photos and other upload types.
+    """
+    if '..' in filepath or not filepath.startswith('equipment/'):
         abort(404)
-    upload_path = current_app.config.get('UPLOAD_PATH', 'uploads')
+    upload_path = current_app.config['UPLOAD_PATH']
     return send_from_directory(upload_path, filepath)

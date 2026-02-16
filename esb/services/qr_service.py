@@ -18,7 +18,14 @@ def generate_qr_code(equipment_id: int, base_url: str) -> str:
 
     Returns:
         Relative path to the generated QR code image (e.g., 'qrcodes/42.png').
+
+    Raises:
+        ValueError: if equipment_id does not exist in the database.
     """
+    equipment = db.session.get(Equipment, equipment_id)
+    if equipment is None:
+        raise ValueError(f'Equipment with id {equipment_id} not found')
+
     url = f"{base_url}/public/equipment/{equipment_id}"
     qr = qrcode.make(url)
 
@@ -58,9 +65,7 @@ def generate_all_qr_codes(base_url: str) -> int:
         db.select(Equipment).filter_by(is_archived=False)
     ).scalars().all()
 
-    count = 0
     for equip in equipment_list:
         generate_qr_code(equip.id, base_url)
-        count += 1
 
-    return count
+    return len(equipment_list)

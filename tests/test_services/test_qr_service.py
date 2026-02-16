@@ -2,11 +2,18 @@
 
 import os
 
+import pytest
+
 from esb.services import qr_service
 
 
 class TestGenerateQrCode:
     """Tests for generate_qr_code()."""
+
+    def test_raises_for_nonexistent_equipment(self, app):
+        """Raises ValueError when equipment_id does not exist."""
+        with pytest.raises(ValueError, match='not found'):
+            qr_service.generate_qr_code(99999, 'http://192.168.1.50:5000')
 
     def test_creates_png_file(self, app, make_area, make_equipment):
         """QR code generation creates a PNG file at the correct path."""

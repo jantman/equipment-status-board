@@ -599,4 +599,5 @@ Claude Opus 4.6
 - esb/static/css/app.css
 - requirements.txt
 - tests/test_views/test_public_views.py
+- .gitignore
 - _bmad-output/implementation-artifacts/sprint-status.yaml
