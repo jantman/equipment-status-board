@@ -105,6 +105,8 @@ def _push_s3(html_content: str, target: str) -> None:
     # Parse target: "bucket-name/optional/key/path"
     parts = target.split('/', 1)
     bucket = parts[0]
+    if not bucket:
+        raise RuntimeError(f'Invalid S3 target {target!r}: bucket name is empty')
     key = parts[1] if len(parts) > 1 and parts[1] else 'index.html'
 
     try:

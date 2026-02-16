@@ -19,6 +19,7 @@
         .status-red { background-color: #dc3545; }
         .equipment-name { font-size: 0.95rem; }
         .status-label { font-size: 0.8rem; color: #6c757d; }
+        .no-equipment { color: #6c757d; font-size: 0.9rem; }
         .footer { text-align: center; margin-top: 2rem; font-size: 0.75rem; color: #6c757d; }
     </style>
 </head>
@@ -31,14 +32,14 @@
         <ul class="equipment-list">
             {% for item in area_data.equipment %}
             <li class="equipment-item">
-                <span class="status-dot status-{{ item.status.color }}"></span>
+                <span class="status-dot status-{{ item.status.color }}" aria-hidden="true"></span>
                 <span class="equipment-name">{{ item.equipment.name }}</span>
                 <span class="status-label">{{ item.status.label }}</span>
             </li>
             {% endfor %}
         </ul>
         {% else %}
-        <p style="color: #6c757d; font-size: 0.9rem;">No equipment in this area.</p>
+        <p class="no-equipment">No equipment in this area.</p>
         {% endif %}
     </div>
     {% endfor %}

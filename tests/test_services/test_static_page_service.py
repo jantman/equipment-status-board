@@ -61,6 +61,37 @@ class TestGenerate:
 
         assert 'Content-Security-Policy' in html
 
+    def test_renders_yellow_status_for_degraded_equipment(self, app, make_area, make_equipment, make_repair_record):
+        """generate() renders status-yellow for equipment with Degraded severity repair."""
+        area = make_area(name='TestArea')
+        equip = make_equipment(name='DegradedEquip', area=area)
+        make_repair_record(equipment=equip, severity='Degraded')
+
+        html = static_page_service.generate()
+
+        assert 'status-yellow' in html
+        assert 'DegradedEquip' in html
+
+    def test_renders_red_status_for_down_equipment(self, app, make_area, make_equipment, make_repair_record):
+        """generate() renders status-red for equipment with Down severity repair."""
+        area = make_area(name='TestArea')
+        equip = make_equipment(name='DownEquip', area=area)
+        make_repair_record(equipment=equip, severity='Down')
+
+        html = static_page_service.generate()
+
+        assert 'status-red' in html
+        assert 'DownEquip' in html
+
+    def test_renders_no_equipment_message_for_empty_area(self, app, make_area):
+        """generate() renders fallback text for an area with no equipment."""
+        make_area(name='EmptyArea')
+
+        html = static_page_service.generate()
+
+        assert 'EmptyArea' in html
+        assert 'No equipment in this area.' in html
+
 
 class TestPushLocal:
     """Tests for push() with method='local'."""
@@ -85,6 +116,16 @@ class TestPushLocal:
         static_page_service.push('<html>test</html>')
 
         assert os.path.exists(os.path.join(target, 'index.html'))
+
+    def test_os_error_raises_runtime_error(self, app):
+        """push() with method='local' raises RuntimeError when OS write fails."""
+        app.config['STATIC_PAGE_PUSH_METHOD'] = 'local'
+        app.config['STATIC_PAGE_PUSH_TARGET'] = '/tmp/test-esb-local'
+
+        with patch('esb.services.static_page_service.os.makedirs',
+                   side_effect=OSError('Permission denied')):
+            with pytest.raises(RuntimeError, match='Failed to write static page'):
+                static_page_service.push('<html>test</html>')
 
 
 class TestPushS3:
@@ -125,6 +166,29 @@ class TestPushS3:
         with patch.object(boto3, 'client', return_value=mock_s3):
             with pytest.raises(RuntimeError, match='S3 upload failed'):
                 static_page_service.push('<html>test</html>')
+
+    def test_handles_no_credentials_error(self, app):
+        """push() with method='s3' handles NoCredentialsError by raising RuntimeError."""
+        app.config['STATIC_PAGE_PUSH_METHOD'] = 's3'
+        app.config['STATIC_PAGE_PUSH_TARGET'] = 'my-bucket/index.html'
+
+        import boto3
+        from botocore.exceptions import NoCredentialsError
+
+        mock_s3 = MagicMock()
+        mock_s3.put_object.side_effect = NoCredentialsError()
+
+        with patch.object(boto3, 'client', return_value=mock_s3):
+            with pytest.raises(RuntimeError, match='AWS credentials not configured'):
+                static_page_service.push('<html>test</html>')
+
+    def test_empty_bucket_raises_runtime_error(self, app):
+        """push() with method='s3' and target starting with / raises RuntimeError for empty bucket."""
+        app.config['STATIC_PAGE_PUSH_METHOD'] = 's3'
+        app.config['STATIC_PAGE_PUSH_TARGET'] = '/key/path'
+
+        with pytest.raises(RuntimeError, match='bucket name is empty'):
+            static_page_service.push('<html>test</html>')
 
     def test_default_key_when_no_path(self, app, capture):
         """push() with method='s3' defaults key to index.html when target has no path."""

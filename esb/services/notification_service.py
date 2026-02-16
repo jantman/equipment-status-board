@@ -196,6 +196,10 @@ def _deliver_static_page_push(notification: PendingNotification) -> None:
     """
     from esb.services import static_page_service
 
+    logger.info(
+        'Static page push triggered (notification=%d, payload=%s)',
+        notification.id, notification.payload,
+    )
     static_page_service.generate_and_push()
 
 

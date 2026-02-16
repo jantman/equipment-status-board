@@ -1,6 +1,6 @@
 # Story 5.2: Static Status Page Generation & Push
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -607,6 +607,7 @@ Claude Opus 4.6
 ### Change Log
 
 - 2026-02-16: Implemented Story 5.2 - Static status page generation with local and S3 push methods, notification queue integration, and repair service hooks. 789 tests passing, 0 lint errors.
+- 2026-02-16: Code review fixes (8 issues: 1 HIGH, 4 MEDIUM, 3 LOW). Added 6 new tests (NoCredentialsError, OSError, yellow/red status dots, empty area, S3 empty bucket). Fixed template inline style → CSS class, added aria-hidden on status dots, added S3 bucket name validation, added notification context logging. 795 tests passing, 0 lint errors.
 
 ### File List
 
