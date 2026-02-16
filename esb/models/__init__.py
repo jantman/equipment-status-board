@@ -8,6 +8,7 @@ from esb.models.area import Area
 from esb.models.audit_log import AuditLog
 from esb.models.document import Document
 from esb.models.equipment import Equipment
+from esb.models.pending_notification import PendingNotification
 from esb.models.external_link import ExternalLink
 from esb.models.repair_record import RepairRecord
 from esb.models.repair_timeline_entry import RepairTimelineEntry
@@ -15,5 +16,5 @@ from esb.models.user import User
 
 __all__ = [
     'AppConfig', 'Area', 'AuditLog', 'Document', 'Equipment', 'ExternalLink',
-    'RepairRecord', 'RepairTimelineEntry', 'User',
+    'PendingNotification', 'RepairRecord', 'RepairTimelineEntry', 'User',
 ]

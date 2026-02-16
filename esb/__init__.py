@@ -87,6 +87,21 @@ def _register_cli(app):
     from esb.extensions import db as _db
     from esb.models.user import User
 
+    @app.cli.group()
+    def worker():
+        """Background worker commands."""
+        pass
+
+    @worker.command('run')
+    @click.option('--poll-interval', default=30, type=int,
+                  help='Seconds between polling cycles (default: 30)')
+    def worker_run(poll_interval):
+        """Run the background notification worker."""
+        from esb.services import notification_service
+
+        click.echo(f'Starting notification worker (poll interval: {poll_interval}s)')
+        notification_service.run_worker_loop(poll_interval=poll_interval)
+
     @app.cli.command('seed-admin')
     @click.argument('username')
     @click.argument('email')

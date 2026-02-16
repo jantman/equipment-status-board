@@ -1,5 +1,7 @@
 """Tests for Flask CLI commands."""
 
+from unittest.mock import patch
+
 from esb.extensions import db as _db
 from esb.models.user import User
 
@@ -57,3 +59,26 @@ class TestSeedAdmin:
         )
         assert result.exit_code == 0
         assert 'Staff user already exists' in result.output
+
+
+class TestWorkerCli:
+    """Tests for the worker CLI commands."""
+
+    def test_worker_run_command_registered(self, app):
+        """flask worker run command is registered and outputs startup message."""
+        runner = app.test_cli_runner()
+        with patch('esb.services.notification_service.run_worker_loop') as mock_loop:
+            result = runner.invoke(args=['worker', 'run'])
+
+        assert result.exit_code == 0
+        assert 'Starting notification worker' in result.output
+        mock_loop.assert_called_once_with(poll_interval=30)
+
+    def test_worker_run_with_poll_interval(self, app):
+        """flask worker run accepts --poll-interval option."""
+        runner = app.test_cli_runner()
+        with patch('esb.services.notification_service.run_worker_loop') as mock_loop:
+            result = runner.invoke(args=['worker', 'run', '--poll-interval', '10'])
+
+        assert result.exit_code == 0
+        mock_loop.assert_called_once_with(poll_interval=10)
