@@ -1,6 +1,6 @@
 # Story 6.3: Slack Status Bot
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -643,11 +643,12 @@ No debug issues encountered.
 - Task 3: Implemented three formatting functions in forms.py: `format_status_summary()` for area dashboard, `format_equipment_status_detail()` for single equipment with emoji/ETA/assignee, and `format_equipment_list()` for disambiguation. Added `_STATUS_EMOJI` dict. 7 tests added.
 - Task 4: Registered `/esb-status` command handler inside `register_handlers()`. Handler calls `ack()` immediately, then branches on search_term: no-args shows area summary, single match shows detail, multiple matches shows disambiguation, no match shows error. All responses are ephemeral. 8 tests added.
 - Task 5: Documentation task — `/esb-status` slash command must be registered at api.slack.com with request URL pointing to `/slack/events`. No additional OAuth scopes needed.
-- Full test suite: 937 tests passing (31 new), 0 lint errors.
+- Full test suite: 937 tests passing (26 new for this story), 0 lint errors.
 
 ### Change Log
 
 - 2026-02-16: Implemented Story 6.3 Slack Status Bot — added `/esb-status` slash command with area summary, equipment search, and status detail responses.
+- 2026-02-16: Code review fixes — added error handling to `/esb-status` handler (M1), deduplicated query/severity logic in status_service via `_get_open_records()`/`_find_highest_severity_record()` helpers (M2), escaped LIKE wildcards in `search_equipment_by_name()` (L1), fixed `test_ack_called_immediately` to verify call ordering (L2), corrected test count in Dev Agent Record (L3). +2 tests (939 total).
 
 ### File List
 

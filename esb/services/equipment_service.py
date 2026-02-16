@@ -397,12 +397,14 @@ def search_equipment_by_name(search_term: str) -> list[Equipment]:
     Returns:
         List of matching Equipment instances, ordered by name.
     """
+    # Escape SQL LIKE wildcards so user input is matched literally
+    escaped = search_term.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
     return list(
         db.session.execute(
             db.select(Equipment)
             .filter(
                 Equipment.is_archived.is_(False),
-                Equipment.name.ilike(f'%{search_term}%'),
+                Equipment.name.ilike(f'%{escaped}%', escape='\\'),
             )
             .order_by(Equipment.name)
         ).scalars().all()

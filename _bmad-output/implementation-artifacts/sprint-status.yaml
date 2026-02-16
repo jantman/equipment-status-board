@@ -84,5 +84,5 @@ development_status:
   epic-6: in-progress
   6-1-slack-app-setup-outbound-notifications: done
   6-2-problem-reporting-repair-records-via-slack: done
-  6-3-slack-status-bot: review
+  6-3-slack-status-bot: done
   epic-6-retrospective: optional

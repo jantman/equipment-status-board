@@ -727,10 +727,14 @@ class TestEsbStatusCommand:
         response_text = client.chat_postEphemeral.call_args.kwargs['text']
         assert 'SawStop' in response_text
 
-    def test_ack_called_immediately(self):
-        """ack() is called before any other operations."""
-        ack = MagicMock()
+    def test_ack_called_before_response(self):
+        """ack() is called before chat_postEphemeral."""
+        call_order = []
+        ack = MagicMock(side_effect=lambda: call_order.append('ack'))
         client = MagicMock()
+        client.chat_postEphemeral = MagicMock(
+            side_effect=lambda **kwargs: call_order.append('chat_postEphemeral'),
+        )
         body = {
             'trigger_id': 'T123',
             'user_id': 'U123',
@@ -740,7 +744,32 @@ class TestEsbStatusCommand:
 
         self.handlers['command:/esb-status'](ack=ack, body=body, client=client)
 
+        assert call_order[0] == 'ack'
+        assert 'chat_postEphemeral' in call_order
+
+    def test_service_error_returns_ephemeral_error(self):
+        """Service exception returns friendly error message."""
+        from unittest.mock import patch
+
+        ack = MagicMock()
+        client = MagicMock()
+        body = {
+            'trigger_id': 'T123',
+            'user_id': 'U123',
+            'channel_id': 'C123',
+            'text': 'SawStop',
+        }
+
+        with patch(
+            'esb.services.equipment_service.search_equipment_by_name',
+            side_effect=Exception('DB error'),
+        ):
+            self.handlers['command:/esb-status'](ack=ack, body=body, client=client)
+
         ack.assert_called_once()
+        client.chat_postEphemeral.assert_called_once()
+        response_text = client.chat_postEphemeral.call_args.kwargs['text']
+        assert 'error occurred' in response_text.lower()
 
     def test_empty_dashboard(self):
         """No equipment returns appropriate message."""

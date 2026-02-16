@@ -19,6 +19,43 @@ _SEVERITY_STATUS = {
 }
 
 
+def _get_open_records(equipment_id: int) -> list:
+    """Query open (non-closed) repair records for an equipment item."""
+    return (
+        db.session.execute(
+            db.select(RepairRecord)
+            .filter(
+                RepairRecord.equipment_id == equipment_id,
+                RepairRecord.status.notin_(CLOSED_STATUSES),
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+
+def _find_highest_severity_record(records: list):
+    """Find the record with the highest severity priority.
+
+    Returns the highest-severity record, or None if no severity matches
+    or records is empty.
+    """
+    if not records:
+        return None
+
+    best_record = None
+    best_priority = 999
+    for record in records:
+        sev = record.severity
+        if sev in _SEVERITY_STATUS:
+            priority = _SEVERITY_STATUS[sev][2]
+            if priority < best_priority:
+                best_priority = priority
+                best_record = record
+
+    return best_record
+
+
 def _derive_status_from_records(records: list) -> dict:
     """Derive equipment status from a list of open repair records.
 
@@ -38,16 +75,7 @@ def _derive_status_from_records(records: list) -> dict:
             'severity': None,
         }
 
-    best_record = None
-    best_priority = 999
-
-    for record in records:
-        sev = record.severity
-        if sev in _SEVERITY_STATUS:
-            priority = _SEVERITY_STATUS[sev][2]
-            if priority < best_priority:
-                best_priority = priority
-                best_record = record
+    best_record = _find_highest_severity_record(records)
 
     if best_record is None:
         return {
@@ -82,19 +110,7 @@ def compute_equipment_status(equipment_id: int) -> dict:
     if equipment is None:
         raise EquipmentNotFound(f'Equipment with id {equipment_id} not found')
 
-    open_records = (
-        db.session.execute(
-            db.select(RepairRecord)
-            .filter(
-                RepairRecord.equipment_id == equipment_id,
-                RepairRecord.status.notin_(CLOSED_STATUSES),
-            )
-        )
-        .scalars()
-        .all()
-    )
-
-    return _derive_status_from_records(open_records)
+    return _derive_status_from_records(_get_open_records(equipment_id))
 
 
 def get_equipment_status_detail(equipment_id: int) -> dict:
@@ -115,32 +131,13 @@ def get_equipment_status_detail(equipment_id: int) -> dict:
     if equipment is None:
         raise EquipmentNotFound(f'Equipment with id {equipment_id} not found')
 
-    open_records = (
-        db.session.execute(
-            db.select(RepairRecord)
-            .filter(
-                RepairRecord.equipment_id == equipment_id,
-                RepairRecord.status.notin_(CLOSED_STATUSES),
-            )
-        )
-        .scalars()
-        .all()
-    )
-
+    open_records = _get_open_records(equipment_id)
     status = _derive_status_from_records(open_records)
 
     eta = None
     assignee_name = None
     if open_records:
-        best_record = None
-        best_priority = 999
-        for record in open_records:
-            sev = record.severity
-            if sev in _SEVERITY_STATUS:
-                priority = _SEVERITY_STATUS[sev][2]
-                if priority < best_priority:
-                    best_priority = priority
-                    best_record = record
+        best_record = _find_highest_severity_record(open_records)
         if best_record is None:
             best_record = open_records[0]
         eta = best_record.eta

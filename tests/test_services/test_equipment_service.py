@@ -941,3 +941,19 @@ class TestSearchEquipmentByName:
         result = search_equipment_by_name('Saw')
         assert len(result) == 1
         assert result[0].name == 'Active Saw'
+
+    def test_like_wildcards_escaped(self, app, make_area, make_equipment):
+        """search_equipment_by_name() treats % and _ as literal characters."""
+        from esb.services.equipment_service import search_equipment_by_name
+
+        area = make_area('Woodshop', '#wood')
+        make_equipment('SawStop', 'SawStop', 'PCS', area=area)
+        make_equipment('Band Saw', 'Jet', 'JWBS', area=area)
+
+        # '%' should not act as a wildcard matching everything
+        result = search_equipment_by_name('%')
+        assert result == []
+
+        # '_' should not act as a single-char wildcard
+        result = search_equipment_by_name('_')
+        assert result == []

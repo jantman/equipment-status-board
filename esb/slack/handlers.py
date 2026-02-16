@@ -216,27 +216,31 @@ def register_handlers(bolt_app):
         ack()
         search_term = body.get('text', '').strip()
 
-        if not search_term:
-            from esb.services import status_service
-            dashboard = status_service.get_area_status_dashboard()
-            from esb.slack.forms import format_status_summary
-            text = format_status_summary(dashboard)
-        else:
-            from esb.services import equipment_service, status_service
-            matches = equipment_service.search_equipment_by_name(search_term)
-            if len(matches) == 0:
-                text = (
-                    f':mag: Equipment not found: "{search_term}"\n'
-                    'Check the spelling or use the full equipment name. '
-                    'Try `/esb-status` with no arguments to see all equipment.'
-                )
-            elif len(matches) == 1:
-                detail = status_service.get_equipment_status_detail(matches[0].id)
-                from esb.slack.forms import format_equipment_status_detail
-                text = format_equipment_status_detail(matches[0], detail)
+        try:
+            if not search_term:
+                from esb.services import status_service
+                dashboard = status_service.get_area_status_dashboard()
+                from esb.slack.forms import format_status_summary
+                text = format_status_summary(dashboard)
             else:
-                from esb.slack.forms import format_equipment_list
-                text = format_equipment_list(matches, search_term)
+                from esb.services import equipment_service, status_service
+                matches = equipment_service.search_equipment_by_name(search_term)
+                if len(matches) == 0:
+                    text = (
+                        f':mag: Equipment not found: "{search_term}"\n'
+                        'Check the spelling or use the full equipment name. '
+                        'Try `/esb-status` with no arguments to see all equipment.'
+                    )
+                elif len(matches) == 1:
+                    detail = status_service.get_equipment_status_detail(matches[0].id)
+                    from esb.slack.forms import format_equipment_status_detail
+                    text = format_equipment_status_detail(matches[0], detail)
+                else:
+                    from esb.slack.forms import format_equipment_list
+                    text = format_equipment_list(matches, search_term)
+        except Exception:
+            logger.warning('Error processing /esb-status command', exc_info=True)
+            text = ':x: An error occurred while checking equipment status. Please try again.'
 
         client.chat_postEphemeral(
             channel=body['channel_id'],
