@@ -1,0 +1,1103 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="User guides and administrator documentation for the Equipment Status Board">
+      
+      
+      
+        <link rel="canonical" href="https://jantman.github.io/equipment-status-board/original_requirements_doc/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.1">
+    
+    
+      
+        <title>Equipment Status Board (ESB) - Equipment Status Board Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="amber">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#equipment-status-board-esb" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Equipment Status Board Documentation" class="md-header__button md-logo" aria-label="Equipment Status Board Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Equipment Status Board Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Equipment Status Board (ESB)
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="amber"  aria-hidden="true"  type="radio" name="__palette" id="__palette_0">
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../members/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Members Guide
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../technicians/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Technicians Guide
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../staff/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Staff Guide
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../administrators/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Administrators Guide
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Equipment Status Board Documentation" class="md-nav__button md-logo" aria-label="Equipment Status Board Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Equipment Status Board Documentation
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../members/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Members Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../technicians/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Technicians Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../staff/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Staff Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../administrators/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Administrators Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#executive-summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Executive Summary
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#problem-statement" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Problem Statement
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#user-roles" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        User Roles
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#core-functionality" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Core Functionality
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Core Functionality">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-equipment-registry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Equipment Registry
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-repair-records" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Repair Records
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-spare-parts-and-consumables-inventory-optional" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Spare Parts and Consumables Inventory (Optional)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-status-dashboard" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Status Dashboard
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#key-user-flows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key User Flows
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Key User Flows">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#member-reports-a-problem-via-qr-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Member Reports a Problem (via QR Code)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#member-reports-a-problem-via-slack" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Member Reports a Problem (via Slack)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#technician-updates-repair-status" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Technician Updates Repair Status
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#member-checks-status-before-visiting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Member Checks Status Before Visiting
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#slack-integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Slack Integration
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#open-questions-for-stakeholders" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Open Questions for Stakeholders
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Open Questions for Stakeholders">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#remote-status-access" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Remote Status Access
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#slack-plan-capabilities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Slack Plan Capabilities
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#user-authentication" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        User Authentication
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#parts-inventory-priority" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Parts Inventory Priority
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#success-criteria" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Success Criteria
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#constraints-and-assumptions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Constraints and Assumptions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#equipment-areas" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Equipment Areas
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#out-of-scope-for-now" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Out of Scope (For Now)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#next-steps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Next Steps
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#technical-details" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Technical Details
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Technical Details">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#behavior" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Behavior
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuration
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deployment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deployment
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#build-and-test" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Build and Test
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#original-background" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Original Background
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="equipment-status-board-esb">Equipment Status Board (ESB)<a class="headerlink" href="#equipment-status-board-esb" title="Permanent link">&para;</a></h1>
+<p><em>Functional Requirements Document</em></p>
+<p>Decatur Makers</p>
+<p>Draft for Stakeholder Review</p>
+<h2 id="executive-summary">Executive Summary<a class="headerlink" href="#executive-summary" title="Permanent link">&para;</a></h2>
+<p>Decatur Makers is a non-profit makerspace with approximately 600 members who have 24/7 access to the facility. Equipment maintenance is currently handled by one part-time Makerspace Manager and a small team of volunteer Technicians.</p>
+<p>The Equipment Status Board (ESB) addresses a critical gap in our member experience: <strong>members currently have no reliable way to know whether equipment is operational before coming to the space</strong>. This leads to wasted trips, frustration, and reduced trust in the organization.</p>
+<p>The ESB will provide a centralized system for tracking equipment status, coordinating repairs, and communicating with members—ultimately making the makerspace more reliable and member-friendly.</p>
+<h2 id="problem-statement">Problem Statement<a class="headerlink" href="#problem-statement" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Members arrive at the space only to discover that the equipment they planned to use is broken or degraded</li>
+<li>No single source of truth exists for equipment status—information is scattered across Slack channels, word of mouth, and handwritten signs</li>
+<li>Volunteer Technicians have difficulty coordinating repair efforts with the Makerspace Manager</li>
+<li>Equipment documentation (manuals, service records, repair history) is not centralized or easily accessible</li>
+<li>Members who notice problems have no easy way to report them</li>
+</ul>
+<h2 id="user-roles">User Roles<a class="headerlink" href="#user-roles" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Role</th>
+<th>Who</th>
+<th>What They Can Do</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Member</td>
+<td>Any of the ~600 paying members</td>
+<td>View equipment status; report problems via QR code or Slack; receive Slack notifications</td>
+</tr>
+<tr>
+<td>Technician</td>
+<td>Volunteers with equipment expertise</td>
+<td>All Member capabilities plus: create/update repair records; update equipment notes; log in to web interface</td>
+</tr>
+<tr>
+<td>Staff</td>
+<td>4 paid employees including Makerspace Manager</td>
+<td>All Technician capabilities plus: add/edit/remove equipment records; manage parts inventory; manage user accounts</td>
+</tr>
+</tbody>
+</table>
+<h2 id="core-functionality">Core Functionality<a class="headerlink" href="#core-functionality" title="Permanent link">&para;</a></h2>
+<h3 id="1-equipment-registry">1. Equipment Registry<a class="headerlink" href="#1-equipment-registry" title="Permanent link">&para;</a></h3>
+<p>A central database of all equipment in the makerspace, including:</p>
+<ul>
+<li><strong>Identity:</strong> Unique name (e.g., "SawStop #1"), manufacturer, model, serial number</li>
+<li><strong>Location:</strong> Area within the space (Woodshop, Lasers, 3D Printers, Metal Shop, etc.)</li>
+<li><strong>Acquisition info:</strong> Date acquired, vendor, cost, warranty details (if known)</li>
+<li><strong>Documentation:</strong> Links or uploaded files (operator's manual, service manual, receipts); one can be designated as the "default document"</li>
+<li><strong>Notes:</strong> Free-form field for tips, tricks, quirks, historical repair information</li>
+<li><strong>Description:</strong> Human-written summary of what the equipment is and does</li>
+</ul>
+<h3 id="2-repair-records">2. Repair Records<a class="headerlink" href="#2-repair-records" title="Permanent link">&para;</a></h3>
+<p>When equipment has a problem, a repair record is created to track it from discovery through resolution:</p>
+<ul>
+<li><strong>Severity:</strong> "Down" (equipment cannot be used) or "Degraded" (equipment works but with limitations)</li>
+<li><strong>Status:</strong> New → In Progress → Waiting for Parts → Resolved</li>
+<li><strong>Description:</strong> Brief summary of the problem</li>
+<li><strong>Estimated resolution date:</strong> When repair is expected to be complete</li>
+<li><strong>Notes:</strong> Running log of repair attempts, findings, and updates</li>
+<li><strong>Audit trail:</strong> All changes are logged with who made them and when</li>
+</ul>
+<h3 id="3-spare-parts-and-consumables-inventory-optional">3. Spare Parts and Consumables Inventory (Optional)<a class="headerlink" href="#3-spare-parts-and-consumables-inventory-optional" title="Permanent link">&para;</a></h3>
+<p>For each piece of equipment, optionally track:</p>
+<ol>
+<li>Spare/replacement parts to keep on hand or to expedite future orders: part name, part number, vendor, cost, and purchase links.</li>
+<li>Consumables: description, purchase link, model, vendor, cost</li>
+</ol>
+<h3 id="4-status-dashboard">4. Status Dashboard<a class="headerlink" href="#4-status-dashboard" title="Permanent link">&para;</a></h3>
+<p>A real-time display showing all equipment organized by area, intended to be shown on a kiosk screen or projector in the space:</p>
+<ul>
+<li><strong>Green:</strong> No open repair records—equipment is operational</li>
+<li><strong>Yellow:</strong> Open repair record with "Degraded" severity</li>
+<li><strong>Red:</strong> Open repair record with "Down" severity</li>
+</ul>
+<p>Each entry shows the estimated resolution date (if applicable) and optionally a QR code linking to the equipment's default documentation.</p>
+<h2 id="key-user-flows">Key User Flows<a class="headerlink" href="#key-user-flows" title="Permanent link">&para;</a></h2>
+<h3 id="member-reports-a-problem-via-qr-code">Member Reports a Problem (via QR Code)<a class="headerlink" href="#member-reports-a-problem-via-qr-code" title="Permanent link">&para;</a></h3>
+<ol>
+<li>Member scans per-machine QR code physically attached to the equipment</li>
+<li>Browser opens per-machine web page showing any open repair records, owners manual/educational links, and simple form to report a problem</li>
+<li>Member describes the problem, provides contact info, and optionally uploads photos</li>
+<li>System creates a new repair record with status "New"</li>
+<li>Notification is sent to the Area-specific Slack channel</li>
+</ol>
+<h3 id="member-reports-a-problem-via-slack">Member Reports a Problem (via Slack)<a class="headerlink" href="#member-reports-a-problem-via-slack" title="Permanent link">&para;</a></h3>
+<p>Members can also report problems directly via Slack, either through a dedicated channel or Slack App form (depending on plan capabilities). The same information is captured and a repair record is created.</p>
+<h3 id="technician-updates-repair-status">Technician Updates Repair Status<a class="headerlink" href="#technician-updates-repair-status" title="Permanent link">&para;</a></h3>
+<ol>
+<li>Technician logs into the web interface (or uses Slack, if available)</li>
+<li>Finds the repair record and updates status, adds notes, or changes estimated resolution date</li>
+<li>System logs the change with timestamp and user</li>
+<li>Dashboard updates automatically; Slack notification sent to Area channel if status changed meaningfully</li>
+</ol>
+<h3 id="member-checks-status-before-visiting">Member Checks Status Before Visiting<a class="headerlink" href="#member-checks-status-before-visiting" title="Permanent link">&para;</a></h3>
+<p>Member views current equipment status via one of: the in-space kiosk display, a Slack channel/bot, or a publicly accessible web page or cloud-hosted status file. (See Open Questions.)</p>
+<h2 id="slack-integration">Slack Integration<a class="headerlink" href="#slack-integration" title="Permanent link">&para;</a></h2>
+<p>Slack is our primary communication tool, though not all members use it. The ESB should integrate with Slack in the following ways:</p>
+<ul>
+<li><strong>Status notifications:</strong> Post to Area-specific Slack channels when equipment status changes (becomes down, becomes degraded, is fixed, or has a change to estimated resolution date)</li>
+<li><strong>Problem reporting:</strong> Members should be able to report equipment problems via Slack in addition to QR codes</li>
+<li><strong>Repair record creation:</strong> Technicians and Staff should be able to create repair records from a private Slack channel (using a Slack App with forms would be ideal, if our plan supports it)</li>
+<li><strong>Repair record updates:</strong> Technicians and Staff should be able to update repair records from Slack</li>
+</ul>
+<h2 id="open-questions-for-stakeholders">Open Questions for Stakeholders<a class="headerlink" href="#open-questions-for-stakeholders" title="Permanent link">&para;</a></h2>
+<p>The following questions need input before development can proceed:</p>
+<h3 id="remote-status-access">Remote Status Access<a class="headerlink" href="#remote-status-access" title="Permanent link">&para;</a></h3>
+<p>How should members access equipment status when not physically in the space? Options include:</p>
+<ul>
+<li>A Slack bot that responds to queries or posts periodic summaries</li>
+<li>A static status page uploaded to a public web server or cloud storage whenever status changes</li>
+</ul>
+<h3 id="slack-plan-capabilities">Slack Plan Capabilities<a class="headerlink" href="#slack-plan-capabilities" title="Permanent link">&para;</a></h3>
+<p>Does our current Slack plan support Slack Apps with forms (Workflow Builder)? This affects how we design the Technician/Staff experience for creating and updating repair records, as well as how members can report problems via Slack.</p>
+<h3 id="user-authentication">User Authentication<a class="headerlink" href="#user-authentication" title="Permanent link">&para;</a></h3>
+<p>How should Staff and Technicians authenticate to the web interface? Options include standalone accounts, integration with existing member management system (Neon One), or Slack-based authentication.</p>
+<h3 id="parts-inventory-priority">Parts Inventory Priority<a class="headerlink" href="#parts-inventory-priority" title="Permanent link">&para;</a></h3>
+<p>Is the spare parts inventory feature essential for initial release, or can it be deferred?</p>
+<h2 id="success-criteria">Success Criteria<a class="headerlink" href="#success-criteria" title="Permanent link">&para;</a></h2>
+<p>We'll know the ESB is successful when:</p>
+<ul>
+<li>Members can reliably check equipment status before visiting the space</li>
+<li>The in-space dashboard accurately reflects current equipment status at all times</li>
+<li>Repair records are created promptly when issues arise (reduced time from problem discovery to documentation)</li>
+<li>Technicians and the Makerspace Manager report improved coordination on repairs</li>
+<li>Equipment documentation is consolidated and accessible</li>
+</ul>
+<h2 id="constraints-and-assumptions">Constraints and Assumptions<a class="headerlink" href="#constraints-and-assumptions" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>No dedicated IT staff:</strong> The system must be maintainable by volunteers with general technology experience</li>
+<li><strong>On-premises infrastructure:</strong> We have servers in the space; the ESB can run locally without requiring external hosting</li>
+<li><strong>No public internet exposure:</strong> Internal services are not directly accessible from outside the space; remote access will require a workaround</li>
+<li><strong>Variable Slack adoption:</strong> Not all members use Slack, so it cannot be the only way to access status information</li>
+</ul>
+<h2 id="equipment-areas">Equipment Areas<a class="headerlink" href="#equipment-areas" title="Permanent link">&para;</a></h2>
+<p>Equipment is organized into Areas. The current list of Areas is:</p>
+<ul>
+<li>Woodshop</li>
+<li>Lasers</li>
+<li>3D Printers</li>
+<li>Metal Shop</li>
+</ul>
+<p>This list should be stored in a single configurable location so it can be updated over time as the space evolves. Each Area will have a corresponding Slack channel for notifications.</p>
+<h2 id="out-of-scope-for-now">Out of Scope (For Now)<a class="headerlink" href="#out-of-scope-for-now" title="Permanent link">&para;</a></h2>
+<p>The following are explicitly not part of this initial effort:</p>
+<ul>
+<li>Equipment reservation/scheduling system</li>
+<li>Member training tracking or certification management (handled by Neon One CRM)</li>
+<li>Financial/accounting integration</li>
+<li>Per-member notification preferences (notifications go to Area-specific channels)</li>
+<li>Automated equipment monitoring or IoT integration</li>
+</ul>
+<h2 id="next-steps">Next Steps<a class="headerlink" href="#next-steps" title="Permanent link">&para;</a></h2>
+<ol>
+<li>Review this document with Staff and key Technicians</li>
+<li>Resolve open questions</li>
+<li>Prioritize features for initial release vs. future phases</li>
+<li>Begin technical design and development</li>
+</ol>
+<h2 id="technical-details">Technical Details<a class="headerlink" href="#technical-details" title="Permanent link">&para;</a></h2>
+<p>The following technical decisions have been made and should guide implementation:</p>
+<h3 id="behavior">Behavior<a class="headerlink" href="#behavior" title="Permanent link">&para;</a></h3>
+<ul>
+<li>All incoming requests should be logged in JSON format to STDOUT as early as possible, so that data can be reconstructed from these logs if an application error occurs</li>
+<li>All actions that change data should result in a JSON audit log written to STDOUT</li>
+</ul>
+<h3 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Area-specific Slack channels already exist and will be provided via application configuration</li>
+<li>The list of Areas should be configurable without code changes</li>
+</ul>
+<h3 id="deployment">Deployment<a class="headerlink" href="#deployment" title="Permanent link">&para;</a></h3>
+<ul>
+<li>The application will be deployed as a Docker container</li>
+<li>MariaDB will be used as the database backend</li>
+</ul>
+<h3 id="build-and-test">Build and Test<a class="headerlink" href="#build-and-test" title="Permanent link">&para;</a></h3>
+<ul>
+<li>GitHub Actions will be used for the CI/CD pipeline (build and test)</li>
+<li>Builds and tests must also be runnable locally</li>
+<li>Comprehensive unit tests are required</li>
+<li>Comprehensive Playwright browser tests covering all user flows are required</li>
+</ul>
+<h2 id="original-background">Original Background<a class="headerlink" href="#original-background" title="Permanent link">&para;</a></h2>
+<p>Decatur Makers is a small non-profit makerspace offering access to equipment and instruction for many maker activities from woodworking, 3D printing, laser engraving/cutting to metal machining and welding. We currently have approximately 600 paying members with 24x7 access to the space and varying levels of experience and engagement. We have four paid Staff members including the Makerspace Manager. Maintenance of tools and equipment is handled by a single part-time employee (the Makerspace Manager) and a handful of volunteer Technicians. One of the key difficulties in our member experience is a lack of clear, up-to-date information on the status of our tools/equipment, estimated date of completion of repairs, and ability of our volunteer Technicians to coordinate repair work with the Makerspace Manager. Our organization has no dedicated IT staff but a small number of volunteers with technology experience, and a few servers physically in the space. We rely heavily on Slack for communication, though Slack usage is not universal among our members.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "search.suggest", "content.tabs.link"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>

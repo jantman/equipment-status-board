@@ -1,0 +1,1810 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="User guides and administrator documentation for the Equipment Status Board">
+      
+      
+      
+        <link rel="canonical" href="https://jantman.github.io/equipment-status-board/administrators/">
+      
+      
+        <link rel="prev" href="../staff/">
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.1">
+    
+    
+      
+        <title>Administrators Guide - Equipment Status Board Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="amber">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#administrators-guide" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Equipment Status Board Documentation" class="md-header__button md-logo" aria-label="Equipment Status Board Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Equipment Status Board Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Administrators Guide
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="amber"  aria-hidden="true"  type="radio" name="__palette" id="__palette_0">
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../members/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Members Guide
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../technicians/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Technicians Guide
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../staff/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Staff Guide
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="./" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Administrators Guide
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Equipment Status Board Documentation" class="md-nav__button md-logo" aria-label="Equipment Status Board Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Equipment Status Board Documentation
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../members/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Members Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../technicians/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Technicians Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../staff/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Staff Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Administrators Guide
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Administrators Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prerequisites
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#installation-deployment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Installation &amp; Deployment
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Installation &amp; Deployment">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-clone-the-repository" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Clone the Repository
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-configure-environment-variables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Configure Environment Variables
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-start-all-services" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Start All Services
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-run-database-migrations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Run Database Migrations
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-create-the-first-staff-user" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Create the First Staff User
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6-verify" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Verify
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#environment-variable-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Environment Variable Reference
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#docker-services" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Docker Services
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Docker Services">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#app-service" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        App Service
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#database-service" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Database Service
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#worker-service" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Worker Service
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#runtime-dependencies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Runtime Dependencies
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#slack-app-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Slack App Configuration
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Slack App Configuration">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-create-a-slack-app" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Create a Slack App
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-configure-bot-token-scopes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Configure Bot Token Scopes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-set-up-slash-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Set Up Slash Commands
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-enable-event-subscriptions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Enable Event Subscriptions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-install-the-app" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Install the App
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6-copy-credentials" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Copy Credentials
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#static-status-page-setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Static Status Page Setup
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Static Status Page Setup">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuration
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ongoing-maintenance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ongoing Maintenance
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Ongoing Maintenance">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#viewing-logs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Viewing Logs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#restarting-services" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Restarting Services
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#applying-updates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Applying Updates
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#monitoring-the-worker" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Monitoring the Worker
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#upload-storage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Upload Storage
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#database" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Database
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#troubleshooting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Troubleshooting
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Troubleshooting">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#app-wont-start" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        App won't start
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#slack-commands-not-working" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Slack commands not working
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#notifications-not-delivering" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Notifications not delivering
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#static-page-not-updating" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Static page not updating
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prerequisites
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#installation-deployment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Installation &amp; Deployment
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Installation &amp; Deployment">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-clone-the-repository" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Clone the Repository
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-configure-environment-variables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Configure Environment Variables
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-start-all-services" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Start All Services
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-run-database-migrations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Run Database Migrations
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-create-the-first-staff-user" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Create the First Staff User
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6-verify" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Verify
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#environment-variable-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Environment Variable Reference
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#docker-services" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Docker Services
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Docker Services">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#app-service" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        App Service
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#database-service" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Database Service
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#worker-service" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Worker Service
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#runtime-dependencies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Runtime Dependencies
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#slack-app-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Slack App Configuration
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Slack App Configuration">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-create-a-slack-app" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Create a Slack App
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-configure-bot-token-scopes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Configure Bot Token Scopes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-set-up-slash-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Set Up Slash Commands
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-enable-event-subscriptions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Enable Event Subscriptions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-install-the-app" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Install the App
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6-copy-credentials" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Copy Credentials
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#static-status-page-setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Static Status Page Setup
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Static Status Page Setup">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuration
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ongoing-maintenance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ongoing Maintenance
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Ongoing Maintenance">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#viewing-logs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Viewing Logs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#restarting-services" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Restarting Services
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#applying-updates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Applying Updates
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#monitoring-the-worker" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Monitoring the Worker
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#upload-storage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Upload Storage
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#database" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Database
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#troubleshooting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Troubleshooting
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Troubleshooting">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#app-wont-start" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        App won't start
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#slack-commands-not-working" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Slack commands not working
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#notifications-not-delivering" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Notifications not delivering
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#static-page-not-updating" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Static page not updating
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="administrators-guide">Administrators Guide<a class="headerlink" href="#administrators-guide" title="Permanent link">&para;</a></h1>
+<p>This guide is for technical volunteers responsible for deploying and maintaining the Equipment Status Board. It covers Docker deployment, environment configuration, Slack App setup, and ongoing maintenance.</p>
+<h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
+<p>Before you begin, ensure you have:</p>
+<ul>
+<li><strong>Docker</strong> and <strong>Docker Compose</strong> installed on the server</li>
+<li><strong>Git</strong> for cloning the repository</li>
+<li>A server or machine on the makerspace local network (or accessible to members)</li>
+<li>A <strong>Slack workspace</strong> with a paid plan (Pro or higher) if you want to use Slack integration</li>
+</ul>
+<h2 id="installation-deployment">Installation &amp; Deployment<a class="headerlink" href="#installation-deployment" title="Permanent link">&para;</a></h2>
+<h3 id="1-clone-the-repository">1. Clone the Repository<a class="headerlink" href="#1-clone-the-repository" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/jantman/equipment-status-board.git
+<span class="nb">cd</span><span class="w"> </span>equipment-status-board
+</code></pre></div>
+<h3 id="2-configure-environment-variables">2. Configure Environment Variables<a class="headerlink" href="#2-configure-environment-variables" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code>cp<span class="w"> </span>.env.example<span class="w"> </span>.env
+</code></pre></div>
+<p>Edit <code>.env</code> and set the required values. See the <a href="#environment-variable-reference">Environment Variable Reference</a> below for details on each variable.</p>
+<p>At minimum, you must change:</p>
+<ul>
+<li><code>SECRET_KEY</code> — Set to a random string for production (e.g., <code>python3 -c "import secrets; print(secrets.token_hex(32))"</code>)</li>
+<li><code>MARIADB_ROOT_PASSWORD</code> — Set a strong database password</li>
+</ul>
+<h3 id="3-start-all-services">3. Start All Services<a class="headerlink" href="#3-start-all-services" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span>up<span class="w"> </span>-d
+</code></pre></div>
+<p>This starts three containers: the web application, the MariaDB database, and the background notification worker.</p>
+<h3 id="4-run-database-migrations">4. Run Database Migrations<a class="headerlink" href="#4-run-database-migrations" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>app<span class="w"> </span>flask<span class="w"> </span>db<span class="w"> </span>upgrade
+</code></pre></div>
+<p>This creates all required database tables.</p>
+<h3 id="5-create-the-first-staff-user">5. Create the First Staff User<a class="headerlink" href="#5-create-the-first-staff-user" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>app<span class="w"> </span>flask<span class="w"> </span>seed-admin<span class="w"> </span>&lt;username&gt;<span class="w"> </span>&lt;email&gt;<span class="w"> </span>--password<span class="w"> </span>&lt;password&gt;
+</code></pre></div>
+<p>For example:</p>
+<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>app<span class="w"> </span>flask<span class="w"> </span>seed-admin<span class="w"> </span>admin<span class="w"> </span>admin@example.com<span class="w"> </span>--password<span class="w"> </span>changeme123
+</code></pre></div>
+<p>This creates a user with the Staff role who can then log in and create additional users through the web interface.</p>
+<h3 id="6-verify">6. Verify<a class="headerlink" href="#6-verify" title="Permanent link">&para;</a></h3>
+<p>Open <code>http://localhost:5000</code> in a browser (or the server's IP/hostname on port 5000). You should see the status dashboard. Log in with the Staff user you just created.</p>
+<h2 id="environment-variable-reference">Environment Variable Reference<a class="headerlink" href="#environment-variable-reference" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Description</th>
+<th>Required</th>
+<th>Default</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SECRET_KEY</code></td>
+<td>Flask secret key for session signing. Must be random in production.</td>
+<td>Yes</td>
+<td><code>dev-secret-change-me</code></td>
+<td><code>a1b2c3d4e5f6...</code> (use <code>python3 -c "import secrets; print(secrets.token_hex(32))"</code>)</td>
+</tr>
+<tr>
+<td><code>DATABASE_URL</code></td>
+<td>SQLAlchemy database connection URL. In Docker, the hostname is <code>db</code>.</td>
+<td>Yes</td>
+<td><code>mysql+pymysql://root:esb_dev_password@localhost/esb</code></td>
+<td><code>mysql+pymysql://root:yourpassword@db/esb</code></td>
+</tr>
+<tr>
+<td><code>MARIADB_ROOT_PASSWORD</code></td>
+<td>Root password for the MariaDB container. Must match the password in <code>DATABASE_URL</code>.</td>
+<td>Yes</td>
+<td><code>esb_dev_password</code></td>
+<td><code>strong-random-password</code></td>
+</tr>
+<tr>
+<td><code>UPLOAD_PATH</code></td>
+<td>Directory for uploaded files (photos, documents). Relative to app root or absolute path.</td>
+<td>No</td>
+<td><code>uploads</code></td>
+<td><code>/app/uploads</code></td>
+</tr>
+<tr>
+<td><code>UPLOAD_MAX_SIZE_MB</code></td>
+<td>Maximum upload file size in megabytes.</td>
+<td>No</td>
+<td><code>500</code></td>
+<td><code>100</code></td>
+</tr>
+<tr>
+<td><code>SLACK_BOT_TOKEN</code></td>
+<td>Slack Bot User OAuth Token. Leave empty to disable Slack integration.</td>
+<td>No</td>
+<td><em>(empty)</em></td>
+<td><code>xoxb-1234567890-...</code></td>
+</tr>
+<tr>
+<td><code>SLACK_SIGNING_SECRET</code></td>
+<td>Slack Signing Secret for verifying requests from Slack.</td>
+<td>No</td>
+<td><em>(empty)</em></td>
+<td><code>abc123def456...</code></td>
+</tr>
+<tr>
+<td><code>SLACK_OOPS_CHANNEL</code></td>
+<td>Slack channel for cross-area notifications. Can be set in <code>.env</code> (not included in <code>.env.example</code> by default).</td>
+<td>No</td>
+<td><code>#oops</code></td>
+<td><code>#equipment-alerts</code></td>
+</tr>
+<tr>
+<td><code>STATIC_PAGE_PUSH_METHOD</code></td>
+<td>How to publish the static status page. Options: <code>local</code> (write to directory) or <code>s3</code> (upload to S3 bucket via boto3).</td>
+<td>No</td>
+<td><code>local</code></td>
+<td><code>s3</code></td>
+</tr>
+<tr>
+<td><code>STATIC_PAGE_PUSH_TARGET</code></td>
+<td>Target for static page push. For <code>local</code>: a directory path. For <code>s3</code>: an S3 bucket name.</td>
+<td>No</td>
+<td><em>(empty)</em></td>
+<td><code>my-status-bucket</code></td>
+</tr>
+<tr>
+<td><code>FLASK_APP</code></td>
+<td>Flask application entry point. Do not change.</td>
+<td>No</td>
+<td><code>esb:create_app</code></td>
+<td><code>esb:create_app</code></td>
+</tr>
+<tr>
+<td><code>FLASK_DEBUG</code></td>
+<td>Enable Flask debug mode. Set to <code>0</code> in production.</td>
+<td>No</td>
+<td><code>1</code></td>
+<td><code>0</code></td>
+</tr>
+<tr>
+<td><code>AWS_ACCESS_KEY_ID</code></td>
+<td>AWS access key for S3 static page push. Only needed if <code>STATIC_PAGE_PUSH_METHOD=s3</code> and not using an IAM role.</td>
+<td>No</td>
+<td><em>(empty)</em></td>
+<td><code>AKIAIOSFODNN7EXAMPLE</code></td>
+</tr>
+<tr>
+<td><code>AWS_SECRET_ACCESS_KEY</code></td>
+<td>AWS secret key for S3 static page push. Only needed if <code>STATIC_PAGE_PUSH_METHOD=s3</code> and not using an IAM role.</td>
+<td>No</td>
+<td><em>(empty)</em></td>
+<td><code>wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY</code></td>
+</tr>
+</tbody>
+</table>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>Always set <code>SECRET_KEY</code> to a unique random value in production. The default value is insecure and only suitable for development.</p>
+</div>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>Set <code>FLASK_DEBUG=0</code> in production. Debug mode exposes detailed error pages and enables the interactive debugger.</p>
+</div>
+<h2 id="docker-services">Docker Services<a class="headerlink" href="#docker-services" title="Permanent link">&para;</a></h2>
+<p>The application runs as three Docker containers defined in <code>docker-compose.yml</code>:</p>
+<h3 id="app-service">App Service<a class="headerlink" href="#app-service" title="Permanent link">&para;</a></h3>
+<p>The main web application. Runs Flask via Gunicorn with 2 worker processes on port 5000.</p>
+<ul>
+<li><strong>Image:</strong> Built from the project <code>Dockerfile</code> (Python 3.14-slim base)</li>
+<li><strong>Port:</strong> 5000 (mapped to host)</li>
+<li><strong>Volume:</strong> <code>./uploads</code> bind mount for persistent file storage (uploaded photos and documents)</li>
+<li><strong>Depends on:</strong> <code>db</code> service (waits for healthy database)</li>
+</ul>
+<h3 id="database-service">Database Service<a class="headerlink" href="#database-service" title="Permanent link">&para;</a></h3>
+<p>MariaDB 12.2.2 database server. Stores all application data.</p>
+<ul>
+<li><strong>Image:</strong> <code>mariadb:12.2.2</code></li>
+<li><strong>Volume:</strong> <code>mariadb_data</code> named volume for persistent data storage</li>
+<li><strong>Health check:</strong> Pings the database every 10 seconds to verify availability</li>
+<li><strong>Port:</strong> Not mapped to host (only accessible from other containers)</li>
+</ul>
+<h3 id="worker-service">Worker Service<a class="headerlink" href="#worker-service" title="Permanent link">&para;</a></h3>
+<p>Background notification processor. Polls the database every 30 seconds for pending notifications and delivers them via Slack.</p>
+<ul>
+<li><strong>Image:</strong> Same as the app service</li>
+<li><strong>Command:</strong> <code>flask worker run</code></li>
+<li><strong>Depends on:</strong> <code>db</code> service</li>
+</ul>
+<p>All three services have a restart policy of <code>unless-stopped</code>, meaning they automatically restart after crashes or host reboots (unless explicitly stopped).</p>
+<h3 id="runtime-dependencies">Runtime Dependencies<a class="headerlink" href="#runtime-dependencies" title="Permanent link">&para;</a></h3>
+<p>The application Docker image includes these key Python packages:</p>
+<ul>
+<li><strong>Flask</strong> — Web framework</li>
+<li><strong>SQLAlchemy / Flask-SQLAlchemy</strong> — Database ORM</li>
+<li><strong>PyMySQL</strong> — MariaDB database driver</li>
+<li><strong>slack-bolt / slack_sdk</strong> — Slack integration (slash commands, modals, events)</li>
+<li><strong>boto3</strong> — AWS S3 client for static page push (when using <code>s3</code> method)</li>
+<li><strong>qrcode[pil]</strong> — QR code generation for equipment pages</li>
+<li><strong>gunicorn</strong> — Production WSGI server</li>
+</ul>
+<h2 id="slack-app-configuration">Slack App Configuration<a class="headerlink" href="#slack-app-configuration" title="Permanent link">&para;</a></h2>
+<p>Slack integration is optional — the core web application works without it. If you want Slack commands, notifications, and the status bot, follow these steps.</p>
+<h3 id="1-create-a-slack-app">1. Create a Slack App<a class="headerlink" href="#1-create-a-slack-app" title="Permanent link">&para;</a></h3>
+<ol>
+<li>Go to <a href="https://api.slack.com/apps">api.slack.com/apps</a> and click <strong>Create New App</strong></li>
+<li>Choose <strong>From scratch</strong></li>
+<li>Name the app (e.g., "Equipment Status Board") and select your workspace</li>
+</ol>
+<h3 id="2-configure-bot-token-scopes">2. Configure Bot Token Scopes<a class="headerlink" href="#2-configure-bot-token-scopes" title="Permanent link">&para;</a></h3>
+<p>Under <strong>OAuth &amp; Permissions</strong>, add these Bot Token OAuth Scopes:</p>
+<ul>
+<li><code>chat:write</code> — Send messages and notifications</li>
+<li><code>commands</code> — Register slash commands</li>
+<li><code>users:read</code> — Look up user information</li>
+<li><code>users:read.email</code> — Look up users by email</li>
+<li><code>im:write</code> — Send direct messages (for temporary password delivery)</li>
+</ul>
+<h3 id="3-set-up-slash-commands">3. Set Up Slash Commands<a class="headerlink" href="#3-set-up-slash-commands" title="Permanent link">&para;</a></h3>
+<p>Under <strong>Slash Commands</strong>, create four commands. All commands use the same Request URL:</p>
+<div class="highlight"><pre><span></span><code>https://&lt;your-domain&gt;/slack/events
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>/esb-report</code></td>
+<td>Report an equipment problem</td>
+</tr>
+<tr>
+<td><code>/esb-status</code></td>
+<td>Check equipment status</td>
+</tr>
+<tr>
+<td><code>/esb-repair</code></td>
+<td>Create a repair record</td>
+</tr>
+<tr>
+<td><code>/esb-update</code></td>
+<td>Update a repair record</td>
+</tr>
+</tbody>
+</table>
+<h3 id="4-enable-event-subscriptions">4. Enable Event Subscriptions<a class="headerlink" href="#4-enable-event-subscriptions" title="Permanent link">&para;</a></h3>
+<p>Under <strong>Event Subscriptions</strong>:</p>
+<ol>
+<li>Turn on <strong>Enable Events</strong></li>
+<li>Set the Request URL to <code>https://&lt;your-domain&gt;/slack/events</code></li>
+<li>Under <strong>Subscribe to bot events</strong>, add <code>message.channels</code></li>
+</ol>
+<h3 id="5-install-the-app">5. Install the App<a class="headerlink" href="#5-install-the-app" title="Permanent link">&para;</a></h3>
+<ol>
+<li>Go to <strong>Install App</strong> and click <strong>Install to Workspace</strong></li>
+<li>Authorize the permissions</li>
+</ol>
+<h3 id="6-copy-credentials">6. Copy Credentials<a class="headerlink" href="#6-copy-credentials" title="Permanent link">&para;</a></h3>
+<p>After installation:</p>
+<ol>
+<li>Copy the <strong>Bot User OAuth Token</strong> (starts with <code>xoxb-</code>) and set it as <code>SLACK_BOT_TOKEN</code> in your <code>.env</code></li>
+<li>Go to <strong>Basic Information</strong> and copy the <strong>Signing Secret</strong>, set it as <code>SLACK_SIGNING_SECRET</code> in your <code>.env</code></li>
+<li>Restart the app and worker: <code>docker compose restart app worker</code></li>
+</ol>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Slack slash commands and event subscriptions require a publicly accessible URL. If your ESB server is on a private network, you'll need a reverse proxy with a public domain or a tunnel service (e.g., ngrok for testing, Cloudflare Tunnel for production).</p>
+</div>
+<h2 id="static-status-page-setup">Static Status Page Setup<a class="headerlink" href="#static-status-page-setup" title="Permanent link">&para;</a></h2>
+<p>The static status page provides a lightweight, externally accessible version of the equipment status dashboard. It is regenerated and pushed automatically whenever equipment status changes.</p>
+<h3 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h3>
+<p>Set the push method via the <code>STATIC_PAGE_PUSH_METHOD</code> environment variable:</p>
+<ul>
+<li><strong><code>local</code></strong> — Writes the static page to a local directory specified by <code>STATIC_PAGE_PUSH_TARGET</code>. Useful for serving from a local web server or shared drive.</li>
+<li><strong><code>s3</code></strong> — Uploads the static page to an S3 bucket specified by <code>STATIC_PAGE_PUSH_TARGET</code>. Requires AWS credentials configured in the environment (via <code>AWS_ACCESS_KEY_ID</code> / <code>AWS_SECRET_ACCESS_KEY</code> or an IAM role).</li>
+</ul>
+<p>The static page is pushed by the background worker whenever it detects a status change during its polling cycle.</p>
+<h2 id="ongoing-maintenance">Ongoing Maintenance<a class="headerlink" href="#ongoing-maintenance" title="Permanent link">&para;</a></h2>
+<h3 id="viewing-logs">Viewing Logs<a class="headerlink" href="#viewing-logs" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><span class="c1"># Application logs</span>
+docker<span class="w"> </span>compose<span class="w"> </span>logs<span class="w"> </span>-f<span class="w"> </span>app
+
+<span class="c1"># Worker logs (notification delivery)</span>
+docker<span class="w"> </span>compose<span class="w"> </span>logs<span class="w"> </span>-f<span class="w"> </span>worker
+
+<span class="c1"># Database logs</span>
+docker<span class="w"> </span>compose<span class="w"> </span>logs<span class="w"> </span>-f<span class="w"> </span>db
+</code></pre></div>
+<h3 id="restarting-services">Restarting Services<a class="headerlink" href="#restarting-services" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><span class="c1"># Restart the web application</span>
+docker<span class="w"> </span>compose<span class="w"> </span>restart<span class="w"> </span>app
+
+<span class="c1"># Restart the notification worker</span>
+docker<span class="w"> </span>compose<span class="w"> </span>restart<span class="w"> </span>worker
+
+<span class="c1"># Restart all services</span>
+docker<span class="w"> </span>compose<span class="w"> </span>restart
+</code></pre></div>
+<h3 id="applying-updates">Applying Updates<a class="headerlink" href="#applying-updates" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><span class="c1"># Pull latest code</span>
+git<span class="w"> </span>pull
+
+<span class="c1"># Rebuild containers</span>
+docker<span class="w"> </span>compose<span class="w"> </span>build
+
+<span class="c1"># Restart with new images</span>
+docker<span class="w"> </span>compose<span class="w"> </span>up<span class="w"> </span>-d
+
+<span class="c1"># Apply any new database migrations</span>
+docker<span class="w"> </span>compose<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>app<span class="w"> </span>flask<span class="w"> </span>db<span class="w"> </span>upgrade
+</code></pre></div>
+<h3 id="monitoring-the-worker">Monitoring the Worker<a class="headerlink" href="#monitoring-the-worker" title="Permanent link">&para;</a></h3>
+<p>The background worker processes pending notifications every 30 seconds. It includes retry logic with backoff for failed deliveries. Check the worker logs for:</p>
+<ul>
+<li>Successful notification deliveries</li>
+<li>Failed delivery attempts and retry counts</li>
+<li>Slack API errors (usually indicate an expired or invalid token)</li>
+</ul>
+<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span>logs<span class="w"> </span>-f<span class="w"> </span>worker
+</code></pre></div>
+<h3 id="upload-storage">Upload Storage<a class="headerlink" href="#upload-storage" title="Permanent link">&para;</a></h3>
+<p>Uploaded files (equipment photos, documents, diagnostic images) are stored in the <code>./uploads/</code> directory, which is bind-mounted into the app container. Monitor disk usage on the host:</p>
+<div class="highlight"><pre><span></span><code>du<span class="w"> </span>-sh<span class="w"> </span>./uploads/
+</code></pre></div>
+<h3 id="database">Database<a class="headerlink" href="#database" title="Permanent link">&para;</a></h3>
+<p>MariaDB data is persisted in the <code>mariadb_data</code> Docker volume. This volume survives container restarts and <code>docker compose down</code>. It is only removed if you explicitly run <code>docker compose down -v</code> (which deletes volumes — <strong>do not do this unless you intend to lose all data</strong>).</p>
+<h2 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h2>
+<h3 id="app-wont-start">App won't start<a class="headerlink" href="#app-wont-start" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Check that <code>DATABASE_URL</code> is correct and uses <code>db</code> as the hostname (not <code>localhost</code>) when running in Docker</li>
+<li>Verify the <code>db</code> service is healthy: <code>docker compose ps</code></li>
+<li>Check app logs: <code>docker compose logs app</code></li>
+</ul>
+<h3 id="slack-commands-not-working">Slack commands not working<a class="headerlink" href="#slack-commands-not-working" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Verify <code>SLACK_BOT_TOKEN</code> and <code>SLACK_SIGNING_SECRET</code> are set correctly in <code>.env</code></li>
+<li>Confirm the Request URL (<code>https://&lt;your-domain&gt;/slack/events</code>) is reachable from the internet</li>
+<li>Check that the Slack App has the required OAuth scopes</li>
+<li>Check app logs for Slack-related errors: <code>docker compose logs app | grep -i slack</code></li>
+</ul>
+<h3 id="notifications-not-delivering">Notifications not delivering<a class="headerlink" href="#notifications-not-delivering" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Verify the worker is running: <code>docker compose ps worker</code></li>
+<li>Check worker logs: <code>docker compose logs -f worker</code></li>
+<li>Confirm <code>SLACK_BOT_TOKEN</code> is valid and the bot is installed to the workspace</li>
+<li>Check that notification triggers are enabled in Admin &gt; Config</li>
+</ul>
+<h3 id="static-page-not-updating">Static page not updating<a class="headerlink" href="#static-page-not-updating" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Verify <code>STATIC_PAGE_PUSH_METHOD</code> and <code>STATIC_PAGE_PUSH_TARGET</code> are set</li>
+<li>Check that the worker is running (it handles the push)</li>
+<li>For <code>s3</code> method: verify AWS credentials and bucket permissions</li>
+<li>For <code>local</code> method: verify the target directory exists and is writable</li>
+<li>Check worker logs for push errors</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "search.suggest", "content.tabs.link"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>
