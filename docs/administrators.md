@@ -83,6 +83,8 @@ Open `http://localhost:5000` in a browser (or the server's IP/hostname on port 5
 | `STATIC_PAGE_PUSH_TARGET` | Target for static page push. For `local`: a directory path. For `s3`: an S3 bucket name. | No | _(empty)_ | `my-status-bucket` |
 | `FLASK_APP` | Flask application entry point. Do not change. | No | `esb:create_app` | `esb:create_app` |
 | `FLASK_DEBUG` | Enable Flask debug mode. Set to `0` in production. | No | `1` | `0` |
+| `AWS_ACCESS_KEY_ID` | AWS access key for S3 static page push. Only needed if `STATIC_PAGE_PUSH_METHOD=s3` and not using an IAM role. | No | _(empty)_ | `AKIAIOSFODNN7EXAMPLE` |
+| `AWS_SECRET_ACCESS_KEY` | AWS secret key for S3 static page push. Only needed if `STATIC_PAGE_PUSH_METHOD=s3` and not using an IAM role. | No | _(empty)_ | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY` |
 
 !!! warning
     Always set `SECRET_KEY` to a unique random value in production. The default value is insecure and only suitable for development.
