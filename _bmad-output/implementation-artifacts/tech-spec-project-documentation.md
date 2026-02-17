@@ -2,7 +2,7 @@
 title: 'Project Documentation - README & GitHub Pages User Guides'
 slug: 'project-documentation'
 created: '2026-02-16'
-status: 'ready-for-dev'
+status: 'implementation-complete'
 stepsCompleted: [1, 2, 3, 4]
 tech_stack:
   - mkdocs
@@ -143,19 +143,19 @@ Create a comprehensive README with project overview, feature highlights, links t
 
 ### Tasks
 
-- [ ] Task 1: Update MIT LICENSE file
+- [x] Task 1: Update MIT LICENSE file
   - File: `LICENSE` (already exists with copyright "Jason Antman")
   - Action: Verify the existing LICENSE file contains standard MIT license text with copyright holder "Jason Antman". Update the year to 2026 if needed. Do NOT change the copyright holder.
   - Notes: File already exists. This is a verification/update, not a creation.
 
-- [ ] Task 2: Add MkDocs dependencies to project
+- [x] Task 2: Add MkDocs dependencies to project
   - File: `pyproject.toml`
   - Action: Add `mkdocs>=1.6` and `mkdocs-material>=9.5` to the `[project.optional-dependencies] dev` list
   - File: `requirements-dev.txt`
   - Action: Add `mkdocs>=1.6` and `mkdocs-material>=9.5` after existing entries
   - Notes: These are dev-only dependencies, not needed in production.
 
-- [ ] Task 3: Create MkDocs configuration
+- [x] Task 3: Create MkDocs configuration
   - File: `mkdocs.yml`
   - Action: Create MkDocs config with:
     - `site_name`: "Equipment Status Board Documentation"
@@ -165,12 +165,12 @@ Create a comprehensive README with project overview, feature highlights, links t
     - `markdown_extensions`: toc (with permalink), admonition, pymdownx.details, pymdownx.superfences, attr_list, md_in_html, tables
   - Notes: Must be created before docs pages since `mkdocs build --strict` needs it. The explicit `nav` list inherently excludes unlisted pages like `original_requirements_doc.md` from navigation. No `exclude_docs` directive needed — the explicit nav handles it.
 
-- [ ] Task 3b: Create docs image directory and placeholder image
+- [x] Task 3b: Create docs image directory and placeholder image
   - File: `docs/images/placeholder.png`
   - Action: Create the `docs/images/` directory and add a simple placeholder image (e.g., a light gray rectangle with centered text "Screenshot coming soon"). This can be a minimal PNG file. All doc pages reference `images/placeholder.png` for screenshot placeholders.
   - Notes: Required for `mkdocs build --strict` to pass — strict mode fails on missing image references. This must be created before the doc pages (Tasks 4-8) that reference it.
 
-- [ ] Task 4: Create documentation overview page
+- [x] Task 4: Create documentation overview page
   - File: `docs/index.md`
   - Action: Write the documentation home page with:
     - H1: "Equipment Status Board"
@@ -186,7 +186,7 @@ Create a comprehensive README with project overview, feature highlights, links t
     - Image placeholder for status dashboard overview
   - Notes: This is the landing page for the docs site. Should be welcoming and orient users to the right guide. Draw content from PRD executive summary and user journeys.
 
-- [ ] Task 5: Create Member user guide
+- [x] Task 5: Create Member user guide
   - File: `docs/members.md`
   - Action: Write task-oriented member guide covering:
     - **Checking Equipment Status**
@@ -216,7 +216,7 @@ Create a comprehensive README with project overview, feature highlights, links t
       - Red / Down: equipment is not usable
   - Notes: Write in friendly, non-technical language. Assume the reader has never used the system. **Important:** Members are unauthenticated public users — they do NOT have accounts or log in. All member interactions (QR pages, kiosk, static page, problem reporting, Slack bot) work without authentication. Frame the guide accordingly — no "log in" steps, no account setup. The QR code scan is the signature interaction — make it prominent. Draw from PRD Sarah's Journey and UX spec member persona flow.
 
-- [ ] Task 6: Create Technician user guide
+- [x] Task 6: Create Technician user guide
   - File: `docs/technicians.md`
   - Action: Write task-oriented technician guide covering:
     - **Getting Started**
@@ -266,7 +266,7 @@ Create a comprehensive README with project overview, feature highlights, links t
         - Closed - Duplicate: same issue already tracked in another record
   - Notes: Write for someone comfortable with tools and technology but not necessarily software. Emphasize mobile workflows since technicians work from phones at the bench. Draw from PRD Marcus's Journey and UX spec technician persona flow.
 
-- [ ] Task 7: Create Staff user guide
+- [x] Task 7: Create Staff user guide
   - File: `docs/staff.md`
   - Action: Write task-oriented staff guide covering:
     - **Getting Started**
@@ -319,7 +319,7 @@ Create a comprehensive README with project overview, feature highlights, links t
       - Static Status Page: auto-generated and pushed to cloud hosting whenever status changes — for remote access
   - Notes: Write for the Makerspace Manager persona — organized, task-oriented, juggles multiple responsibilities. Emphasize Kanban as the primary coordination tool. Draw from PRD Dana's Journey and UX spec staff persona flow.
 
-- [ ] Task 8: Create Administrator guide
+- [x] Task 8: Create Administrator guide
   - File: `docs/administrators.md`
   - Action: Write technical reference guide covering:
     - **Prerequisites**
@@ -375,7 +375,7 @@ Create a comprehensive README with project overview, feature highlights, links t
       - Static page not updating: check STATIC_PAGE_PUSH_METHOD and STATIC_PAGE_PUSH_TARGET, verify worker is running
   - Notes: Write for technical volunteers who are comfortable with Docker and CLI but didn't build the system. Be explicit about commands — don't assume they'll figure it out. The CLI command for initial admin user is `flask seed-admin <username> <email> --password <password>` (registered in `esb/__init__.py`). Runtime dependencies include `slack-bolt` and `slack_sdk` (Slack integration), `boto3` (S3 static page push), and `qrcode[pil]` (QR code generation) — these are installed automatically via Docker build but should be mentioned so admins understand what's running.
 
-- [ ] Task 9: Rewrite README.md
+- [x] Task 9: Rewrite README.md
   - File: `README.md`
   - Action: Complete rewrite with:
     - H1: "Equipment Status Board"
@@ -394,7 +394,7 @@ Create a comprehensive README with project overview, feature highlights, links t
     - License section: MIT, link to LICENSE file
   - Notes: Keep the README concise — it's a landing page, not the full docs. Link to the detailed docs site for everything beyond the overview. Do NOT include development setup instructions (that's in CLAUDE.md and is out of scope).
 
-- [ ] Task 10: Create GitHub Actions workflow for docs deployment
+- [x] Task 10: Create GitHub Actions workflow for docs deployment
   - File: `.github/workflows/docs.yml`
   - Action: Create GitHub Actions workflow that:
     - Triggers on push to `main` branch (only when docs files change: `docs/**`, `mkdocs.yml`)
@@ -406,7 +406,7 @@ Create a comprehensive README with project overview, feature highlights, links t
     - Permissions: `contents: write` (needed for pushing to gh-pages branch)
   - Notes: Keep the workflow simple. Uses the `mkdocs gh-deploy` approach (pushes to `gh-pages` branch), NOT the newer `actions/deploy-pages` approach. GitHub Pages must be configured to deploy from the `gh-pages` branch (Settings > Pages > Source: Deploy from a branch > `gh-pages`). Separate from the existing `ci.yml` workflow.
 
-- [ ] Task 11: Verify MkDocs build
+- [x] Task 11: Verify MkDocs build
   - Action: Install mkdocs dependencies and run `mkdocs build --strict` to verify:
     - All pages render without errors
     - All internal links resolve
@@ -416,35 +416,35 @@ Create a comprehensive README with project overview, feature highlights, links t
 
 ### Acceptance Criteria
 
-- [ ] AC 1: Given the project root, when I look for a LICENSE file, then a valid MIT license file exists with copyright holder "Jason Antman" and year 2026.
+- [x] AC 1: Given the project root, when I look for a LICENSE file, then a valid MIT license file exists with copyright holder "Jason Antman" and year 2026.
 
-- [ ] AC 2: Given the project dependencies, when I check `pyproject.toml` and `requirements-dev.txt`, then `mkdocs` and `mkdocs-material` are listed as dev dependencies.
+- [x] AC 2: Given the project dependencies, when I check `pyproject.toml` and `requirements-dev.txt`, then `mkdocs` and `mkdocs-material` are listed as dev dependencies.
 
-- [ ] AC 3: Given the project root, when I look for `mkdocs.yml`, then a valid MkDocs Material configuration exists with navigation pointing to all 5 documentation pages (index, members, technicians, staff, administrators).
+- [x] AC 3: Given the project root, when I look for `mkdocs.yml`, then a valid MkDocs Material configuration exists with navigation pointing to all 5 documentation pages (index, members, technicians, staff, administrators).
 
-- [ ] AC 4: Given the MkDocs configuration, when `mkdocs build --strict` is run, then the build succeeds with no errors or warnings.
+- [x] AC 4: Given the MkDocs configuration, when `mkdocs build --strict` is run, then the build succeeds with no errors or warnings.
 
-- [ ] AC 5: Given the docs site, when I navigate to the home page, then I see a project overview, feature highlights, and links to all four persona-specific guides.
+- [x] AC 5: Given the docs site, when I navigate to the home page, then I see a project overview, feature highlights, and links to all four persona-specific guides.
 
-- [ ] AC 6: Given the docs site, when I navigate to the Members guide, then I see task-oriented instructions for checking status (dashboard, static page, kiosk, QR codes), reporting problems (QR page and Slack), and using the Slack status bot, with image placeholders and HTML comments describing intended screenshots.
+- [x] AC 6: Given the docs site, when I navigate to the Members guide, then I see task-oriented instructions for checking status (dashboard, static page, kiosk, QR codes), reporting problems (QR page and Slack), and using the Slack status bot, with image placeholders and HTML comments describing intended screenshots.
 
-- [ ] AC 7: Given the docs site, when I navigate to the Technicians guide, then I see task-oriented instructions for working with the repair queue, managing repair records (status, notes, photos, assignee, ETA), the full repair workflow with status descriptions, and Slack commands, with image placeholders.
+- [x] AC 7: Given the docs site, when I navigate to the Technicians guide, then I see task-oriented instructions for working with the repair queue, managing repair records (status, notes, photos, assignee, ETA), the full repair workflow with status descriptions, and Slack commands, with image placeholders.
 
-- [ ] AC 8: Given the docs site, when I navigate to the Staff guide, then I see task-oriented instructions for the Kanban board (including aging indicators), equipment management, area management, user management (provisioning, roles, password reset), and system configuration (notification triggers, technician permissions), with image placeholders.
+- [x] AC 8: Given the docs site, when I navigate to the Staff guide, then I see task-oriented instructions for the Kanban board (including aging indicators), equipment management, area management, user management (provisioning, roles, password reset), and system configuration (notification triggers, technician permissions), with image placeholders.
 
-- [ ] AC 9: Given the docs site, when I navigate to the Administrators guide, then I see technical reference content covering Docker deployment steps, a complete environment variable reference table, Docker service descriptions, Slack App configuration steps, static page setup, ongoing maintenance commands, and troubleshooting tips.
+- [x] AC 9: Given the docs site, when I navigate to the Administrators guide, then I see technical reference content covering Docker deployment steps, a complete environment variable reference table, Docker service descriptions, Slack App configuration steps, static page setup, ongoing maintenance commands, and troubleshooting tips.
 
-- [ ] AC 10: Given the README.md, when I view it on GitHub, then I see a project description, feature highlights, a link to the documentation site, tech stack summary, and MIT license reference.
+- [x] AC 10: Given the README.md, when I view it on GitHub, then I see a project description, feature highlights, a link to the documentation site, tech stack summary, and MIT license reference.
 
-- [ ] AC 11: Given the `.github/workflows/docs.yml`, when changes are pushed to docs files on the main branch, then the workflow triggers, builds the MkDocs site, and deploys to GitHub Pages.
+- [x] AC 11: Given the `.github/workflows/docs.yml`, when changes are pushed to docs files on the main branch, then the workflow triggers, builds the MkDocs site, and deploys to GitHub Pages.
 
-- [ ] AC 12: Given the existing `docs/original_requirements_doc.md`, when the MkDocs site is built, then that file is excluded from the navigation and rendered site.
+- [x] AC 12: Given the existing `docs/original_requirements_doc.md`, when the MkDocs site is built, then that file is excluded from the navigation and rendered site.
 
-- [ ] AC 13: Given any documentation page, when I look for image references, then each image placeholder includes an HTML comment (`<!-- SCREENSHOT: ... -->`) describing what the screenshot should capture for future automation.
+- [x] AC 13: Given any documentation page, when I look for image references, then each image placeholder includes an HTML comment (`<!-- SCREENSHOT: ... -->`) describing what the screenshot should capture for future automation.
 
-- [ ] AC 14: Given the `docs/images/` directory, when the MkDocs site is built, then a `placeholder.png` file exists so that image references in doc pages do not cause `mkdocs build --strict` to fail.
+- [x] AC 14: Given the `docs/images/` directory, when the MkDocs site is built, then a `placeholder.png` file exists so that image references in doc pages do not cause `mkdocs build --strict` to fail.
 
-- [ ] AC 15: Given a documentation page with a broken internal link or missing image, when `mkdocs build --strict` is run, then the build fails with an error identifying the broken reference.
+- [x] AC 15: Given a documentation page with a broken internal link or missing image, when `mkdocs build --strict` is run, then the build fails with an error identifying the broken reference.
 
 ## Additional Context
 

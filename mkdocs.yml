@@ -1,0 +1,33 @@
+site_name: Equipment Status Board Documentation
+site_description: User guides and administrator documentation for the Equipment Status Board
+site_url: https://decaturmakers.github.io/equipment-status-board/
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: blue
+      accent: amber
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - search.suggest
+    - content.tabs.link
+
+nav:
+  - Home: index.md
+  - Members Guide: members.md
+  - Technicians Guide: technicians.md
+  - Staff Guide: staff.md
+  - Administrators Guide: administrators.md
+
+markdown_extensions:
+  - toc:
+      permalink: true
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - attr_list
+  - md_in_html
+  - tables
