@@ -1,6 +1,10 @@
 # Equipment Status Board
 
-A web application for tracking equipment status and coordinating repairs at [Decatur Makers](https://decaturmakers.org), a community makerspace. Provides a single source of truth so members know what's working, technicians know what needs fixing, and staff can coordinate it all.
+[![CI](https://github.com/jantman/equipment-status-board/actions/workflows/ci.yml/badge.svg)](https://github.com/jantman/equipment-status-board/actions/workflows/ci.yml)
+[![Docs](https://github.com/jantman/equipment-status-board/actions/workflows/docs.yml/badge.svg)](https://github.com/jantman/equipment-status-board/actions/workflows/docs.yml)
+[![GitHub release](https://img.shields.io/github/v/release/jantman/equipment-status-board)](https://github.com/jantman/equipment-status-board/releases)
+
+A web application for tracking equipment status and coordinating repairs at community makerspaces, originally developed for [Decatur Makers](https://decaturmakers.org). Provides a single source of truth so members know what's working, technicians know what needs fixing, and staff can coordinate it all.
 
 ## Features
 
@@ -15,10 +19,10 @@ A web application for tracking equipment status and coordinating repairs at [Dec
 
 ## Quick Start
 
-See the [Administrators Guide](https://decaturmakers.github.io/equipment-status-board/administrators/) for full deployment instructions. The short version:
+See the [Administrators Guide](https://jantman.github.io/equipment-status-board/administrators/) for full deployment instructions. The short version:
 
 ```bash
-git clone https://github.com/decaturmakers/equipment-status-board.git
+git clone https://github.com/jantman/equipment-status-board.git
 cd equipment-status-board
 cp .env.example .env    # Edit with your settings
 docker compose up -d
@@ -30,12 +34,12 @@ docker compose exec app flask seed-admin admin admin@example.com --password chan
 
 Full user guides and administrator documentation are available at:
 
-**[decaturmakers.github.io/equipment-status-board](https://decaturmakers.github.io/equipment-status-board/)**
+**[jantman.github.io/equipment-status-board](https://jantman.github.io/equipment-status-board/)**
 
-- [Members Guide](https://decaturmakers.github.io/equipment-status-board/members/) — Checking status, scanning QR codes, reporting problems
-- [Technicians Guide](https://decaturmakers.github.io/equipment-status-board/technicians/) — Repair queue, managing repairs, Slack commands
-- [Staff Guide](https://decaturmakers.github.io/equipment-status-board/staff/) — Kanban board, equipment management, user administration
-- [Administrators Guide](https://decaturmakers.github.io/equipment-status-board/administrators/) — Deployment, configuration, Slack setup, maintenance
+- [Members Guide](https://jantman.github.io/equipment-status-board/members/) — Checking status, scanning QR codes, reporting problems
+- [Technicians Guide](https://jantman.github.io/equipment-status-board/technicians/) — Repair queue, managing repairs, Slack commands
+- [Staff Guide](https://jantman.github.io/equipment-status-board/staff/) — Kanban board, equipment management, user administration
+- [Administrators Guide](https://jantman.github.io/equipment-status-board/administrators/) — Deployment, configuration, Slack setup, maintenance
 
 ## Tech Stack
 
