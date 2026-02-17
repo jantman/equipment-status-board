@@ -2,7 +2,7 @@
 title: 'Google Cloud Storage Static Page Push Support'
 slug: 'gcs-static-page-push'
 created: '2026-02-17'
-status: 'ready-for-dev'
+status: 'completed'
 stepsCompleted: [1, 2, 3, 4]
 tech_stack: ['Python 3.14', 'Flask', 'google-cloud-storage']
 files_to_modify: ['esb/services/static_page_service.py', 'tests/test_services/test_static_page_service.py', 'requirements.txt', '.env.example', 'docs/administrators.md', 'README.md']
@@ -75,12 +75,12 @@ Add `gcs` as a third `STATIC_PAGE_PUSH_METHOD` value, using the `google-cloud-st
 
 ### Tasks
 
-- [ ] Task 1: Add `google-cloud-storage` to `requirements.txt`
+- [x] Task 1: Add `google-cloud-storage` to `requirements.txt`
   - File: `requirements.txt`
   - Action: Add `google-cloud-storage>=2.18.0` after the `boto3` line
   - Notes: Follows same pattern as boto3 — pinned to minimum version with `>=`
 
-- [ ] Task 2: Add `_push_gcs()` function to static page service
+- [x] Task 2: Add `_push_gcs()` function to static page service
   - File: `esb/services/static_page_service.py`
   - Action: Add a new `_push_gcs(html_content: str, target: str) -> None` function after `_push_s3()`, mirroring its structure:
     1. Lazy import `google.cloud.storage` inside the function, catching `ImportError` with a clear `RuntimeError` message: `'google-cloud-storage is required for GCS push method. Install it with: pip install google-cloud-storage'`
@@ -94,11 +94,11 @@ Add `gcs` as a third `STATIC_PAGE_PUSH_METHOD` value, using the `google-cloud-st
     9. Catch `google.auth.exceptions.DefaultCredentialsError` → `RuntimeError('Google Cloud credentials not configured for GCS push')`
     10. Catch `google.api_core.exceptions.GoogleAPIError` → `RuntimeError(f'GCS upload failed: {e}')`
 
-- [ ] Task 3: Add `gcs` case to `push()` dispatcher
+- [x] Task 3: Add `gcs` case to `push()` dispatcher
   - File: `esb/services/static_page_service.py`
   - Action: Add `elif method == 'gcs': _push_gcs(html_content, target)` between the `s3` elif and the `else` clause in the `push()` function (line 52)
 
-- [ ] Task 4: Add `TestPushGCS` test class
+- [x] Task 4: Add `TestPushGCS` test class
   - File: `tests/test_services/test_static_page_service.py`
   - Action: Add a new `TestPushGCS` class after `TestPushS3`, with 5 test methods mirroring the S3 tests:
     1. `test_calls_gcs_upload_from_string` — Set config `STATIC_PAGE_PUSH_METHOD='gcs'`, `STATIC_PAGE_PUSH_TARGET='my-bucket/status/index.html'`. Mock `google.cloud.storage.Client`. Assert `Client()` called, `client.bucket('my-bucket')` called, `bucket.blob('status/index.html')` called, `blob.upload_from_string` called with `('<html>test</html>', content_type='text/html; charset=utf-8')`, and `blob.cache_control` set to `'no-cache, no-store, must-revalidate'`
@@ -108,11 +108,11 @@ Add `gcs` as a third `STATIC_PAGE_PUSH_METHOD` value, using the `google-cloud-st
     5. `test_default_key_when_no_path` — Set target to `'my-bucket'`. Mock client. Assert `bucket.blob` called with `'index.html'`
   - Notes: Import `google.cloud.storage`, `google.auth.exceptions`, and `google.api_core.exceptions` inside test methods (same lazy pattern as boto3 tests). Use `patch.object` on the `storage` module's `Client` class.
 
-- [ ] Task 5: Update `.env.example`
+- [x] Task 5: Update `.env.example`
   - File: `.env.example`
   - Action: Update the comment on `STATIC_PAGE_PUSH_METHOD` line from `'local' (copy to local path) or 's3' (upload to S3 bucket via boto3)` to `'local' (copy to local path), 's3' (upload to S3 bucket via boto3), or 'gcs' (upload to Google Cloud Storage bucket)`
 
-- [ ] Task 6: Update Administrator Guide
+- [x] Task 6: Update Administrator Guide
   - File: `docs/administrators.md`
   - Action: Three changes:
     1. **Static Status Page Setup section** (line ~204): Add a `gcs` bullet to the Configuration list: `**\`gcs\`** — Uploads the static page to a Google Cloud Storage bucket specified by \`STATIC_PAGE_PUSH_TARGET\`. Uses Google's default credential chain (\`GOOGLE_APPLICATION_CREDENTIALS\` environment variable, GCE instance metadata, or Workload Identity).`
@@ -120,7 +120,7 @@ Add `gcs` as a third `STATIC_PAGE_PUSH_METHOD` value, using the `google-cloud-st
     3. **Runtime Dependencies list** (line ~135): Add `**google-cloud-storage** — Google Cloud Storage client for static page push (when using \`gcs\` method)` after the boto3 entry
     4. **Troubleshooting > Static page not updating** (line ~303): Add `For \`gcs\` method: verify Google Cloud credentials and bucket permissions`
 
-- [ ] Task 7: Update README
+- [x] Task 7: Update README
   - File: `README.md`
   - Action: Two changes:
     1. **Features list** (line ~16): Change `pushes to local directory or S3` to `pushes to local directory, S3, or Google Cloud Storage`
@@ -128,16 +128,16 @@ Add `gcs` as a third `STATIC_PAGE_PUSH_METHOD` value, using the `google-cloud-st
 
 ### Acceptance Criteria
 
-- [ ] AC 1: Given `STATIC_PAGE_PUSH_METHOD=gcs` and `STATIC_PAGE_PUSH_TARGET=my-bucket/status/index.html`, when `push()` is called with HTML content, then `google.cloud.storage.Client` is instantiated, `bucket('my-bucket')` is called, `blob('status/index.html')` is created, `blob.cache_control` is set to `'no-cache, no-store, must-revalidate'`, and `blob.upload_from_string()` is called with the HTML content and `content_type='text/html; charset=utf-8'`
-- [ ] AC 2: Given `STATIC_PAGE_PUSH_METHOD=gcs` and `STATIC_PAGE_PUSH_TARGET=my-bucket`, when `push()` is called, then the blob key defaults to `index.html`
-- [ ] AC 3: Given `STATIC_PAGE_PUSH_METHOD=gcs` and `STATIC_PAGE_PUSH_TARGET=/key/path` (empty bucket), when `push()` is called, then `RuntimeError` is raised with message containing `'bucket name is empty'`
-- [ ] AC 4: Given `STATIC_PAGE_PUSH_METHOD=gcs` and Google Cloud credentials are not configured, when `push()` is called, then `RuntimeError` is raised with message containing `'Google Cloud credentials not configured'`
-- [ ] AC 5: Given `STATIC_PAGE_PUSH_METHOD=gcs` and the GCS API returns an error, when `push()` is called, then `RuntimeError` is raised with message containing `'GCS upload failed'`
-- [ ] AC 6: Given `google-cloud-storage` is not installed, when `_push_gcs()` is called, then `RuntimeError` is raised with message containing `'google-cloud-storage is required'`
-- [ ] AC 7: Given a successful GCS push, when `push()` completes, then `log_mutation('static_page.pushed', 'system', {'method': 'gcs', 'target': ...})` is called (existing behavior in `push()` — no change needed, just verify it works for `gcs`)
-- [ ] AC 8: Given the README, when a user reads the Features section, then it lists Google Cloud Storage as a static page destination
-- [ ] AC 9: Given the Administrator Guide, when a user reads the Static Status Page Setup section, then `gcs` is documented as a push method with credential configuration instructions
-- [ ] AC 10: Given `.env.example`, when a user reads the static page config comments, then `gcs` is listed as a valid method option
+- [x] AC 1: Given `STATIC_PAGE_PUSH_METHOD=gcs` and `STATIC_PAGE_PUSH_TARGET=my-bucket/status/index.html`, when `push()` is called with HTML content, then `google.cloud.storage.Client` is instantiated, `bucket('my-bucket')` is called, `blob('status/index.html')` is created, `blob.cache_control` is set to `'no-cache, no-store, must-revalidate'`, and `blob.upload_from_string()` is called with the HTML content and `content_type='text/html; charset=utf-8'`
+- [x] AC 2: Given `STATIC_PAGE_PUSH_METHOD=gcs` and `STATIC_PAGE_PUSH_TARGET=my-bucket`, when `push()` is called, then the blob key defaults to `index.html`
+- [x] AC 3: Given `STATIC_PAGE_PUSH_METHOD=gcs` and `STATIC_PAGE_PUSH_TARGET=/key/path` (empty bucket), when `push()` is called, then `RuntimeError` is raised with message containing `'bucket name is empty'`
+- [x] AC 4: Given `STATIC_PAGE_PUSH_METHOD=gcs` and Google Cloud credentials are not configured, when `push()` is called, then `RuntimeError` is raised with message containing `'Google Cloud credentials not configured'`
+- [x] AC 5: Given `STATIC_PAGE_PUSH_METHOD=gcs` and the GCS API returns an error, when `push()` is called, then `RuntimeError` is raised with message containing `'GCS upload failed'`
+- [x] AC 6: Given `google-cloud-storage` is not installed, when `_push_gcs()` is called, then `RuntimeError` is raised with message containing `'google-cloud-storage is required'`
+- [x] AC 7: Given a successful GCS push, when `push()` completes, then `log_mutation('static_page.pushed', 'system', {'method': 'gcs', 'target': ...})` is called (existing behavior in `push()` — no change needed, just verify it works for `gcs`)
+- [x] AC 8: Given the README, when a user reads the Features section, then it lists Google Cloud Storage as a static page destination
+- [x] AC 9: Given the Administrator Guide, when a user reads the Static Status Page Setup section, then `gcs` is documented as a push method with credential configuration instructions
+- [x] AC 10: Given `.env.example`, when a user reads the static page config comments, then `gcs` is listed as a valid method option
 
 ## Additional Context
 
@@ -159,3 +159,8 @@ Add `gcs` as a third `STATIC_PAGE_PUSH_METHOD` value, using the `google-cloud-st
 - The `google-cloud-storage` library pulls in `google-auth`, `google-api-core`, and `google-cloud-core` as transitive dependencies. These provide the credential chain and exception classes used in error handling.
 - The `push()` function's existing `log_mutation` and `logger.info` calls fire after the dispatcher returns, so no changes needed there — they already capture `method` and `target` dynamically.
 - AC 7 is technically already covered by the existing `TestPushMutationLogging` test pattern, but verifying it works for `gcs` is good practice.
+
+## Review Notes
+- Adversarial review completed
+- Findings: 12 total, 8 fixed, 4 skipped (pre-existing patterns or noise)
+- Resolution approach: auto-fix

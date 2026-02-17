@@ -206,6 +206,118 @@ class TestPushS3:
             assert call_kwargs['Key'] == 'index.html'
 
 
+class TestPushGCS:
+    """Tests for push() with method='gcs'."""
+
+    def test_calls_gcs_upload_from_string(self, app, capture):
+        """push() with method='gcs' calls GCS upload_from_string with correct params."""
+        app.config['STATIC_PAGE_PUSH_METHOD'] = 'gcs'
+        app.config['STATIC_PAGE_PUSH_TARGET'] = 'my-bucket/status/index.html'
+
+        from google.cloud import storage
+        mock_client = MagicMock()
+        mock_bucket = MagicMock()
+        mock_blob = MagicMock()
+        mock_client.bucket.return_value = mock_bucket
+        mock_bucket.blob.return_value = mock_blob
+
+        with patch.object(storage, 'Client', return_value=mock_client) as mock_cls:
+            static_page_service.push('<html>test</html>')
+
+            mock_cls.assert_called_once()
+            mock_client.bucket.assert_called_once_with('my-bucket')
+            mock_bucket.blob.assert_called_once_with('status/index.html')
+            assert mock_blob.cache_control == 'no-cache, no-store, must-revalidate'
+            mock_blob.upload_from_string.assert_called_once_with(
+                '<html>test</html>', content_type='text/html; charset=utf-8'
+            )
+
+    def test_handles_google_api_error(self, app):
+        """push() with method='gcs' handles GoogleAPIError by raising RuntimeError."""
+        app.config['STATIC_PAGE_PUSH_METHOD'] = 'gcs'
+        app.config['STATIC_PAGE_PUSH_TARGET'] = 'my-bucket/index.html'
+
+        from google.api_core.exceptions import GoogleAPIError
+        from google.cloud import storage
+        mock_client = MagicMock()
+        mock_bucket = MagicMock()
+        mock_blob = MagicMock()
+        mock_client.bucket.return_value = mock_bucket
+        mock_bucket.blob.return_value = mock_blob
+        mock_blob.upload_from_string.side_effect = GoogleAPIError('Forbidden')
+
+        with patch.object(storage, 'Client', return_value=mock_client):
+            with pytest.raises(RuntimeError, match='GCS upload failed'):
+                static_page_service.push('<html>test</html>')
+
+    def test_handles_default_credentials_error(self, app):
+        """push() with method='gcs' handles DefaultCredentialsError by raising RuntimeError."""
+        app.config['STATIC_PAGE_PUSH_METHOD'] = 'gcs'
+        app.config['STATIC_PAGE_PUSH_TARGET'] = 'my-bucket/index.html'
+
+        from google.auth.exceptions import DefaultCredentialsError
+        from google.cloud import storage
+
+        with patch.object(storage, 'Client', side_effect=DefaultCredentialsError('msg')):
+            with pytest.raises(RuntimeError, match='Google Cloud credentials not configured'):
+                static_page_service.push('<html>test</html>')
+
+    def test_empty_bucket_raises_runtime_error(self, app):
+        """push() with method='gcs' and target starting with / raises RuntimeError for empty bucket."""
+        app.config['STATIC_PAGE_PUSH_METHOD'] = 'gcs'
+        app.config['STATIC_PAGE_PUSH_TARGET'] = '/key/path'
+
+        with pytest.raises(RuntimeError, match='bucket name is empty'):
+            static_page_service.push('<html>test</html>')
+
+    def test_default_key_when_no_path(self, app, capture):
+        """push() with method='gcs' defaults key to index.html when target has no path."""
+        app.config['STATIC_PAGE_PUSH_METHOD'] = 'gcs'
+        app.config['STATIC_PAGE_PUSH_TARGET'] = 'my-bucket'
+
+        from google.cloud import storage
+        mock_client = MagicMock()
+        mock_bucket = MagicMock()
+        mock_blob = MagicMock()
+        mock_client.bucket.return_value = mock_bucket
+        mock_bucket.blob.return_value = mock_blob
+
+        with patch.object(storage, 'Client', return_value=mock_client):
+            static_page_service.push('<html>test</html>')
+
+            mock_bucket.blob.assert_called_once_with('index.html')
+
+    def test_trailing_slash_defaults_key_to_index_html(self, app, capture):
+        """push() with method='gcs' and trailing slash target defaults key to index.html."""
+        app.config['STATIC_PAGE_PUSH_METHOD'] = 'gcs'
+        app.config['STATIC_PAGE_PUSH_TARGET'] = 'my-bucket/'
+
+        from google.cloud import storage
+        mock_client = MagicMock()
+        mock_bucket = MagicMock()
+        mock_blob = MagicMock()
+        mock_client.bucket.return_value = mock_bucket
+        mock_bucket.blob.return_value = mock_blob
+
+        with patch.object(storage, 'Client', return_value=mock_client):
+            static_page_service.push('<html>test</html>')
+
+            mock_client.bucket.assert_called_once_with('my-bucket')
+            mock_bucket.blob.assert_called_once_with('index.html')
+
+    def test_import_error_raises_runtime_error(self, app):
+        """push() with method='gcs' raises RuntimeError when google-cloud-storage not installed."""
+        app.config['STATIC_PAGE_PUSH_METHOD'] = 'gcs'
+        app.config['STATIC_PAGE_PUSH_TARGET'] = 'my-bucket/index.html'
+
+        with patch.dict('sys.modules', {'google.cloud': None, 'google.api_core': None,
+                                         'google.api_core.exceptions': None, 'google.auth': None,
+                                         'google.auth.exceptions': None, 'google.cloud.storage': None,
+                                         'google': None}):
+            with pytest.raises(RuntimeError, match='google-cloud-storage is required'):
+                static_page_service.push('<html>test</html>')
+
+
 class TestPushErrors:
     """Tests for push() error handling."""
 
@@ -240,6 +352,26 @@ class TestPushMutationLogging:
         log_data = json.loads(capture.records[0].message)
         assert log_data['event'] == 'static_page.pushed'
         assert log_data['data']['method'] == 'local'
+
+    def test_logs_mutation_on_gcs_push(self, app, capture):
+        """push() logs a mutation event on successful GCS push."""
+        app.config['STATIC_PAGE_PUSH_METHOD'] = 'gcs'
+        app.config['STATIC_PAGE_PUSH_TARGET'] = 'my-bucket/index.html'
+
+        from google.cloud import storage
+        mock_client = MagicMock()
+        mock_bucket = MagicMock()
+        mock_blob = MagicMock()
+        mock_client.bucket.return_value = mock_bucket
+        mock_bucket.blob.return_value = mock_blob
+
+        with patch.object(storage, 'Client', return_value=mock_client):
+            static_page_service.push('<html>test</html>')
+
+        assert len(capture.records) == 1
+        log_data = json.loads(capture.records[0].message)
+        assert log_data['event'] == 'static_page.pushed'
+        assert log_data['data']['method'] == 'gcs'
 
 
 class TestGenerateAndPush:

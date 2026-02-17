@@ -13,7 +13,7 @@ A web application for tracking equipment status and coordinating repairs at comm
 - **QR Code Equipment Pages** — Scan a QR sticker on any piece of equipment to instantly see its status, known issues, documentation, and report a problem
 - **Kanban Board** — Visual overview of all active repairs by status with aging indicators to spot stuck items
 - **Kiosk Display** — Large-screen auto-refreshing status grid for wall-mounted monitors in the space
-- **Static Status Page** — Lightweight externally hosted page for checking status from anywhere (pushes to local directory or S3)
+- **Static Status Page** — Lightweight externally hosted page for checking status from anywhere (pushes to local directory, S3, or Google Cloud Storage)
 - **Slack Integration** — Report problems, check status, create and update repairs via slash commands (`/esb-report`, `/esb-status`, `/esb-repair`, `/esb-update`); automated notifications for new reports, status changes, and more
 - **Role-Based Access** — Three user types: Members (public, no login), Technicians (repair management), Staff (full administration)
 
@@ -48,6 +48,7 @@ Full user guides and administrator documentation are available at:
 - **Docker Compose** — Container orchestration (app + db + worker)
 - **Slack Bolt SDK** — Slack integration
 - **boto3** — S3 static page publishing
+- **google-cloud-storage** — GCS static page publishing
 - **qrcode** — QR code generation
 
 ## License

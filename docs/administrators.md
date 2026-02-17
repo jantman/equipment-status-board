@@ -79,12 +79,13 @@ Open `http://localhost:5000` in a browser (or the server's IP/hostname on port 5
 | `SLACK_BOT_TOKEN` | Slack Bot User OAuth Token. Leave empty to disable Slack integration. | No | _(empty)_ | `xoxb-1234567890-...` |
 | `SLACK_SIGNING_SECRET` | Slack Signing Secret for verifying requests from Slack. | No | _(empty)_ | `abc123def456...` |
 | `SLACK_OOPS_CHANNEL` | Slack channel for cross-area notifications. Can be set in `.env` (not included in `.env.example` by default). | No | `#oops` | `#equipment-alerts` |
-| `STATIC_PAGE_PUSH_METHOD` | How to publish the static status page. Options: `local` (write to directory) or `s3` (upload to S3 bucket via boto3). | No | `local` | `s3` |
-| `STATIC_PAGE_PUSH_TARGET` | Target for static page push. For `local`: a directory path. For `s3`: an S3 bucket name. | No | _(empty)_ | `my-status-bucket` |
+| `STATIC_PAGE_PUSH_METHOD` | How to publish the static status page. Options: `local` (write to directory), `s3` (upload to S3 bucket via boto3), or `gcs` (upload to Google Cloud Storage bucket). | No | `local` | `s3` |
+| `STATIC_PAGE_PUSH_TARGET` | Target for static page push. For `local`: a directory path. For `s3` and `gcs`: `bucket-name/optional/key/path` (key defaults to `index.html`). | No | _(empty)_ | `my-status-bucket/index.html` |
 | `FLASK_APP` | Flask application entry point. Do not change. | No | `esb:create_app` | `esb:create_app` |
 | `FLASK_DEBUG` | Enable Flask debug mode. Set to `0` in production. | No | `1` | `0` |
 | `AWS_ACCESS_KEY_ID` | AWS access key for S3 static page push. Only needed if `STATIC_PAGE_PUSH_METHOD=s3` and not using an IAM role. | No | _(empty)_ | `AKIAIOSFODNN7EXAMPLE` |
 | `AWS_SECRET_ACCESS_KEY` | AWS secret key for S3 static page push. Only needed if `STATIC_PAGE_PUSH_METHOD=s3` and not using an IAM role. | No | _(empty)_ | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY` |
+| `GOOGLE_APPLICATION_CREDENTIALS` | Path to Google Cloud service account JSON key file. Only needed if `STATIC_PAGE_PUSH_METHOD=gcs` and not using instance metadata or Workload Identity. | No | _(empty)_ | `/path/to/service-account.json` |
 
 !!! warning
     Always set `SECRET_KEY` to a unique random value in production. The default value is insecure and only suitable for development.
@@ -133,6 +134,7 @@ The application Docker image includes these key Python packages:
 - **PyMySQL** — MariaDB database driver
 - **slack-bolt / slack_sdk** — Slack integration (slash commands, modals, events)
 - **boto3** — AWS S3 client for static page push (when using `s3` method)
+- **google-cloud-storage** — Google Cloud Storage client for static page push (when using `gcs` method)
 - **qrcode[pil]** — QR code generation for equipment pages
 - **gunicorn** — Production WSGI server
 
@@ -205,6 +207,7 @@ Set the push method via the `STATIC_PAGE_PUSH_METHOD` environment variable:
 
 - **`local`** — Writes the static page to a local directory specified by `STATIC_PAGE_PUSH_TARGET`. Useful for serving from a local web server or shared drive.
 - **`s3`** — Uploads the static page to an S3 bucket specified by `STATIC_PAGE_PUSH_TARGET`. Requires AWS credentials configured in the environment (via `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` or an IAM role).
+- **`gcs`** — Uploads the static page to a Google Cloud Storage bucket specified by `STATIC_PAGE_PUSH_TARGET`. Uses Google's default credential chain (`GOOGLE_APPLICATION_CREDENTIALS` environment variable, GCE instance metadata, or Workload Identity). When using Docker with a service account key file, add a volume mount for the credentials file in `docker-compose.yml` (e.g., `- ./service-account.json:/app/service-account.json:ro`) and set `GOOGLE_APPLICATION_CREDENTIALS=/app/service-account.json`.
 
 The static page is pushed by the background worker whenever it detects a status change during its polling cycle.
 
@@ -303,5 +306,6 @@ MariaDB data is persisted in the `mariadb_data` Docker volume. This volume survi
 - Verify `STATIC_PAGE_PUSH_METHOD` and `STATIC_PAGE_PUSH_TARGET` are set
 - Check that the worker is running (it handles the push)
 - For `s3` method: verify AWS credentials and bucket permissions
+- For `gcs` method: verify Google Cloud credentials and bucket permissions
 - For `local` method: verify the target directory exists and is writable
 - Check worker logs for push errors

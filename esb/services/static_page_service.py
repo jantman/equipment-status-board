@@ -31,7 +31,7 @@ def generate() -> str:
 def push(html_content: str) -> None:
     """Push the rendered static page to the configured destination.
 
-    Dispatches to _push_local() or _push_s3() based on
+    Dispatches to _push_local(), _push_s3(), or _push_gcs() based on
     STATIC_PAGE_PUSH_METHOD config value.
 
     Args:
@@ -50,6 +50,8 @@ def push(html_content: str) -> None:
         _push_local(html_content, target)
     elif method == 's3':
         _push_s3(html_content, target)
+    elif method == 'gcs':
+        _push_gcs(html_content, target)
     else:
         raise RuntimeError(f'Unknown STATIC_PAGE_PUSH_METHOD: {method!r}')
 
@@ -125,6 +127,48 @@ def _push_s3(html_content: str, target: str) -> None:
         error_code = e.response['Error']['Code']
         error_msg = e.response['Error']['Message']
         raise RuntimeError(f'S3 upload failed ({error_code}): {error_msg}') from e
+
+
+def _push_gcs(html_content: str, target: str) -> None:
+    """Upload the static page HTML to a Google Cloud Storage bucket.
+
+    Target format: "bucket-name/optional/key/path" (key defaults to index.html
+    if target ends with / or has no key component).
+
+    Args:
+        html_content: Rendered HTML string.
+        target: GCS target in format "bucket/key".
+
+    Raises:
+        RuntimeError: if GCS upload fails.
+    """
+    try:
+        from google.api_core.exceptions import GoogleAPIError
+        from google.auth.exceptions import DefaultCredentialsError
+        from google.cloud import storage
+    except ImportError as e:
+        raise RuntimeError(
+            'google-cloud-storage is required for GCS push method. Install it with: pip install google-cloud-storage'
+        ) from e
+
+    # Parse target: "bucket-name/optional/key/path"
+    parts = target.split('/', 1)
+    bucket = parts[0]
+    if not bucket:
+        raise RuntimeError(f'Invalid GCS target {target!r}: bucket name is empty')
+    key = parts[1] if len(parts) > 1 and parts[1] else 'index.html'
+
+    try:
+        client = storage.Client()
+        bucket_obj = client.bucket(bucket)
+        blob = bucket_obj.blob(key)
+        blob.cache_control = 'no-cache, no-store, must-revalidate'
+        blob.upload_from_string(html_content, content_type='text/html; charset=utf-8')
+        logger.info('Static page uploaded to gs://%s/%s', bucket, key)
+    except DefaultCredentialsError as e:
+        raise RuntimeError('Google Cloud credentials not configured for GCS push') from e
+    except GoogleAPIError as e:
+        raise RuntimeError(f'GCS upload failed: {e}') from e
 
 
 def generate_and_push() -> None:
