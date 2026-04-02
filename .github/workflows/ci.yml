@@ -32,6 +32,44 @@ jobs:
           DATABASE_URL: "sqlite:///:memory:"
           SECRET_KEY: "test-secret"
 
+  screenshots-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          allow-prereleases: true
+      - run: pip install -r requirements-dev.txt
+      - run: python -m playwright install --with-deps chromium
+      - run: PYTHONPATH=. python scripts/generate_screenshots.py
+      - name: Verify all screenshots were generated
+        run: |
+          expected=(
+            status-dashboard.png
+            kiosk-display.png
+            qr-equipment-page-mobile.png
+            problem-report-form-mobile.png
+            repair-queue-desktop.png
+            repair-queue-mobile.png
+            repair-record-detail.png
+            kanban-board.png
+            equipment-detail.png
+            user-management.png
+            app-configuration.png
+          )
+          missing=0
+          for f in "${expected[@]}"; do
+            if [ ! -f "docs/images/$f" ]; then
+              echo "::error::Missing screenshot: docs/images/$f"
+              missing=1
+            fi
+          done
+          if [ "$missing" -eq 1 ]; then
+            exit 1
+          fi
+          echo "All ${#expected[@]} screenshots generated successfully."
+
   docker-build:
     runs-on: ubuntu-latest
     steps:

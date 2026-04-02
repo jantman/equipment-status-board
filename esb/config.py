@@ -43,9 +43,16 @@ class ProductionConfig(Config):
     DEBUG = False
 
 
+class ScreenshotConfig(Config):
+    """Configuration for screenshot generation script."""
+
+    SQLALCHEMY_DATABASE_URI = 'sqlite:////tmp/esb_screenshots.db'
+
+
 config = {
     'development': DevelopmentConfig,
     'testing': TestingConfig,
     'production': ProductionConfig,
+    'screenshot': ScreenshotConfig,
     'default': DevelopmentConfig,
 }

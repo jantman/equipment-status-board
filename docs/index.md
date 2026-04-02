@@ -14,8 +14,7 @@ The Equipment Status Board solves this by providing a single source of truth for
 
 A color-coded status grid organized by area shows every piece of equipment at a glance. Green means operational, yellow means degraded, and red means down.
 
-![Status Dashboard](images/placeholder.png)
-<!-- SCREENSHOT: Status dashboard showing equipment grid organized by areas with green/yellow/red status indicators -->
+![Status Dashboard](images/status-dashboard.png)
 
 ### QR Code Equipment Pages
 

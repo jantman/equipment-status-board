@@ -54,11 +54,9 @@ Use the dropdown filters at the top of the queue to narrow the list:
 
 On your phone, the table rows display as stacked cards instead of a table. Each card shows the equipment name, severity, status, area, and age. This makes it easy to browse the queue one-handed while you're at the workbench.
 
-![Repair Queue - Desktop](images/placeholder.png)
-<!-- SCREENSHOT: Repair queue table on desktop showing columns for equipment, severity, area, age, status, and assignee -->
+![Repair Queue - Desktop](images/repair-queue-desktop.png)
 
-![Repair Queue - Mobile](images/placeholder.png)
-<!-- SCREENSHOT: Repair queue on mobile showing stacked card layout with equipment name, severity, and status -->
+![Repair Queue - Mobile](images/repair-queue-mobile.png)
 
 ## Managing Repair Records
 
@@ -116,8 +114,7 @@ Use the date picker to indicate when you expect the repair to be complete. This 
 
 You can make multiple changes at once — update the status, add a note, change the assignee, and set an ETA — all before clicking Save. Everything is saved together in a single action.
 
-![Repair Record Detail](images/placeholder.png)
-<!-- SCREENSHOT: Repair record detail page showing timeline entries, status dropdown, notes field, and save button -->
+![Repair Record Detail](images/repair-record-detail.png)
 
 ## Creating Repair Records
 

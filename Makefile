@@ -1,4 +1,4 @@
-.PHONY: setup db-up migrate run worker test test-e2e lint docker-build docker-up
+.PHONY: setup db-up migrate run worker test test-e2e lint docker-build docker-up screenshots
 
 VENV := venv
 FLASK_APP := esb:create_app
@@ -33,3 +33,7 @@ docker-build:
 
 docker-up:
 	docker compose up
+
+screenshots:
+	$(VENV)/bin/python -m playwright install chromium
+	PYTHONPATH=. $(VENV)/bin/python scripts/generate_screenshots.py
