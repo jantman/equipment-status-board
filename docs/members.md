@@ -16,8 +16,7 @@ The Status Dashboard shows every piece of tracked equipment organized by area (e
 
 Navigate to the Equipment Status Board URL in your browser to see the dashboard. No login is required.
 
-![Status Dashboard](images/placeholder.png)
-<!-- SCREENSHOT: Status dashboard showing area-organized grid of equipment cards with green/yellow/red status indicators -->
+![Status Dashboard](images/status-dashboard.png)
 
 ### Static Status Page (Remote Access)
 
@@ -29,8 +28,7 @@ Ask a staff member for the static status page URL if you don't have it.
 
 Large-screen displays mounted in the makerspace show a full-width status grid that's readable from across the room. These displays auto-refresh every 60 seconds, so the status is always current. You don't need to interact with them — just look up.
 
-![Kiosk Display](images/placeholder.png)
-<!-- SCREENSHOT: Kiosk display showing full-width equipment status grid designed for large screens -->
+![Kiosk Display](images/kiosk-display.png)
 
 ## Using QR Code Equipment Pages
 
@@ -48,8 +46,7 @@ The equipment page shows:
 2. **Status indicator** — A large, clear green/yellow/red indicator showing the current status
 3. **Issue description** — If the equipment isn't green, a description of the current problem
 
-![QR Code Equipment Page](images/placeholder.png)
-<!-- SCREENSHOT: QR code equipment page on mobile showing equipment name, large status indicator, and issue description -->
+![QR Code Equipment Page](images/qr-equipment-page-mobile.png)
 
 ### Checking Known Issues
 
@@ -82,8 +79,7 @@ If you find a piece of equipment that's broken or not working properly, and the 
 
 You'll see a confirmation page with a link to the Slack channel where repairs for that area are discussed.
 
-![Problem Report Form](images/placeholder.png)
-<!-- SCREENSHOT: Problem report form on mobile showing name, description, severity dropdown, safety checkbox, and photo upload fields -->
+![Problem Report Form](images/problem-report-form-mobile.png)
 
 ### Reporting via Slack
 

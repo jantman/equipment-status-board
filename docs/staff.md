@@ -69,8 +69,7 @@ The Kanban board is a read-only overview. To take action on a repair, click a ca
 
 On desktop, columns are displayed side by side with horizontal scrolling if needed. On mobile, columns are stacked vertically as collapsible sections.
 
-![Kanban Board](images/placeholder.png)
-<!-- SCREENSHOT: Kanban board showing columns for each repair status with cards displaying equipment name, area, severity, and aging indicators -->
+![Kanban Board](images/kanban-board.png)
 
 ## Managing Equipment
 
@@ -113,8 +112,7 @@ From the equipment detail page, you can upload and manage reference materials:
 
 When a piece of equipment is retired or removed from the space, archive it instead of deleting it. Archiving is a soft delete that preserves all history (repair records, documents, photos) while removing the equipment from active views.
 
-![Equipment Detail Page](images/placeholder.png)
-<!-- SCREENSHOT: Equipment detail page showing name, manufacturer, model, area, documents list, photos, and links sections -->
+![Equipment Detail Page](images/equipment-detail.png)
 
 ## Managing Areas
 
@@ -168,8 +166,7 @@ Change a user between Technician and Staff roles directly from the user list.
 
 Generate a new temporary password for a user. The password is delivered via the same mechanism as initial creation (Slack DM if available, otherwise displayed on screen).
 
-![User Management](images/placeholder.png)
-<!-- SCREENSHOT: User management page showing user list with username, email, role, and status columns, plus Add User button -->
+![User Management](images/user-management.png)
 
 ## Configuring the System
 
@@ -192,8 +189,7 @@ Enable or disable which events trigger Slack notifications:
 
 Notifications are sent to the area's configured Slack channel and to the `#oops` channel (configurable via the `SLACK_OOPS_CHANNEL` environment variable).
 
-![App Configuration](images/placeholder.png)
-<!-- SCREENSHOT: App configuration page showing toggles for technician doc editing and notification triggers -->
+![App Configuration](images/app-configuration.png)
 
 ## Working with Repairs
 
