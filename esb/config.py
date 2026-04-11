@@ -21,6 +21,8 @@ class Config:
     SLACK_OOPS_CHANNEL = os.environ.get('SLACK_OOPS_CHANNEL', '#oops')
     STATIC_PAGE_PUSH_METHOD = os.environ.get('STATIC_PAGE_PUSH_METHOD', 'local')
     STATIC_PAGE_PUSH_TARGET = os.environ.get('STATIC_PAGE_PUSH_TARGET', '')
+    NEW_RELIC_LICENSE_KEY = os.environ.get('NEW_RELIC_LICENSE_KEY', '')
+    NEW_RELIC_APP_NAME = os.environ.get('NEW_RELIC_APP_NAME', 'Equipment Status Board')
 
 
 class DevelopmentConfig(Config):

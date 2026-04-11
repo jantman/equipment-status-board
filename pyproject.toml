@@ -1,6 +1,6 @@
 [project]
 name = "equipment-status-board"
-version = "0.1.0"
+version = "0.2.0"
 description = "Equipment status tracking and repair management for Decatur Makers makerspace"
 requires-python = ">=3.14"
 dependencies = [
@@ -12,6 +12,7 @@ dependencies = [
     "PyMySQL>=1.1.1",
     "python-dotenv>=1.1.0",
     "gunicorn>=23.0.0",
+    "newrelic>=10.0.0",
 ]
 
 [project.optional-dependencies]

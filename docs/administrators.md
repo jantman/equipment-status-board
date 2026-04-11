@@ -86,6 +86,8 @@ Open `http://localhost:5000` in a browser (or the server's IP/hostname on port 5
 | `AWS_ACCESS_KEY_ID` | AWS access key for S3 static page push. Only needed if `STATIC_PAGE_PUSH_METHOD=s3` and not using an IAM role. | No | _(empty)_ | `AKIAIOSFODNN7EXAMPLE` |
 | `AWS_SECRET_ACCESS_KEY` | AWS secret key for S3 static page push. Only needed if `STATIC_PAGE_PUSH_METHOD=s3` and not using an IAM role. | No | _(empty)_ | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY` |
 | `GOOGLE_APPLICATION_CREDENTIALS` | Path to Google Cloud service account JSON key file. Only needed if `STATIC_PAGE_PUSH_METHOD=gcs` and not using instance metadata or Workload Identity. | No | _(empty)_ | `/path/to/service-account.json` |
+| `NEW_RELIC_LICENSE_KEY` | New Relic license key. Enables APM and browser monitoring when set. Leave empty to disable. | No | _(empty)_ | `abc123def456...` |
+| `NEW_RELIC_APP_NAME` | Application name shown in the New Relic dashboard. | No | `Equipment Status Board` | `ESB Production` |
 
 !!! warning
     Always set `SECRET_KEY` to a unique random value in production. The default value is insecure and only suitable for development.
@@ -136,6 +138,7 @@ The application Docker image includes these key Python packages:
 - **boto3** — AWS S3 client for static page push (when using `s3` method)
 - **google-cloud-storage** — Google Cloud Storage client for static page push (when using `gcs` method)
 - **qrcode[pil]** — QR code generation for equipment pages
+- **newrelic** — New Relic APM and browser monitoring agent (optional, activated by `NEW_RELIC_LICENSE_KEY`)
 - **gunicorn** — Production WSGI server
 
 ## Slack App Configuration
@@ -210,6 +213,44 @@ Set the push method via the `STATIC_PAGE_PUSH_METHOD` environment variable:
 - **`gcs`** — Uploads the static page to a Google Cloud Storage bucket specified by `STATIC_PAGE_PUSH_TARGET`. Uses Google's default credential chain (`GOOGLE_APPLICATION_CREDENTIALS` environment variable, GCE instance metadata, or Workload Identity). When using Docker with a service account key file, add a volume mount for the credentials file in `docker-compose.yml` (e.g., `- ./service-account.json:/app/service-account.json:ro`) and set `GOOGLE_APPLICATION_CREDENTIALS=/app/service-account.json`.
 
 The static page is pushed by the background worker whenever it detects a status change during its polling cycle.
+
+## New Relic Monitoring (Optional)
+
+New Relic integration provides server-side APM (Application Performance Monitoring) and browser monitoring for end users. When enabled, it automatically instruments the Flask application, background worker, and injects browser monitoring JavaScript into all pages.
+
+### Enabling New Relic
+
+Set the `NEW_RELIC_LICENSE_KEY` environment variable in your `.env` file:
+
+```bash
+NEW_RELIC_LICENSE_KEY=your-license-key-here
+NEW_RELIC_APP_NAME=Equipment Status Board
+```
+
+Restart all services after updating:
+
+```bash
+docker compose restart app worker
+```
+
+Both the web application and background worker will begin reporting to New Relic. Browser monitoring JavaScript is automatically injected into every page served by the application.
+
+### Verifying
+
+After enabling, check the New Relic dashboard for your application name. You should see:
+
+- **APM data** — web transactions, throughput, error rates, and response times
+- **Browser data** — page load times, JavaScript errors, and AJAX calls from end users
+
+If no data appears, check the app and worker logs for New Relic-related errors:
+
+```bash
+docker compose logs app | grep -i "new.relic\|newrelic"
+```
+
+### Disabling
+
+To disable New Relic, remove or comment out `NEW_RELIC_LICENSE_KEY` in your `.env` file and restart the services. When the license key is not set, no New Relic code is loaded and there is zero performance impact.
 
 ## Ongoing Maintenance
 

@@ -1,11 +1,15 @@
 """ESB application package."""
 
+import os
+
 from flask import Flask, flash, redirect, render_template, request, session, url_for
 
 from esb.config import config
 from esb.extensions import csrf, db, login_manager, migrate
 from esb.utils.filters import register_filters
 from esb.views import register_blueprints
+
+_newrelic_initialized = False
 
 
 def create_app(config_name='default'):
@@ -14,6 +18,17 @@ def create_app(config_name='default'):
     Args:
         config_name: Configuration key ('development', 'testing', 'production', 'default').
     """
+    global _newrelic_initialized
+    nr_license = os.environ.get('NEW_RELIC_LICENSE_KEY', '')
+    if nr_license and not _newrelic_initialized:
+        import newrelic.agent
+        settings = newrelic.agent.global_settings()
+        settings.license_key = nr_license
+        settings.app_name = os.environ.get('NEW_RELIC_APP_NAME', 'Equipment Status Board')
+        settings.browser_monitoring.auto_instrument = False
+        newrelic.agent.initialize()
+        _newrelic_initialized = True
+
     app = Flask(__name__)
     app.config.from_object(config[config_name])
 
@@ -47,6 +62,16 @@ def create_app(config_name='default'):
 
     # Register custom Jinja2 filters
     register_filters(app)
+
+    # New Relic browser monitoring context processor
+    if nr_license:
+        @app.context_processor
+        def newrelic_browser_snippets():
+            import newrelic.agent
+            return {
+                'newrelic_browser_header': newrelic.agent.get_browser_timing_header(),
+                'newrelic_browser_footer': newrelic.agent.get_browser_timing_footer(),
+            }
 
     # Register error handlers
     @app.errorhandler(403)
