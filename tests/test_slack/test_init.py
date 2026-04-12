@@ -1,11 +1,12 @@
 """Tests for Slack module initialization (esb/slack/__init__.py)."""
 
+import signal
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from esb import create_app
-from esb.config import Config
+from esb.config import Config, SlackTestConfig
 
 
 class TestSlackDisabled:
@@ -28,37 +29,40 @@ class TestSlackDisabled:
         resp = client.get('/health')
         assert resp.status_code == 200
 
+    def test_no_slack_bolt_app_when_disabled(self):
+        """Bolt app is None when Slack is not configured."""
+        import esb.slack as slack_mod
+        assert slack_mod._bolt_app is None
+
     def test_no_slack_routes_when_disabled(self):
         """No /slack/events route when Slack is not configured."""
         client = self.app.test_client()
         resp = client.post('/slack/events')
         assert resp.status_code == 404
 
-    def test_no_slack_in_url_map_when_disabled(self):
-        """No /slack/events in URL map when Slack is disabled."""
-        rules = [rule.rule for rule in self.app.url_map.iter_rules()]
-        assert '/slack/events' not in rules
-
 
 class TestSlackEnabled:
-    """Tests for when Slack IS configured."""
+    """Tests for when Slack IS configured with Socket Mode."""
 
     @pytest.fixture(autouse=True)
     def setup_app(self):
-        """Create app with Slack configured (mocking Bolt App)."""
+        """Create app with Slack configured (mocking Bolt App and SocketModeHandler)."""
         import esb.slack as slack_mod
         slack_mod._bolt_app = None
-        slack_mod._handler = None
+        slack_mod._socket_handler = None
 
         self.mock_bolt_app = MagicMock()
-        self.mock_handler = MagicMock()
+        self.mock_socket_handler = MagicMock()
 
-        with patch.object(Config, 'SLACK_BOT_TOKEN', 'xoxb-test-token'), \
-             patch.object(Config, 'SLACK_SIGNING_SECRET', 'test-signing-secret'), \
+        with patch.object(SlackTestConfig, 'SLACK_BOT_TOKEN', 'xoxb-test-token'), \
+             patch.object(SlackTestConfig, 'SLACK_APP_TOKEN', 'xapp-test-token'), \
+             patch.object(SlackTestConfig, 'SLACK_SOCKET_MODE_CONNECT', 'true'), \
              patch('slack_bolt.App', return_value=self.mock_bolt_app) as self.mock_app_cls, \
-             patch('slack_bolt.adapter.flask.SlackRequestHandler',
-                   return_value=self.mock_handler):
-            self.app = create_app('testing')
+             patch('slack_bolt.adapter.socket_mode.SocketModeHandler',
+                   return_value=self.mock_socket_handler), \
+             patch('atexit.register') as self.mock_atexit, \
+             patch('signal.signal') as self.mock_signal:
+            self.app = create_app('slack_test')
 
             with self.app.app_context():
                 from esb.extensions import db
@@ -68,56 +72,36 @@ class TestSlackEnabled:
                 db.drop_all()
 
         slack_mod._bolt_app = None
-        slack_mod._handler = None
+        slack_mod._socket_handler = None
 
     def test_slack_module_loads_when_configured(self):
-        """Slack module initializes when SLACK_BOT_TOKEN is configured."""
+        """Slack module initializes when tokens are configured."""
         import esb.slack as slack_mod
         assert slack_mod._bolt_app is not None
-        assert slack_mod._handler is not None
+        assert slack_mod._socket_handler is not None
 
-    def test_slack_events_route_exists(self):
-        """The /slack/events route is registered when Slack is configured."""
-        rules = [rule.rule for rule in self.app.url_map.iter_rules()]
-        assert '/slack/events' in rules
+    def test_socket_mode_connect_called(self):
+        """SocketModeHandler.connect() is called during init."""
+        self.mock_socket_handler.connect.assert_called_once()
 
-    def test_slack_events_route_is_post(self):
-        """The /slack/events route only accepts POST."""
-        client = self.app.test_client()
-        resp = client.get('/slack/events')
-        assert resp.status_code == 405
+    def test_atexit_registered(self):
+        """atexit.register is called with _shutdown_socket."""
+        import esb.slack as slack_mod
+        self.mock_atexit.assert_called_once_with(slack_mod._shutdown_socket)
 
-    def test_slack_events_delegates_to_handler(self):
-        """POST /slack/events delegates to the Bolt SlackRequestHandler."""
-        self.mock_handler.handle.return_value = ('ok', 200, {})
-        client = self.app.test_client()
-        client.post('/slack/events', data=b'{}',
-                    content_type='application/json')
-        self.mock_handler.handle.assert_called_once()
-
-    def test_slack_blueprint_csrf_exempt(self):
-        """The slack blueprint is CSRF exempt (control: non-exempt route is blocked)."""
-        self.app.config['WTF_CSRF_ENABLED'] = True
-        self.mock_handler.handle.return_value = ('ok', 200, {})
-        client = self.app.test_client()
-
-        # Control: a CSRF-protected POST route is rejected without token
-        resp = client.post('/admin/users/1/role', data={'role': 'staff'})
-        assert resp.status_code in (400, 302)  # 400 CSRF error or 302 login redirect
-
-        # Test: the Slack route is NOT rejected (CSRF exempt)
-        client.post('/slack/events', data=b'{}',
-                    content_type='application/json')
-        self.mock_handler.handle.assert_called_once()
+    def test_sigterm_handler_registered(self):
+        """SIGTERM signal handler is registered."""
+        sigterm_calls = [c for c in self.mock_signal.call_args_list if c[0][0] == signal.SIGTERM]
+        assert len(sigterm_calls) == 1
+        # The second argument should be a callable (the _sigterm_handler function)
+        assert callable(sigterm_calls[0][0][1])
 
     def test_register_handlers_called(self):
-        """6.1: register_handlers is called during init_slack() when Slack is enabled."""
-        # register_handlers registers commands and views on the bolt app
-        # Verify command handlers were registered
+        """register_handlers is called during init_slack() when Slack is enabled."""
         assert self.mock_bolt_app.command.called
 
     def test_command_handlers_registered(self):
-        """6.2: Command handlers are registered on the Bolt app."""
+        """Command handlers are registered on the Bolt app."""
         command_calls = [call[0][0] for call in self.mock_bolt_app.command.call_args_list]
         assert '/esb-report' in command_calls
         assert '/esb-repair' in command_calls
@@ -130,31 +114,140 @@ class TestSlackEnabled:
         assert 'repair_create_submission' in view_calls
         assert 'repair_update_submission' in view_calls
 
-    def test_bolt_app_event_handler_registered(self):
-        """A 'message' event handler is registered on the Bolt app."""
-        self.mock_bolt_app.event.assert_called_with('message')
-
     def test_app_starts_cleanly_with_slack(self):
         """App starts and responds to health check with Slack configured."""
         client = self.app.test_client()
         resp = client.get('/health')
         assert resp.status_code == 200
 
+    def test_no_http_slack_route(self):
+        """No /slack/events HTTP route exists in Socket Mode."""
+        rules = [rule.rule for rule in self.app.url_map.iter_rules()]
+        assert '/slack/events' not in rules
 
-class TestSlackMissingSigningSecret:
-    """Tests for when only SLACK_BOT_TOKEN is set but signing secret is missing."""
 
-    def test_slack_disabled_without_signing_secret(self):
-        """Slack module is not loaded when SLACK_SIGNING_SECRET is missing."""
+class TestSlackMissingAppToken:
+    """Tests for when SLACK_BOT_TOKEN is set but SLACK_APP_TOKEN is missing."""
+
+    def test_slack_disabled_without_app_token(self):
+        """Slack module is not loaded when SLACK_APP_TOKEN is missing."""
+        import esb.slack as slack_mod
+
         with patch.object(Config, 'SLACK_BOT_TOKEN', 'xoxb-test-token'), \
-             patch.object(Config, 'SLACK_SIGNING_SECRET', ''):
+             patch.object(Config, 'SLACK_APP_TOKEN', ''), \
+             patch('slack_bolt.adapter.socket_mode.SocketModeHandler') as mock_smh:
             app = create_app('testing')
             with app.app_context():
                 from esb.extensions import db
                 db.create_all()
 
-                rules = [rule.rule for rule in app.url_map.iter_rules()]
-                assert '/slack/events' not in rules
+                assert slack_mod._bolt_app is None
+                assert slack_mod._socket_handler is None
+                mock_smh.assert_not_called()
 
                 db.session.remove()
                 db.drop_all()
+
+        slack_mod._bolt_app = None
+        slack_mod._socket_handler = None
+
+
+class TestSlackTestingModeSkipsConnect:
+    """Verify TESTING=True skips SocketModeHandler construction."""
+
+    def test_testing_mode_skips_connect(self):
+        """Bolt app is initialized but SocketModeHandler is never constructed in testing mode."""
+        import esb.slack as slack_mod
+        slack_mod._bolt_app = None
+        slack_mod._socket_handler = None
+
+        mock_bolt_app = MagicMock()
+
+        with patch.object(Config, 'SLACK_BOT_TOKEN', 'xoxb-test-token'), \
+             patch.object(Config, 'SLACK_APP_TOKEN', 'xapp-test-token'), \
+             patch('slack_bolt.App', return_value=mock_bolt_app), \
+             patch('slack_bolt.adapter.socket_mode.SocketModeHandler') as mock_smh:
+            app = create_app('testing')
+            with app.app_context():
+                from esb.extensions import db
+                db.create_all()
+
+                assert slack_mod._bolt_app is not None
+                assert slack_mod._socket_handler is None
+                mock_smh.assert_not_called()
+
+                db.session.remove()
+                db.drop_all()
+
+        slack_mod._bolt_app = None
+        slack_mod._socket_handler = None
+
+
+class TestSlackConnectSkippedWhenNotOptedIn:
+    """Verify socket connection is skipped when SLACK_SOCKET_MODE_CONNECT is not 'true'."""
+
+    def test_connect_skipped_when_not_opted_in(self):
+        """Bolt app is initialized but no socket connection when SLACK_SOCKET_MODE_CONNECT is empty."""
+        import esb.slack as slack_mod
+        slack_mod._bolt_app = None
+        slack_mod._socket_handler = None
+
+        mock_bolt_app = MagicMock()
+
+        with patch.object(SlackTestConfig, 'SLACK_BOT_TOKEN', 'xoxb-test-token'), \
+             patch.object(SlackTestConfig, 'SLACK_APP_TOKEN', 'xapp-test-token'), \
+             patch.object(SlackTestConfig, 'SLACK_SOCKET_MODE_CONNECT', ''), \
+             patch('slack_bolt.App', return_value=mock_bolt_app), \
+             patch('slack_bolt.adapter.socket_mode.SocketModeHandler') as mock_smh:
+            app = create_app('slack_test')
+            with app.app_context():
+                from esb.extensions import db
+                db.create_all()
+
+                assert slack_mod._bolt_app is not None
+                assert slack_mod._socket_handler is None
+                mock_smh.assert_not_called()
+
+                db.session.remove()
+                db.drop_all()
+
+        slack_mod._bolt_app = None
+        slack_mod._socket_handler = None
+
+
+class TestSlackConnectFailure:
+    """Verify graceful degradation when SocketModeHandler.connect() fails."""
+
+    def test_connect_failure_does_not_crash_app(self):
+        """App starts cleanly even if Socket Mode connect() raises an exception."""
+        import esb.slack as slack_mod
+        slack_mod._bolt_app = None
+        slack_mod._socket_handler = None
+
+        mock_bolt_app = MagicMock()
+        mock_handler = MagicMock()
+        mock_handler.connect.side_effect = Exception('Network error')
+
+        with patch.object(SlackTestConfig, 'SLACK_BOT_TOKEN', 'xoxb-test-token'), \
+             patch.object(SlackTestConfig, 'SLACK_APP_TOKEN', 'xapp-test-token'), \
+             patch.object(SlackTestConfig, 'SLACK_SOCKET_MODE_CONNECT', 'true'), \
+             patch('slack_bolt.App', return_value=mock_bolt_app), \
+             patch('slack_bolt.adapter.socket_mode.SocketModeHandler',
+                   return_value=mock_handler):
+            app = create_app('slack_test')
+            with app.app_context():
+                from esb.extensions import db
+                db.create_all()
+
+                assert slack_mod._bolt_app is not None
+                assert slack_mod._socket_handler is None
+
+                client = app.test_client()
+                resp = client.get('/health')
+                assert resp.status_code == 200
+
+                db.session.remove()
+                db.drop_all()
+
+        slack_mod._bolt_app = None
+        slack_mod._socket_handler = None

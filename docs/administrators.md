@@ -9,7 +9,7 @@ Before you begin, ensure you have:
 - **Docker** and **Docker Compose** installed on the server
 - **Git** for cloning the repository
 - A server or machine on the makerspace local network (or accessible to members)
-- A **Slack workspace** with a paid plan (Pro or higher) if you want to use Slack integration
+- A **Slack workspace** for Slack integration (check current Slack plan requirements for Socket Mode at api.slack.com)
 
 ## Installation & Deployment
 
@@ -77,7 +77,8 @@ Open `http://localhost:5000` in a browser (or the server's IP/hostname on port 5
 | `UPLOAD_PATH` | Directory for uploaded files (photos, documents). Relative to app root or absolute path. | No | `uploads` | `/app/uploads` |
 | `UPLOAD_MAX_SIZE_MB` | Maximum upload file size in megabytes. | No | `500` | `100` |
 | `SLACK_BOT_TOKEN` | Slack Bot User OAuth Token. Leave empty to disable Slack integration. | No | _(empty)_ | `xoxb-1234567890-...` |
-| `SLACK_SIGNING_SECRET` | Slack Signing Secret for verifying requests from Slack. | No | _(empty)_ | `abc123def456...` |
+| `SLACK_APP_TOKEN` | Slack App-Level Token for Socket Mode. Required for Slack integration. Leave empty to disable. | No | _(empty)_ | `xapp-1-...` |
+| `SLACK_SOCKET_MODE_CONNECT` | Set to `true` to enable the Socket Mode WebSocket connection. Only the app container should set this; worker and other services should leave it unset. | No | _(empty)_ | `true` |
 | `SLACK_OOPS_CHANNEL` | Slack channel for cross-area notifications. Can be set in `.env` (not included in `.env.example` by default). | No | `#oops` | `#equipment-alerts` |
 | `STATIC_PAGE_PUSH_METHOD` | How to publish the static status page. Options: `local` (write to directory), `s3` (upload to S3 bucket via boto3), or `gcs` (upload to Google Cloud Storage bucket). | No | `local` | `s3` |
 | `STATIC_PAGE_PUSH_TARGET` | Target for static page push. For `local`: a directory path. For `s3` and `gcs`: `bucket-name/optional/key/path` (key defaults to `index.html`). | No | _(empty)_ | `my-status-bucket/index.html` |
@@ -101,7 +102,7 @@ The application runs as three Docker containers defined in `docker-compose.yml`:
 
 ### App Service
 
-The main web application. Runs Flask via Gunicorn with 2 worker processes on port 5000.
+The main web application. Runs Flask via Gunicorn with 1 worker process and 2 threads on port 5000.
 
 - **Image:** Built from the project `Dockerfile` (Python 3.14-slim base)
 - **Port:** 5000 (mapped to host)
@@ -134,7 +135,8 @@ The application Docker image includes these key Python packages:
 - **Flask** — Web framework
 - **SQLAlchemy / Flask-SQLAlchemy** — Database ORM
 - **PyMySQL** — MariaDB database driver
-- **slack-bolt / slack_sdk** — Slack integration (slash commands, modals, events)
+- **slack-bolt / slack_sdk** — Slack integration (slash commands, modals, events via Socket Mode)
+- **websocket-client** — WebSocket transport for Slack Socket Mode
 - **boto3** — AWS S3 client for static page push (when using `s3` method)
 - **google-cloud-storage** — Google Cloud Storage client for static page push (when using `gcs` method)
 - **qrcode[pil]** — QR code generation for equipment pages
@@ -161,13 +163,16 @@ Under **OAuth & Permissions**, add these Bot Token OAuth Scopes:
 - `users:read.email` — Look up users by email
 - `im:write` — Send direct messages (for temporary password delivery)
 
-### 3. Set Up Slash Commands
+### 3. Enable Socket Mode
 
-Under **Slash Commands**, create four commands. All commands use the same Request URL:
+1. Go to **Settings > Socket Mode** in the Slack App settings
+2. Turn on **Enable Socket Mode**
+3. Create an App-Level Token with the `connections:write` scope
+4. Name it (e.g., "esb-socket") and copy the token (starts with `xapp-`)
 
-```
-https://<your-domain>/slack/events
-```
+### 4. Set Up Slash Commands
+
+Under **Slash Commands**, create four commands:
 
 | Command | Description |
 |---------|-------------|
@@ -176,29 +181,31 @@ https://<your-domain>/slack/events
 | `/esb-repair` | Create a repair record |
 | `/esb-update` | Update a repair record |
 
-### 4. Enable Event Subscriptions
+With Socket Mode enabled, slash commands are automatically routed to your app via WebSocket. No Request URL is needed.
+
+### 5. Enable Event Subscriptions
 
 Under **Event Subscriptions**:
 
 1. Turn on **Enable Events**
-2. Set the Request URL to `https://<your-domain>/slack/events`
-3. Under **Subscribe to bot events**, add `message.channels`
 
-### 5. Install the App
+Event subscriptions are not currently required but may be used for future features.
+
+### 6. Install the App
 
 1. Go to **Install App** and click **Install to Workspace**
 2. Authorize the permissions
 
-### 6. Copy Credentials
+### 7. Copy Credentials
 
 After installation:
 
 1. Copy the **Bot User OAuth Token** (starts with `xoxb-`) and set it as `SLACK_BOT_TOKEN` in your `.env`
-2. Go to **Basic Information** and copy the **Signing Secret**, set it as `SLACK_SIGNING_SECRET` in your `.env`
+2. Copy the **App-Level Token** (starts with `xapp-`, created in step 3) and set it as `SLACK_APP_TOKEN` in your `.env`
 3. Restart the app and worker: `docker compose restart app worker`
 
 !!! note
-    Slack slash commands and event subscriptions require a publicly accessible URL. If your ESB server is on a private network, you'll need a reverse proxy with a public domain or a tunnel service (e.g., ngrok for testing, Cloudflare Tunnel for production).
+    Socket Mode uses an outbound WebSocket connection — no public URL or reverse proxy is needed. Your ESB server can remain on a private network.
 
 ## Static Status Page Setup
 
@@ -330,8 +337,9 @@ MariaDB data is persisted in the `mariadb_data` Docker volume. This volume survi
 
 ### Slack commands not working
 
-- Verify `SLACK_BOT_TOKEN` and `SLACK_SIGNING_SECRET` are set correctly in `.env`
-- Confirm the Request URL (`https://<your-domain>/slack/events`) is reachable from the internet
+- Verify `SLACK_BOT_TOKEN` and `SLACK_APP_TOKEN` are set correctly in `.env`
+- Verify Socket Mode is enabled in the Slack App settings and the app-level token has the `connections:write` scope
+- Verify `SLACK_SOCKET_MODE_CONNECT=true` is set in the app service environment
 - Check that the Slack App has the required OAuth scopes
 - Check app logs for Slack-related errors: `docker compose logs app | grep -i slack`
 
