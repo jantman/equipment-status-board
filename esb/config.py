@@ -17,8 +17,9 @@ class Config:
     MAX_CONTENT_LENGTH = UPLOAD_MAX_SIZE_MB * 1024 * 1024
     PERMANENT_SESSION_LIFETIME = timedelta(hours=12)
     SLACK_BOT_TOKEN = os.environ.get('SLACK_BOT_TOKEN', '')
-    SLACK_SIGNING_SECRET = os.environ.get('SLACK_SIGNING_SECRET', '')
+    SLACK_APP_TOKEN = os.environ.get('SLACK_APP_TOKEN', '')
     SLACK_OOPS_CHANNEL = os.environ.get('SLACK_OOPS_CHANNEL', '#oops')
+    SLACK_SOCKET_MODE_CONNECT = os.environ.get('SLACK_SOCKET_MODE_CONNECT', '')
     STATIC_PAGE_PUSH_METHOD = os.environ.get('STATIC_PAGE_PUSH_METHOD', 'local')
     STATIC_PAGE_PUSH_TARGET = os.environ.get('STATIC_PAGE_PUSH_TARGET', '')
     NEW_RELIC_LICENSE_KEY = os.environ.get('NEW_RELIC_LICENSE_KEY', '')
@@ -39,6 +40,12 @@ class TestingConfig(Config):
     WTF_CSRF_ENABLED = False
 
 
+class SlackTestConfig(TestingConfig):
+    """Config for testing Socket Mode init path (TESTING=False so connect() runs)."""
+
+    TESTING = False
+
+
 class ProductionConfig(Config):
     """Production configuration."""
 
@@ -54,6 +61,7 @@ class ScreenshotConfig(Config):
 config = {
     'development': DevelopmentConfig,
     'testing': TestingConfig,
+    'slack_test': SlackTestConfig,
     'production': ProductionConfig,
     'screenshot': ScreenshotConfig,
     'default': DevelopmentConfig,
