@@ -97,7 +97,7 @@ def create_app(config_name='default'):
     # Health / index route
     @app.route('/')
     def index():
-        return redirect(url_for('health'))
+        return redirect(url_for('public.status_dashboard'))
 
     @app.route('/health')
     def health():

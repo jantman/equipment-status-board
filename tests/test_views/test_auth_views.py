@@ -325,6 +325,13 @@ class TestChangePasswordPage:
         assert resp.status_code == 200
         assert b'Change Password' in resp.data
 
+    def test_cancel_links_to_dashboard(self, staff_client):
+        """Cancel button links to public status dashboard, not health endpoint."""
+        resp = staff_client.get('/auth/change-password')
+        assert resp.status_code == 200
+        assert b'/public/' in resp.data
+        assert b'btn btn-outline-secondary' in resp.data
+
 
 class TestChangePasswordPost:
     """Tests for POST /auth/change-password."""

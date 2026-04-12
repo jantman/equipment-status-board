@@ -22,11 +22,11 @@ class TestAppFactory:
         assert resp.status_code == 200
         assert resp.data == b'ok'
 
-    def test_index_redirects_to_health(self, client):
-        """Index route redirects to health endpoint."""
+    def test_index_redirects_to_dashboard(self, client):
+        """Index route redirects to public status dashboard."""
         resp = client.get('/')
         assert resp.status_code == 302
-        assert '/health' in resp.headers['Location']
+        assert '/public/' in resp.headers['Location']
 
     def test_blueprints_registered(self):
         """All expected blueprints are registered."""
