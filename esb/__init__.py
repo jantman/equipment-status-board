@@ -70,7 +70,6 @@ def create_app(config_name='default'):
             import newrelic.agent
             return {
                 'newrelic_browser_header': newrelic.agent.get_browser_timing_header(),
-                'newrelic_browser_footer': newrelic.agent.get_browser_timing_footer(),
             }
 
     # Register error handlers
