@@ -1,13 +1,11 @@
 """Public routes (QR pages, kiosk, status dashboard, problem report).
 
-Note: The status dashboard requires @login_required (FR34 member default view).
-Story 4.2 kiosk routes on this blueprint will NOT require login.
+The status dashboard and kiosk are publicly accessible (no login required).
 """
 
 from collections import OrderedDict
 
 from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, send_from_directory, url_for
-from flask_login import login_required
 
 from esb.models.document import DOCUMENT_CATEGORIES
 from esb.utils.exceptions import ValidationError
@@ -18,7 +16,6 @@ CATEGORY_DISPLAY_NAMES = dict(DOCUMENT_CATEGORIES)
 
 
 @public_bp.route('/')
-@login_required
 def status_dashboard():
     """Status dashboard showing all equipment status by area."""
     if request.args.get('kiosk') == 'true':

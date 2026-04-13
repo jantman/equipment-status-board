@@ -28,11 +28,53 @@ class TestStatusDashboardView:
         assert response.status_code == 200
         assert b'Equipment Status' in response.data
 
-    def test_dashboard_redirects_unauthenticated(self, client):
-        """Unauthenticated user is redirected to login."""
+    def test_dashboard_accessible_unauthenticated(self, client, make_area, make_equipment):
+        """Unauthenticated user can access the status dashboard."""
+        area = make_area(name='Workshop')
+        make_equipment(name='Drill Press', area=area)
+
         response = client.get('/public/')
-        assert response.status_code == 302
-        assert '/auth/login' in response.headers['Location']
+        assert response.status_code == 200
+        assert b'Equipment Status' in response.data
+
+    def test_dashboard_shows_login_link_when_unauthenticated(self, client):
+        """Unauthenticated user sees Staff Login link."""
+        response = client.get('/public/')
+        assert response.status_code == 200
+        assert b'Staff Login' in response.data
+        assert b'/auth/login' in response.data
+
+    def test_dashboard_hides_login_link_when_authenticated(self, staff_client):
+        """Authenticated user does not see Staff Login link."""
+        response = staff_client.get('/public/')
+        assert response.status_code == 200
+        assert b'Staff Login' not in response.data
+
+    def test_dashboard_shows_kiosk_link(self, client):
+        """Dashboard shows Kiosk View link."""
+        response = client.get('/public/')
+        assert response.status_code == 200
+        assert b'/public/kiosk' in response.data
+
+    def test_equipment_page_links_to_dashboard(self, client, make_area, make_equipment):
+        """Equipment page has a Back to Status Dashboard link."""
+        area = make_area(name='Shop')
+        equip = make_equipment(name='Lathe', area=area)
+
+        response = client.get(f'/public/equipment/{equip.id}')
+        assert response.status_code == 200
+        assert b'Back to Status Dashboard' in response.data
+        assert b'/public/' in response.data
+
+    def test_dashboard_authenticated_has_navbar(self, staff_client, make_area, make_equipment):
+        """Authenticated user gets full navbar and footer from base.html."""
+        area = make_area(name='Workshop')
+        make_equipment(name='Saw', area=area)
+
+        response = staff_client.get('/public/')
+        assert response.status_code == 200
+        assert b'navbar' in response.data
+        assert b'Decatur Makers' in response.data
 
     def test_area_headings_displayed(self, staff_client, make_area, make_equipment):
         """Area names are displayed as section headings."""
@@ -331,11 +373,11 @@ class TestKioskView:
         assert response.status_code == 200
         assert b'Tool' in response.data
 
-    def test_kiosk_param_unauthenticated_redirects_to_login(self, client):
-        """Unauthenticated user hitting ?kiosk=true is redirected to login, not kiosk."""
+    def test_kiosk_param_unauthenticated_redirects_to_kiosk(self, client):
+        """Unauthenticated user hitting ?kiosk=true is redirected to kiosk view."""
         response = client.get('/public/?kiosk=true')
         assert response.status_code == 302
-        assert '/auth/login' in response.headers['Location']
+        assert '/public/kiosk' in response.headers['Location']
 
     def test_kiosk_skips_empty_areas(self, client, make_area, make_equipment):
         """Areas with no equipment are not rendered on kiosk display."""
