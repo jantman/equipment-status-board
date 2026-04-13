@@ -1,9 +1,17 @@
-{% extends "base.html" %}
+{% extends "base.html" if current_user.is_authenticated else "base_public.html" %}
 
 {% block title %}Equipment Status - Equipment Status Board{% endblock %}
 
 {% block content %}
+{% if not current_user.is_authenticated %}
+<div class="text-end mb-2">
+  <a href="{{ url_for('auth.login') }}">Staff Login</a>
+</div>
+{% endif %}
 <h1 class="mb-4">Equipment Status</h1>
+<div class="text-end mb-3">
+  <a href="{{ url_for('public.kiosk') }}" class="btn btn-sm btn-outline-secondary">Kiosk View</a>
+</div>
 
 {% if not areas %}
 <div class="alert alert-info">No equipment registered yet.</div>
