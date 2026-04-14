@@ -41,5 +41,12 @@ class AppConfigForm(FlaskForm):
     submit = SubmitField('Save Configuration')
 
 
+class EditSlackHandleForm(FlaskForm):
+    """Inline form for editing a user's Slack handle."""
+
+    slack_handle = StringField('Slack Handle', validators=[Length(max=80)])
+    submit = SubmitField('Update')
+
+
 class ResetPasswordForm(FlaskForm):
     """Minimal form for resetting a user's password (CSRF only)."""

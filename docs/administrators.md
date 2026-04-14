@@ -52,16 +52,18 @@ This creates all required database tables.
 ### 5. Create the First Staff User
 
 ```bash
-docker compose exec app flask seed-admin <username> <email> --password <password>
+docker compose exec app flask seed-admin <username> <email> --password <password> [--slack-handle <handle>]
 ```
 
 For example:
 
 ```bash
-docker compose exec app flask seed-admin admin admin@example.com --password changeme123
+docker compose exec app flask seed-admin admin admin@example.com --password changeme123 --slack-handle @adminuser
 ```
 
 This creates a user with the Staff role who can then log in and create additional users through the web interface.
+
+The `--slack-handle` option is optional but recommended if your workspace uses Slack integration. Setting it enables the system to send the user password reset notifications via Slack DM. The handle should include the `@` prefix (e.g. `@username`). The Slack handle can also be set or updated later via the admin UI at **Admin → Users**.
 
 ### 6. Verify
 

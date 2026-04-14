@@ -5,6 +5,7 @@ from flask_login import current_user
 
 from esb.forms.admin_forms import (
     AppConfigForm,
+    EditSlackHandleForm,
     ResetPasswordForm,
     RoleChangeForm,
     UserCreateForm,
@@ -31,8 +32,13 @@ def list_users():
     users = user_service.list_users()
     role_form = RoleChangeForm()
     reset_form = ResetPasswordForm()
+    slack_handle_form = EditSlackHandleForm()
     return render_template(
-        'admin/users.html', users=users, role_form=role_form, reset_form=reset_form,
+        'admin/users.html',
+        users=users,
+        role_form=role_form,
+        reset_form=reset_form,
+        slack_handle_form=slack_handle_form,
     )
 
 
@@ -129,6 +135,26 @@ def reset_password(id):
         return redirect(url_for('admin.user_created', id=user.id))
 
     flash('Invalid request.', 'danger')
+    return redirect(url_for('admin.list_users'))
+
+
+@admin_bp.route('/users/<int:id>/slack-handle', methods=['POST'])
+@role_required('staff')
+def edit_slack_handle(id):
+    """Update a user's Slack handle."""
+    form = EditSlackHandleForm()
+    if form.validate_on_submit():
+        try:
+            user_service.update_slack_handle(
+                user_id=id,
+                slack_handle=form.slack_handle.data or None,
+                updated_by=current_user.username,
+            )
+            flash("User's Slack handle updated successfully.", 'success')
+        except ValidationError as e:
+            flash(str(e), 'danger')
+    else:
+        flash('Invalid request.', 'danger')
     return redirect(url_for('admin.list_users'))
 
 

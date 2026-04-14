@@ -15,6 +15,7 @@
             <tr>
                 <th>Username</th>
                 <th>Email</th>
+                <th>Slack Handle</th>
                 <th>Role</th>
                 <th>Status</th>
                 <th>Actions</th>
@@ -25,6 +26,13 @@
             <tr>
                 <td>{{ user.username }}</td>
                 <td>{{ user.email }}</td>
+                <td>
+                    {% if user.slack_handle %}
+                    <a href="https://app.slack.com/team/{{ user.slack_handle.lstrip('@') }}" target="_blank" rel="noopener noreferrer">{{ user.slack_handle if user.slack_handle.startswith('@') else '@' ~ user.slack_handle }}</a>
+                    {% else %}
+                    <span class="text-muted">—</span>
+                    {% endif %}
+                </td>
                 <td>{{ user.role|capitalize }}</td>
                 <td>
                     {% if user.is_active %}
@@ -41,7 +49,12 @@
                             <option value="technician" {{ 'selected' if user.role == 'technician' }}>Technician</option>
                             <option value="staff" {{ 'selected' if user.role == 'staff' }}>Staff</option>
                         </select>
-                        <button type="submit" class="btn btn-sm btn-outline-secondary">Update</button>
+                        <button type="submit" class="btn btn-sm btn-outline-secondary">Update Role</button>
+                    </form>
+                    <form method="POST" action="{{ url_for('admin.edit_slack_handle', id=user.id) }}" class="d-inline-flex align-items-center gap-1 ms-1">
+                        {{ slack_handle_form.csrf_token }}
+                        <input type="text" name="slack_handle" value="{{ user.slack_handle or '' }}" placeholder="@handle" class="form-control form-control-sm" style="width: 120px;">
+                        <button type="submit" class="btn btn-sm btn-outline-secondary">Update Slack</button>
                     </form>
                     <form method="POST" action="{{ url_for('admin.reset_password', id=user.id) }}" class="d-inline ms-1">
                         {{ reset_form.csrf_token }}

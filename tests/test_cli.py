@@ -60,6 +60,34 @@ class TestSeedAdmin:
         assert result.exit_code == 0
         assert 'Staff user already exists' in result.output
 
+    def test_sets_slack_handle_when_provided(self, app):
+        """seed-admin sets slack_handle when --slack-handle option is given."""
+        runner = app.test_cli_runner()
+        result = runner.invoke(
+            args=['seed-admin', 'admin', 'admin@example.com', '--password', 'secret',
+                  '--slack-handle', '@adminhandle']
+        )
+        assert result.exit_code == 0
+        assert 'Created staff user: admin' in result.output
+
+        user = _db.session.execute(
+            _db.select(User).filter_by(username='admin')
+        ).scalar_one()
+        assert user.slack_handle == '@adminhandle'
+
+    def test_slack_handle_defaults_to_none(self, app):
+        """seed-admin sets slack_handle to None when --slack-handle is not provided."""
+        runner = app.test_cli_runner()
+        result = runner.invoke(
+            args=['seed-admin', 'admin', 'admin@example.com', '--password', 'secret']
+        )
+        assert result.exit_code == 0
+
+        user = _db.session.execute(
+            _db.select(User).filter_by(username='admin')
+        ).scalar_one()
+        assert user.slack_handle is None
+
 
 class TestWorkerCli:
     """Tests for the worker CLI commands."""
