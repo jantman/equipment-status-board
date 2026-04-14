@@ -32,6 +32,12 @@ def create_app(config_name='default'):
     app = Flask(__name__)
     app.config.from_object(config[config_name])
 
+    # Normalize UPLOAD_PATH to absolute so file serving is not sensitive to
+    # the process working directory (which can differ between dev and Docker).
+    _upload_path = app.config.get('UPLOAD_PATH', 'uploads')
+    if not os.path.isabs(_upload_path):
+        app.config['UPLOAD_PATH'] = os.path.abspath(_upload_path)
+
     # Initialize extensions
     db.init_app(app)
     login_manager.init_app(app)

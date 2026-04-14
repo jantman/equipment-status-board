@@ -3,6 +3,7 @@
 The status dashboard and kiosk are publicly accessible (no login required).
 """
 
+import os
 from collections import OrderedDict
 
 from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, send_from_directory, url_for
@@ -216,4 +217,9 @@ def serve_upload(filepath):
     if '..' in filepath or not filepath.startswith('equipment/'):
         abort(404)
     upload_path = current_app.config['UPLOAD_PATH']
-    return send_from_directory(upload_path, filepath)
+    # Split into directory and bare filename so send_from_directory receives a
+    # single path component without internal slashes (required by Werkzeug's
+    # safe_join, which rejects path components that contain os.sep).
+    directory = os.path.join(upload_path, os.path.dirname(filepath))
+    filename = os.path.basename(filepath)
+    return send_from_directory(directory, filename)

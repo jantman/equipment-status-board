@@ -769,6 +769,20 @@ class TestServeUploadView:
         response = client.get('/public/uploads/repair/1/photos/secret.jpg')
         assert response.status_code == 404
 
+    def test_serves_equipment_photo(self, client, app, make_area, make_equipment, tmp_path):
+        """Serves a photo file from the equipment uploads directory."""
+        area = make_area(name='Shop')
+        equip = make_equipment(name='Drill', area=area)
+
+        photo_dir = tmp_path / 'equipment' / str(equip.id) / 'photos'
+        photo_dir.mkdir(parents=True)
+        (photo_dir / 'front.jpg').write_bytes(b'JPEG')
+
+        app.config['UPLOAD_PATH'] = str(tmp_path)
+        response = client.get(f'/public/uploads/equipment/{equip.id}/photos/front.jpg')
+        assert response.status_code == 200
+        assert response.data == b'JPEG'
+
     def test_returns_404_for_missing_file(self, client, app, tmp_path):
         """Returns 404 when requested file does not exist."""
         app.config['UPLOAD_PATH'] = str(tmp_path)
