@@ -28,7 +28,7 @@ def _register_and_capture(app):
     bolt_app = MagicMock()
     bolt_app.command = capture_command
     bolt_app.view = capture_view
-    register_handlers(bolt_app)
+    register_handlers(bolt_app, app)
     return handlers
 
 
@@ -837,3 +837,91 @@ class TestHandlersWithFlaskAppContext:
         # Should not raise any context errors
         self.handlers['view:problem_report_submission'](ack=ack, body=body, client=client, view=view)
         ack.assert_called_once_with()
+
+
+class TestHandlersOutsideAppContext:
+    """Regression tests for issue #15: handlers must work outside Flask app context."""
+
+    def test_command_handler_works_outside_app_context(self):
+        """Handler pushes its own app context when none exists (reproduces #15)."""
+        from esb import create_app
+        app = create_app('testing')
+        # Setup: create test data inside a temporary context
+        with app.app_context():
+            from esb.extensions import db
+            db.create_all()
+            area = _create_area(name='Woodshop', slack_channel='#woodshop')
+            _create_equipment(name='SawStop', area=area)
+        # Now OUTSIDE any app context — simulates Socket Mode thread
+        handlers = _register_and_capture(app)
+        ack = MagicMock()
+        client = MagicMock()
+        body = {'trigger_id': 'T1', 'user_id': 'U1', 'channel_id': 'C1', 'text': ''}
+        # This would raise RuntimeError before the fix
+        handlers['command:/esb-status'](ack=ack, body=body, client=client)
+        ack.assert_called_once()
+        response_text = client.chat_postEphemeral.call_args.kwargs['text']
+        # Check for specific data to make failures diagnostic
+        assert 'Woodshop' in response_text
+        # Teardown
+        with app.app_context():
+            db.drop_all()
+
+    def test_view_handler_works_outside_app_context(self):
+        """View submission handler pushes its own app context (reproduces #15)."""
+        from esb import create_app
+        app = create_app('testing')
+        with app.app_context():
+            from esb.extensions import db
+            db.create_all()
+            area = _create_area(name='Woodshop', slack_channel='#woodshop')
+            equipment = _create_equipment(name='SawStop', area=area)
+            equipment_id = equipment.id
+        # Outside any app context
+        handlers = _register_and_capture(app)
+        ack = MagicMock()
+        client = MagicMock()
+        view = {
+            'state': {
+                'values': {
+                    'equipment_block': {'equipment_select': {'selected_option': {'value': str(equipment_id)}}},
+                    'name_block': {'reporter_name': {'value': 'Test User'}},
+                    'description_block': {'description': {'value': 'Machine is broken'}},
+                    'severity_block': {'severity': {'selected_option': {'value': 'Down'}}},
+                    'safety_risk_block': {'safety_risk': {'selected_options': []}},
+                    'consumable_block': {'consumable': {'selected_options': []}},
+                },
+            },
+        }
+        body = {'user': {'id': 'U123', 'username': 'testuser'}}
+        handlers['view:problem_report_submission'](ack=ack, body=body, client=client, view=view)
+        ack.assert_called_once_with()
+        # Verify repair record created by querying inside a fresh context
+        with app.app_context():
+            from esb.models.repair_record import RepairRecord
+            records = RepairRecord.query.all()
+            assert len(records) == 1
+            assert records[0].description == 'Machine is broken'
+            assert records[0].reporter_name == 'Test User'
+            # Teardown
+            from esb.extensions import db
+            db.drop_all()
+
+    def test_ensure_app_context_pushes_when_needed(self):
+        from esb import create_app
+        from esb.slack.handlers import _ensure_app_context
+        from flask import has_app_context
+        app = create_app('testing')
+        assert not has_app_context()
+        with _ensure_app_context(app):
+            assert has_app_context()
+        assert not has_app_context()
+
+    def test_ensure_app_context_noop_when_context_exists(self):
+        from contextlib import nullcontext
+        from esb import create_app
+        from esb.slack.handlers import _ensure_app_context
+        app = create_app('testing')
+        with app.app_context():
+            ctx_mgr = _ensure_app_context(app)
+            assert isinstance(ctx_mgr, nullcontext)

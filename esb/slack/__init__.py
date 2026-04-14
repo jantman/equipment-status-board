@@ -38,7 +38,7 @@ def init_slack(app):
 
     # Register command and view submission handlers
     from esb.slack.handlers import register_handlers
-    register_handlers(_bolt_app)
+    register_handlers(_bolt_app, app)
 
     logger.info('Slack Bolt app initialized successfully')
 
