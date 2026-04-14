@@ -40,11 +40,48 @@ jobs:
           additional_permissions: |
             actions: read
 
-          # Optional: Give a custom prompt to Claude. If this is not specified, Claude will perform the instructions specified in the comment that tagged it.
-          # prompt: 'Update the pull request description to include a summary of changes.'
-
-          # Optional: Add claude_args to customize behavior and configuration
-          # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
-          # or https://code.claude.com/docs/en/cli-reference for available options
-          # claude_args: '--allowed-tools Bash(gh pr:*)'
+          # Allowed tools for this Python/Flask project
+          allowed_tools: |
+            Bash(make:*)
+            Bash(python:*)
+            Bash(python3:*)
+            Bash(pip:*)
+            Bash(pip3:*)
+            Bash(python3 -m venv:*)
+            Bash(source:*)
+            Bash(venv/bin/python:*)
+            Bash(venv/bin/pip:*)
+            Bash(venv/bin/python -m pytest:*)
+            Bash(venv/bin/ruff:*)
+            Bash(venv/bin/mkdocs:*)
+            Bash(venv/bin/flask:*)
+            Bash(ruff:*)
+            Bash(flask db:*)
+            Bash(FLASK_APP=esb:create_app flask db:*)
+            Bash(DATABASE_URL=* flask db:*)
+            Bash(DATABASE_URL=* FLASK_APP=* flask db:*)
+            Bash(DATABASE_URL=* FLASK_APP=* venv/bin/flask db:*)
+            Bash(docker compose:*)
+            Bash(git:*)
+            Bash(gh:*)
+            Bash(ls:*)
+            Bash(find:*)
+            Bash(grep:*)
+            Bash(wc:*)
+            Bash(mkdocs:*)
+            Bash(test:*)
+            Bash(cat:*)
+            Bash(head:*)
+            Bash(tail:*)
+            WebSearch
+            WebFetch(domain:slack.dev)
+            WebFetch(domain:tools.slack.dev)
+            WebFetch(domain:docs.slack.dev)
+            WebFetch(domain:flask.palletsprojects.com)
+            WebFetch(domain:werkzeug.palletsprojects.com)
+            WebFetch(domain:flask-wtf.readthedocs.io)
+            WebFetch(domain:docs.sqlalchemy.org)
+            WebFetch(domain:docs.python.org)
+            WebFetch(domain:boto3.amazonaws.com)
+            WebFetch(domain:github.com)
 
