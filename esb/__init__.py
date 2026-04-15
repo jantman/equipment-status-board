@@ -141,7 +141,9 @@ def _register_cli(app):
     @click.argument('email')
     @click.option('--password', prompt=True, hide_input=True,
                   confirmation_prompt=True, help='Password for the new admin user.')
-    def seed_admin(username, email, password):
+    @click.option('--slack-handle', default=None,
+                  help='Slack handle for the new admin user (e.g. @username).')
+    def seed_admin(username, email, password, slack_handle):
         """Create an initial staff user if none exists."""
         existing = _db.session.execute(
             _db.select(User).filter_by(role='staff')
@@ -149,7 +151,12 @@ def _register_cli(app):
         if existing:
             click.echo(f'Staff user already exists: {existing.username}')
             return
-        user = User(username=username, email=email, role='staff')
+        normalized_slack_handle = slack_handle.strip() if slack_handle else None
+        if normalized_slack_handle == '':
+            normalized_slack_handle = None
+        elif normalized_slack_handle is not None and len(normalized_slack_handle) > 80:
+            raise click.ClickException('Slack handle must be 80 characters or fewer.')
+        user = User(username=username, email=email, role='staff', slack_handle=normalized_slack_handle)
         user.set_password(password)
         _db.session.add(user)
         _db.session.commit()

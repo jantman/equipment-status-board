@@ -406,6 +406,77 @@ class TestResetPassword:
         assert user.check_password(temp_password)  # Password still changed
 
 
+class TestUpdateSlackHandle:
+    """Tests for user_service.update_slack_handle()."""
+
+    def test_sets_slack_handle(self, app, tech_user):
+        """update_slack_handle() sets the slack handle on the user."""
+        from esb.services.user_service import update_slack_handle
+
+        user = update_slack_handle(tech_user.id, '@newhandle', 'staffuser')
+        assert user.slack_handle == '@newhandle'
+
+    def test_clears_slack_handle_with_none(self, app, tech_user):
+        """update_slack_handle() clears the handle when None is passed."""
+        from esb.services.user_service import update_slack_handle
+
+        tech_user.slack_handle = '@existing'
+        from esb.extensions import db as _db
+        _db.session.commit()
+
+        user = update_slack_handle(tech_user.id, None, 'staffuser')
+        assert user.slack_handle is None
+
+    def test_clears_slack_handle_with_empty_string(self, app, tech_user):
+        """update_slack_handle() clears the handle when empty string is passed."""
+        from esb.services.user_service import update_slack_handle
+
+        tech_user.slack_handle = '@existing'
+        from esb.extensions import db as _db
+        _db.session.commit()
+
+        user = update_slack_handle(tech_user.id, '', 'staffuser')
+        assert user.slack_handle is None
+
+    def test_change_persists_to_db(self, app, tech_user):
+        """Slack handle change is persisted to the database."""
+        from esb.extensions import db as _db
+        from esb.models.user import User
+        from esb.services.user_service import update_slack_handle
+
+        update_slack_handle(tech_user.id, '@persisted', 'staffuser')
+        found = _db.session.get(User, tech_user.id)
+        assert found.slack_handle == '@persisted'
+
+    def test_user_not_found_raises(self, app):
+        """update_slack_handle() raises ValidationError when user not found."""
+        from esb.services.user_service import update_slack_handle
+
+        with pytest.raises(ValidationError, match='not found'):
+            update_slack_handle(99999, '@handle', 'staffuser')
+
+    def test_logs_slack_handle_updated_mutation(self, app, tech_user, capture):
+        """update_slack_handle() logs user.slack_handle_updated mutation event."""
+        from esb.services.user_service import update_slack_handle
+
+        tech_user.slack_handle = '@old'
+        from esb.extensions import db as _db
+        _db.session.commit()
+
+        update_slack_handle(tech_user.id, '@new', 'staffuser')
+        entries = [
+            json.loads(r.message) for r in capture.records
+            if 'user.slack_handle_updated' in r.message
+        ]
+        assert len(entries) == 1
+        entry = entries[0]
+        assert entry['event'] == 'user.slack_handle_updated'
+        assert entry['user'] == 'staffuser'
+        assert entry['data']['username'] == 'techuser'
+        assert entry['data']['old_slack_handle'] == '@old'
+        assert entry['data']['new_slack_handle'] == '@new'
+
+
 class TestSlackDelivery:
     """Tests for Slack temp password delivery."""
 

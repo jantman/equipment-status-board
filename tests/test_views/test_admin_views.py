@@ -31,12 +31,27 @@ class TestListUsers:
         assert '/auth/login' in resp.headers['Location']
 
     def test_user_table_shows_columns(self, staff_client, staff_user):
-        """User table shows username, email, role, status columns."""
+        """User table shows username, email, slack handle, role, status columns."""
         resp = staff_client.get('/admin/users')
         assert b'Username' in resp.data
         assert b'Email' in resp.data
+        assert b'Slack Handle' in resp.data
         assert b'Role' in resp.data
         assert b'Status' in resp.data
+
+    def test_slack_handle_shown_when_set(self, staff_client, staff_user):
+        """User table shows Slack handle when set."""
+        staff_user.slack_handle = '@slackadmin'
+        _db.session.commit()
+        resp = staff_client.get('/admin/users')
+        assert b'@slackadmin' in resp.data
+
+    def test_slack_handle_dash_shown_when_not_set(self, staff_client, staff_user):
+        """User table shows dash placeholder when Slack handle is not set."""
+        assert staff_user.slack_handle is None
+        resp = staff_client.get('/admin/users')
+        # Em dash placeholder for empty handle
+        assert '—'.encode() in resp.data
 
     def test_add_user_button_visible(self, staff_client, staff_user):
         """Add User button is visible on the user list."""
@@ -399,6 +414,99 @@ class TestMutationLogging:
         assert entry['user'] == 'staffuser'
         assert entry['data']['old_role'] == 'technician'
         assert entry['data']['new_role'] == 'staff'
+
+
+class TestEditSlackHandle:
+    """Tests for POST /admin/users/<id>/slack-handle."""
+
+    def test_updates_slack_handle_successfully(self, staff_client, staff_user, tech_user):
+        """Valid POST sets the user's Slack handle and redirects to user list."""
+        resp = staff_client.post(
+            f'/admin/users/{tech_user.id}/slack-handle',
+            data={'slack_handle': '@techhandle'},
+        )
+        assert resp.status_code == 302
+        assert '/admin/users' in resp.headers['Location']
+
+        updated = _db.session.get(User, tech_user.id)
+        assert updated.slack_handle == '@techhandle'
+
+    def test_clears_slack_handle_with_empty_string(self, staff_client, staff_user, tech_user):
+        """Posting an empty slack_handle clears the user's handle."""
+        tech_user.slack_handle = '@existing'
+        _db.session.commit()
+
+        resp = staff_client.post(
+            f'/admin/users/{tech_user.id}/slack-handle',
+            data={'slack_handle': ''},
+        )
+        assert resp.status_code == 302
+
+        updated = _db.session.get(User, tech_user.id)
+        assert updated.slack_handle is None
+
+    def test_success_flash_message(self, staff_client, staff_user, tech_user):
+        """Successful update shows success flash message."""
+        resp = staff_client.post(
+            f'/admin/users/{tech_user.id}/slack-handle',
+            data={'slack_handle': '@newhandle'},
+            follow_redirects=True,
+        )
+        assert b"Slack handle updated" in resp.data
+
+    def test_user_not_found_shows_error(self, staff_client, staff_user):
+        """Posting to nonexistent user redirects with error flash."""
+        resp = staff_client.post(
+            '/admin/users/99999/slack-handle',
+            data={'slack_handle': '@handle'},
+            follow_redirects=True,
+        )
+        assert resp.status_code == 200
+        assert b'not found' in resp.data
+
+    def test_technician_gets_403(self, tech_client, tech_user):
+        """Technician gets 403 when trying to edit Slack handle."""
+        resp = tech_client.post(
+            f'/admin/users/{tech_user.id}/slack-handle',
+            data={'slack_handle': '@handle'},
+        )
+        assert resp.status_code == 403
+
+    def test_unauthenticated_redirects_to_login(self, client, tech_user):
+        """Unauthenticated user redirected to login."""
+        resp = client.post(
+            f'/admin/users/{tech_user.id}/slack-handle',
+            data={'slack_handle': '@handle'},
+        )
+        assert resp.status_code == 302
+        assert '/auth/login' in resp.headers['Location']
+
+    def test_mutation_logged(self, staff_client, staff_user, tech_user, capture):
+        """Slack handle update logs user.slack_handle_updated mutation event."""
+        tech_user.slack_handle = '@old'
+        _db.session.commit()
+        capture.records.clear()
+
+        staff_client.post(
+            f'/admin/users/{tech_user.id}/slack-handle',
+            data={'slack_handle': '@new'},
+        )
+        entries = [
+            json.loads(r.message) for r in capture.records
+            if 'user.slack_handle_updated' in r.message
+        ]
+        assert len(entries) == 1
+        entry = entries[0]
+        assert entry['event'] == 'user.slack_handle_updated'
+        assert entry['user'] == 'staffuser'
+        assert entry['data']['old_slack_handle'] == '@old'
+        assert entry['data']['new_slack_handle'] == '@new'
+
+    def test_edit_slack_handle_form_visible_in_user_list(self, staff_client, staff_user, tech_user):
+        """User list shows an inline form for editing the Slack handle."""
+        resp = staff_client.get('/admin/users')
+        assert b'Update Slack' in resp.data
+        assert b'slack-handle' in resp.data
 
 
 class TestAdminIndex:

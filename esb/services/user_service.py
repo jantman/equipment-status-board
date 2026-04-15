@@ -201,6 +201,44 @@ def reset_password(user_id: int, reset_by: str) -> tuple[User, str, bool]:
     return user, temp_password, slack_delivered
 
 
+def update_slack_handle(user_id: int, slack_handle: str | None, updated_by: str) -> User:
+    """Update a user's Slack handle.
+
+    Args:
+        user_id: ID of the user to update.
+        slack_handle: New Slack handle (or None to clear).
+        updated_by: Username of the Staff member performing the update.
+
+    Returns:
+        The updated User instance.
+
+    Raises:
+        ValidationError: if user not found or handle exceeds 80 characters.
+    """
+    user = db.session.get(User, user_id)
+    if user is None:
+        raise ValidationError(f'User with id {user_id} not found')
+
+    normalized = slack_handle.strip() if slack_handle else None
+    if normalized == '':
+        normalized = None
+    if normalized is not None and len(normalized) > 80:
+        raise ValidationError('Slack handle must be 80 characters or fewer.')
+
+    old_slack_handle = user.slack_handle
+    user.slack_handle = normalized
+    db.session.commit()
+
+    log_mutation('user.slack_handle_updated', updated_by, {
+        'user_id': user.id,
+        'username': user.username,
+        'old_slack_handle': old_slack_handle,
+        'new_slack_handle': user.slack_handle,
+    })
+
+    return user
+
+
 def _deliver_temp_password_via_slack(
     user: User, temp_password: str, *, action: str = 'created',
 ) -> bool:
