@@ -197,6 +197,15 @@ class TestStatusDashboardView:
         response = staff_client.get('/public/')
         assert b'Spindle motor failed' in response.data
 
+    def test_equipment_tiles_link_to_equipment_page(self, client, make_area, make_equipment):
+        """Equipment tiles on the status dashboard link to the QR code equipment page (issue #13)."""
+        area = make_area(name='Shop')
+        equip = make_equipment(name='Table Saw', area=area)
+
+        response = client.get('/public/')
+        html = response.data.decode()
+        assert f'/public/equipment/{equip.id}' in html
+
     def test_not_sure_severity_displays_as_yellow(
         self, staff_client, make_area, make_equipment, make_repair_record,
     ):
