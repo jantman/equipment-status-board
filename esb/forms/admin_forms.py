@@ -44,7 +44,11 @@ class AppConfigForm(FlaskForm):
 class EditSlackHandleForm(FlaskForm):
     """Inline form for editing a user's Slack handle."""
 
-    slack_handle = StringField('Slack Handle', validators=[Length(max=80)])
+    slack_handle = StringField(
+        'Slack Handle',
+        filters=[lambda value: value.strip() if value is not None else value],
+        validators=[Length(max=80)],
+    )
     submit = SubmitField('Update')
 
 

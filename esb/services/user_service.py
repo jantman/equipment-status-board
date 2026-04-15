@@ -213,7 +213,7 @@ def update_slack_handle(user_id: int, slack_handle: str | None, updated_by: str)
         The updated User instance.
 
     Raises:
-        ValidationError: if user not found.
+        ValidationError: if user not found or handle exceeds 80 characters.
     """
     user = db.session.get(User, user_id)
     if user is None:
