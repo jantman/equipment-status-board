@@ -219,8 +219,14 @@ def update_slack_handle(user_id: int, slack_handle: str | None, updated_by: str)
     if user is None:
         raise ValidationError(f'User with id {user_id} not found')
 
+    normalized = slack_handle.strip() if slack_handle else None
+    if normalized == '':
+        normalized = None
+    if normalized is not None and len(normalized) > 80:
+        raise ValidationError('Slack handle must be 80 characters or fewer.')
+
     old_slack_handle = user.slack_handle
-    user.slack_handle = slack_handle or None
+    user.slack_handle = normalized
     db.session.commit()
 
     log_mutation('user.slack_handle_updated', updated_by, {

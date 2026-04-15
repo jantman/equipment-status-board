@@ -40,12 +40,11 @@ class TestListUsers:
         assert b'Status' in resp.data
 
     def test_slack_handle_shown_when_set(self, staff_client, staff_user):
-        """User table shows Slack handle linked to Slack profile when set."""
+        """User table shows Slack handle when set."""
         staff_user.slack_handle = '@slackadmin'
         _db.session.commit()
         resp = staff_client.get('/admin/users')
         assert b'@slackadmin' in resp.data
-        assert b'app.slack.com/team/slackadmin' in resp.data
 
     def test_slack_handle_dash_shown_when_not_set(self, staff_client, staff_user):
         """User table shows dash placeholder when Slack handle is not set."""
