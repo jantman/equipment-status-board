@@ -957,3 +957,176 @@ class TestSearchEquipmentByName:
         # '_' should not act as a single-char wildcard
         result = search_equipment_by_name('_')
         assert result == []
+
+
+class TestExportEquipmentCsv:
+    """Tests for equipment_service.export_equipment_csv()."""
+
+    def test_returns_header_only_when_empty(self, app):
+        """Empty equipment set returns only the CSV header."""
+        from esb.services.equipment_service import export_equipment_csv, CSV_EXPORT_COLUMNS
+
+        csv_text = export_equipment_csv()
+        lines = csv_text.strip().splitlines()
+        assert len(lines) == 1
+        assert lines[0] == ','.join(CSV_EXPORT_COLUMNS)
+
+    def test_header_column_order_is_stable(self, app, make_area, make_equipment):
+        """Header row matches CSV_EXPORT_COLUMNS exactly, including order."""
+        import csv as _csv
+        import io as _io
+        from esb.services.equipment_service import export_equipment_csv, CSV_EXPORT_COLUMNS
+
+        area = make_area('Woodshop', '#wood')
+        make_equipment('Table Saw', 'SawStop', 'PCS', area=area)
+
+        reader = _csv.reader(_io.StringIO(export_equipment_csv()))
+        header = next(reader)
+        assert header == CSV_EXPORT_COLUMNS
+
+    def test_formula_injection_is_defused(self, app, make_area, make_equipment):
+        """Fields starting with formula triggers are prefixed with a single quote."""
+        import csv as _csv
+        import io as _io
+        from esb.services.equipment_service import export_equipment_csv
+
+        area = make_area('Woodshop', '#wood')
+        make_equipment(
+            '=SUM(A1:A9)', 'SawStop', 'PCS', area=area,
+            description='@cmd|/c calc',
+            serial_number='+1234',
+            acquisition_source='-bad',
+        )
+        rows = list(_csv.DictReader(_io.StringIO(export_equipment_csv())))
+        row = rows[0]
+        assert row['name'].startswith("'=")
+        assert row['description'].startswith("'@")
+        assert row['serial_number'].startswith("'+")
+        assert row['acquisition_source'].startswith("'-")
+
+    def test_includes_all_active_equipment(self, app, make_area, make_equipment):
+        """All non-archived equipment appears in export, ordered by name."""
+        import csv as _csv
+        import io as _io
+        from esb.services.equipment_service import export_equipment_csv
+
+        area = make_area('Woodshop', '#wood')
+        make_equipment('Band Saw', 'Jet', 'JWBS', area=area)
+        make_equipment('Table Saw', 'SawStop', 'PCS', area=area)
+        make_equipment('Drill Press', 'JET', 'JDP-17', area=area)
+
+        csv_text = export_equipment_csv()
+        reader = _csv.DictReader(_io.StringIO(csv_text))
+        rows = list(reader)
+        assert [r['name'] for r in rows] == ['Band Saw', 'Drill Press', 'Table Saw']
+
+    def test_populates_all_relevant_fields(self, app, make_area, make_equipment):
+        """Each required field is exported correctly."""
+        import csv as _csv
+        import io as _io
+        from decimal import Decimal
+        from datetime import date
+        from esb.services.equipment_service import export_equipment_csv
+
+        area = make_area('Woodshop', '#wood')
+        make_equipment(
+            'Table Saw', 'SawStop', 'PCS', area=area,
+            serial_number='SN123',
+            acquisition_date=date(2022, 5, 10),
+            acquisition_source='Donation',
+            acquisition_cost=Decimal('1234.56'),
+            warranty_expiration=date(2025, 5, 10),
+            description='Main table saw',
+        )
+
+        csv_text = export_equipment_csv()
+        rows = list(_csv.DictReader(_io.StringIO(csv_text)))
+        assert len(rows) == 1
+        row = rows[0]
+        assert row['name'] == 'Table Saw'
+        assert row['manufacturer'] == 'SawStop'
+        assert row['model'] == 'PCS'
+        assert row['serial_number'] == 'SN123'
+        assert row['area'] == 'Woodshop'
+        assert row['acquisition_date'] == '2022-05-10'
+        assert row['acquisition_source'] == 'Donation'
+        assert row['acquisition_cost'] == '1234.56'
+        assert row['warranty_expiration'] == '2025-05-10'
+        assert row['description'] == 'Main table saw'
+        assert row['is_archived'] == 'false'
+        assert row['created_at']
+        assert row['updated_at']
+
+    def test_null_fields_exported_as_empty(self, app, make_area, make_equipment):
+        """None-valued optional fields are exported as empty strings."""
+        import csv as _csv
+        import io as _io
+        from esb.services.equipment_service import export_equipment_csv
+
+        area = make_area('Woodshop', '#wood')
+        make_equipment('Basic Tool', 'Co', 'M1', area=area)
+
+        rows = list(_csv.DictReader(_io.StringIO(export_equipment_csv())))
+        row = rows[0]
+        assert row['serial_number'] == ''
+        assert row['acquisition_date'] == ''
+        assert row['acquisition_source'] == ''
+        assert row['acquisition_cost'] == ''
+        assert row['warranty_expiration'] == ''
+        assert row['description'] == ''
+
+    def test_excludes_archived_by_default(self, app, make_area, make_equipment):
+        """Archived equipment is not included unless requested."""
+        import csv as _csv
+        import io as _io
+        from esb.services.equipment_service import export_equipment_csv
+
+        area = make_area('Woodshop', '#wood')
+        make_equipment('Active', 'Co', 'M', area=area)
+        make_equipment('Retired', 'Co', 'M', area=area, is_archived=True)
+
+        rows = list(_csv.DictReader(_io.StringIO(export_equipment_csv())))
+        names = [r['name'] for r in rows]
+        assert names == ['Active']
+
+    def test_include_archived_option(self, app, make_area, make_equipment):
+        """include_archived=True yields archived rows too."""
+        import csv as _csv
+        import io as _io
+        from esb.services.equipment_service import export_equipment_csv
+
+        area = make_area('Woodshop', '#wood')
+        make_equipment('Active', 'Co', 'M', area=area)
+        make_equipment('Retired', 'Co', 'M', area=area, is_archived=True)
+
+        rows = list(_csv.DictReader(_io.StringIO(export_equipment_csv(include_archived=True))))
+        names = sorted(r['name'] for r in rows)
+        assert names == ['Active', 'Retired']
+        archived_row = next(r for r in rows if r['name'] == 'Retired')
+        assert archived_row['is_archived'] == 'true'
+
+    def test_area_filter(self, app, make_area, make_equipment):
+        """area_id filter restricts output to equipment in that area."""
+        import csv as _csv
+        import io as _io
+        from esb.services.equipment_service import export_equipment_csv
+
+        wood = make_area('Woodshop', '#wood')
+        metal = make_area('Metal Shop', '#metal')
+        make_equipment('Table Saw', 'SawStop', 'PCS', area=wood)
+        make_equipment('Welder', 'Lincoln', '210MP', area=metal)
+
+        rows = list(_csv.DictReader(_io.StringIO(export_equipment_csv(area_id=wood.id))))
+        assert [r['name'] for r in rows] == ['Table Saw']
+
+    def test_field_with_comma_is_quoted(self, app, make_area, make_equipment):
+        """Fields containing commas are properly quoted."""
+        from esb.services.equipment_service import export_equipment_csv
+
+        area = make_area('Woodshop', '#wood')
+        make_equipment(
+            'Saw', 'Co', 'M', area=area,
+            description='Model A, with stand',
+        )
+        csv_text = export_equipment_csv()
+        assert '"Model A, with stand"' in csv_text

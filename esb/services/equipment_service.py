@@ -4,6 +4,8 @@ All area/equipment business logic lives here. Views call these functions;
 they never query models directly.
 """
 
+import csv
+import io
 from datetime import date
 from decimal import Decimal
 
@@ -420,3 +422,70 @@ def get_equipment_links(equipment_id: int) -> list[ExternalLink]:
             .order_by(ExternalLink.created_at.desc())
         ).scalars().all()
     )
+
+
+CSV_EXPORT_COLUMNS = [
+    'id',
+    'name',
+    'manufacturer',
+    'model',
+    'serial_number',
+    'area',
+    'acquisition_date',
+    'acquisition_source',
+    'acquisition_cost',
+    'warranty_expiration',
+    'description',
+    'is_archived',
+    'created_at',
+    'updated_at',
+]
+
+_CSV_INJECTION_TRIGGERS = ('=', '+', '-', '@', '\t', '\r')
+
+
+def _sanitize_csv_cell(value):
+    """Prefix formula-leading characters with a single quote to defuse Excel/LibreOffice injection."""
+    if isinstance(value, str) and value.startswith(_CSV_INJECTION_TRIGGERS):
+        return "'" + value
+    return value
+
+
+def export_equipment_csv(
+    area_id: int | None = None,
+    include_archived: bool = False,
+) -> str:
+    """Return CSV text of equipment inventory.
+
+    Args:
+        area_id: If provided, limit export to equipment in this area.
+        include_archived: If True, include archived equipment in export.
+    """
+    query = db.select(Equipment).order_by(Equipment.name)
+    if not include_archived:
+        query = query.filter_by(is_archived=False)
+    if area_id is not None:
+        query = query.filter_by(area_id=area_id)
+    equipment = list(db.session.execute(query).scalars().all())
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(CSV_EXPORT_COLUMNS)
+    for eq in equipment:
+        writer.writerow([
+            eq.id,
+            _sanitize_csv_cell(eq.name),
+            _sanitize_csv_cell(eq.manufacturer),
+            _sanitize_csv_cell(eq.model),
+            _sanitize_csv_cell(eq.serial_number or ''),
+            _sanitize_csv_cell(eq.area.name) if eq.area else '',
+            eq.acquisition_date.isoformat() if eq.acquisition_date else '',
+            _sanitize_csv_cell(eq.acquisition_source or ''),
+            str(eq.acquisition_cost) if eq.acquisition_cost is not None else '',
+            eq.warranty_expiration.isoformat() if eq.warranty_expiration else '',
+            _sanitize_csv_cell(eq.description or ''),
+            'true' if eq.is_archived else 'false',
+            eq.created_at.isoformat() if eq.created_at else '',
+            eq.updated_at.isoformat() if eq.updated_at else '',
+        ])
+    return buf.getvalue()
