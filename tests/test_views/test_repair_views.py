@@ -1,5 +1,6 @@
 """Tests for repair record views."""
 
+import re
 from datetime import UTC, datetime, timedelta
 from io import BytesIO
 from unittest.mock import patch
@@ -9,6 +10,13 @@ from esb.models.document import Document
 from esb.models.repair_record import RepairRecord
 from esb.models.repair_timeline_entry import RepairTimelineEntry
 from esb.utils.exceptions import ValidationError
+
+
+def _main_element_classes(html: str) -> list[str]:
+    """Return the class list on the rendered ``<main>`` element."""
+    match = re.search(r'<main\b[^>]*\bclass="([^"]*)"', html)
+    assert match, 'no <main> element with class attribute found'
+    return match.group(1).split()
 
 
 class TestCreateRepairRecord:
@@ -813,14 +821,14 @@ class TestKanbanBoard:
         """Kanban page renders <main> with container-fluid so columns can use full viewport width (issue #9)."""
         resp = staff_client.get('/repairs/kanban')
         assert resp.status_code == 200
-        html = resp.data.decode()
-        assert '<main class="container-fluid mt-3">' in html
-        assert '<main class="container mt-3">' not in html
+        classes = _main_element_classes(resp.data.decode())
+        assert 'container-fluid' in classes
+        assert 'container' not in classes
 
     def test_non_kanban_pages_use_default_container(self, staff_client):
         """Non-kanban pages retain the default fixed-width .container wrapper."""
         resp = staff_client.get('/equipment/')
         assert resp.status_code == 200
-        html = resp.data.decode()
-        assert '<main class="container mt-3">' in html
-        assert '<main class="container-fluid mt-3">' not in html
+        classes = _main_element_classes(resp.data.decode())
+        assert 'container' in classes
+        assert 'container-fluid' not in classes
