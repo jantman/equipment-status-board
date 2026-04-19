@@ -2,6 +2,8 @@
 
 {% block title %}Kanban Board - Equipment Status Board{% endblock %}
 
+{% block main_container_class %}container-fluid{% endblock %}
+
 {% macro kanban_card(record) %}
 <a href="{{ url_for('repairs.detail', id=record.id) }}"
    class="card mb-2 text-decoration-none text-body kanban-card kanban-card-{{ record.aging_tier }}"

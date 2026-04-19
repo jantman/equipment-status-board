@@ -62,7 +62,7 @@
         </div>
     </nav>
 
-    <main class="container mt-3">
+    <main class="{% block main_container_class %}container{% endblock %} mt-3">
         {% include 'components/_flash_messages.html' %}
         {% block content %}{% endblock %}
     </main>

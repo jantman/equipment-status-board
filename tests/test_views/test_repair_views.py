@@ -808,3 +808,19 @@ class TestKanbanBoard:
         _db.session.commit()
         resp = staff_client.get('/repairs/kanban')
         assert b'kanban-card-hot' in resp.data
+
+    def test_kanban_uses_container_fluid(self, staff_client):
+        """Kanban page renders <main> with container-fluid so columns can use full viewport width (issue #9)."""
+        resp = staff_client.get('/repairs/kanban')
+        assert resp.status_code == 200
+        html = resp.data.decode()
+        assert '<main class="container-fluid mt-3">' in html
+        assert '<main class="container mt-3">' not in html
+
+    def test_non_kanban_pages_use_default_container(self, staff_client):
+        """Non-kanban pages retain the default fixed-width .container wrapper."""
+        resp = staff_client.get('/equipment/')
+        assert resp.status_code == 200
+        html = resp.data.decode()
+        assert '<main class="container mt-3">' in html
+        assert '<main class="container-fluid mt-3">' not in html
