@@ -443,15 +443,15 @@ CSV_EXPORT_COLUMNS = [
     'updated_at',
 ]
 
-_CSV_INJECTION_TRIGGERS = ('=', '+', '-', '@', '\t', '\r')
+_CSV_INJECTION_TRIGGERS = ('=', '+', '-', '@')
 
 
 def _sanitize_csv_cell(value):
     """Prefix formula-leading characters with a single quote to defuse Excel/LibreOffice injection.
 
-    Spreadsheet apps ignore leading whitespace when deciding whether a cell is a
-    formula, so detect triggers after any leading whitespace while preserving
-    the original string contents.
+    Spreadsheet apps ignore leading whitespace (including tabs and CRs) when
+    deciding whether a cell is a formula, so detect the formula triggers after
+    any leading whitespace while preserving the original string contents.
     """
     if isinstance(value, str) and value.lstrip().startswith(_CSV_INJECTION_TRIGGERS):
         return "'" + value
