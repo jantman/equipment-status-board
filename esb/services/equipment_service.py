@@ -9,6 +9,8 @@ import io
 from datetime import date
 from decimal import Decimal
 
+from sqlalchemy.orm import joinedload
+
 from esb.extensions import db
 from esb.models.area import Area
 from esb.models.equipment import Equipment
@@ -445,23 +447,34 @@ _CSV_INJECTION_TRIGGERS = ('=', '+', '-', '@', '\t', '\r')
 
 
 def _sanitize_csv_cell(value):
-    """Prefix formula-leading characters with a single quote to defuse Excel/LibreOffice injection."""
-    if isinstance(value, str) and value.startswith(_CSV_INJECTION_TRIGGERS):
+    """Prefix formula-leading characters with a single quote to defuse Excel/LibreOffice injection.
+
+    Spreadsheet apps ignore leading whitespace when deciding whether a cell is a
+    formula, so detect triggers after any leading whitespace while preserving
+    the original string contents.
+    """
+    if isinstance(value, str) and value.lstrip().startswith(_CSV_INJECTION_TRIGGERS):
         return "'" + value
     return value
 
 
 def export_equipment_csv(
+    username: str,
     area_id: int | None = None,
     include_archived: bool = False,
 ) -> str:
-    """Return CSV text of equipment inventory.
+    """Return CSV text of equipment inventory and emit an audit log entry.
 
     Args:
+        username: User performing the export (recorded in the audit log).
         area_id: If provided, limit export to equipment in this area.
         include_archived: If True, include archived equipment in export.
     """
-    query = db.select(Equipment).order_by(Equipment.name)
+    query = (
+        db.select(Equipment)
+        .options(joinedload(Equipment.area))
+        .order_by(Equipment.name)
+    )
     if not include_archived:
         query = query.filter_by(is_archived=False)
     if area_id is not None:
@@ -488,4 +501,11 @@ def export_equipment_csv(
             eq.created_at.isoformat() if eq.created_at else '',
             eq.updated_at.isoformat() if eq.updated_at else '',
         ])
+
+    log_mutation('equipment.exported_csv', username, {
+        'area_id': area_id,
+        'include_archived': include_archived,
+        'row_count': len(equipment),
+    })
+
     return buf.getvalue()

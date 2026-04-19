@@ -26,7 +26,6 @@ from esb.forms.equipment_forms import (
 from esb.services import equipment_service, upload_service
 from esb.utils.decorators import role_required
 from esb.utils.exceptions import ValidationError
-from esb.utils.logging import log_mutation
 
 equipment_bp = Blueprint('equipment', __name__, url_prefix='/equipment')
 
@@ -53,13 +52,10 @@ def export_csv():
     area_id = request.args.get('area_id', type=int)
     include_archived = request.args.get('include_archived', default='0') in ('1', 'true', 'True')
     csv_text = equipment_service.export_equipment_csv(
+        username=current_user.username,
         area_id=area_id,
         include_archived=include_archived,
     )
-    log_mutation('equipment.exported_csv', current_user.username, {
-        'area_id': area_id,
-        'include_archived': include_archived,
-    })
     # Prepend UTF-8 BOM so Excel opens non-ASCII correctly; serve as UTF-8.
     body = ('\ufeff' + csv_text).encode('utf-8')
     return Response(

@@ -960,13 +960,13 @@ class TestSearchEquipmentByName:
 
 
 class TestExportEquipmentCsv:
-    """Tests for equipment_service.export_equipment_csv()."""
+    """Tests for equipment_service.export_equipment_csv(username='tester')."""
 
     def test_returns_header_only_when_empty(self, app):
         """Empty equipment set returns only the CSV header."""
         from esb.services.equipment_service import export_equipment_csv, CSV_EXPORT_COLUMNS
 
-        csv_text = export_equipment_csv()
+        csv_text = export_equipment_csv(username='tester')
         lines = csv_text.strip().splitlines()
         assert len(lines) == 1
         assert lines[0] == ','.join(CSV_EXPORT_COLUMNS)
@@ -980,7 +980,7 @@ class TestExportEquipmentCsv:
         area = make_area('Woodshop', '#wood')
         make_equipment('Table Saw', 'SawStop', 'PCS', area=area)
 
-        reader = _csv.reader(_io.StringIO(export_equipment_csv()))
+        reader = _csv.reader(_io.StringIO(export_equipment_csv(username='tester')))
         header = next(reader)
         assert header == CSV_EXPORT_COLUMNS
 
@@ -997,12 +997,87 @@ class TestExportEquipmentCsv:
             serial_number='+1234',
             acquisition_source='-bad',
         )
-        rows = list(_csv.DictReader(_io.StringIO(export_equipment_csv())))
+        rows = list(_csv.DictReader(_io.StringIO(export_equipment_csv(username='tester'))))
         row = rows[0]
         assert row['name'].startswith("'=")
         assert row['description'].startswith("'@")
         assert row['serial_number'].startswith("'+")
         assert row['acquisition_source'].startswith("'-")
+
+    def test_formula_injection_defused_with_leading_whitespace(
+        self, app, make_area, make_equipment,
+    ):
+        """Formula triggers preceded by whitespace are still defused."""
+        import csv as _csv
+        import io as _io
+        from esb.services.equipment_service import export_equipment_csv
+
+        area = make_area('Woodshop', '#wood')
+        make_equipment(
+            ' =SUM(A1:A9)', 'SawStop', 'PCS', area=area,
+            description='\t=BAD()',
+        )
+        rows = list(_csv.DictReader(_io.StringIO(export_equipment_csv(username='tester'))))
+        row = rows[0]
+        # Original leading whitespace preserved, quote prepended
+        assert row['name'] == "' =SUM(A1:A9)"
+        assert row['description'].startswith("'")
+        assert '=BAD()' in row['description']
+
+    def test_export_is_audit_logged_by_service(
+        self, app, make_area, make_equipment, capture,
+    ):
+        """Service emits equipment.exported_csv mutation with username/filters/row count."""
+        import json as _json
+        from esb.services.equipment_service import export_equipment_csv
+
+        area = make_area('Woodshop', '#wood')
+        make_equipment('Table Saw', 'SawStop', 'PCS', area=area)
+        make_equipment('Drill Press', 'JET', 'JDP-17', area=area)
+        capture.records.clear()
+
+        export_equipment_csv(username='alice', area_id=area.id, include_archived=True)
+
+        entries = [
+            _json.loads(r.message) for r in capture.records
+            if 'equipment.exported_csv' in r.message
+        ]
+        assert len(entries) == 1
+        entry = entries[0]
+        assert entry['user'] == 'alice'
+        assert entry['data']['area_id'] == area.id
+        assert entry['data']['include_archived'] is True
+        assert entry['data']['row_count'] == 2
+
+    def test_export_does_not_n_plus_one_on_area(
+        self, app, make_area, make_equipment, db,
+    ):
+        """Area name is eager-loaded; export does not fire a query per row."""
+        from sqlalchemy import event
+        from esb.services.equipment_service import export_equipment_csv
+
+        area = make_area('Woodshop', '#wood')
+        for i in range(5):
+            make_equipment(f'Item {i}', 'Co', 'M', area=area)
+
+        # Detach loaded equipment/area instances so the export fires fresh queries.
+        db.session.expire_all()
+
+        query_count = 0
+
+        def _count(conn, cursor, statement, params, context, executemany):
+            nonlocal query_count
+            query_count += 1
+
+        engine = db.engine
+        event.listen(engine, 'before_cursor_execute', _count)
+        try:
+            export_equipment_csv(username='tester')
+        finally:
+            event.remove(engine, 'before_cursor_execute', _count)
+
+        # One SELECT for equipment + area (joinedload); no per-row lazy loads.
+        assert query_count <= 2, f'expected eager-loaded export, saw {query_count} queries'
 
     def test_includes_all_active_equipment(self, app, make_area, make_equipment):
         """All non-archived equipment appears in export, ordered by name."""
@@ -1015,7 +1090,7 @@ class TestExportEquipmentCsv:
         make_equipment('Table Saw', 'SawStop', 'PCS', area=area)
         make_equipment('Drill Press', 'JET', 'JDP-17', area=area)
 
-        csv_text = export_equipment_csv()
+        csv_text = export_equipment_csv(username='tester')
         reader = _csv.DictReader(_io.StringIO(csv_text))
         rows = list(reader)
         assert [r['name'] for r in rows] == ['Band Saw', 'Drill Press', 'Table Saw']
@@ -1039,7 +1114,7 @@ class TestExportEquipmentCsv:
             description='Main table saw',
         )
 
-        csv_text = export_equipment_csv()
+        csv_text = export_equipment_csv(username='tester')
         rows = list(_csv.DictReader(_io.StringIO(csv_text)))
         assert len(rows) == 1
         row = rows[0]
@@ -1066,7 +1141,7 @@ class TestExportEquipmentCsv:
         area = make_area('Woodshop', '#wood')
         make_equipment('Basic Tool', 'Co', 'M1', area=area)
 
-        rows = list(_csv.DictReader(_io.StringIO(export_equipment_csv())))
+        rows = list(_csv.DictReader(_io.StringIO(export_equipment_csv(username='tester'))))
         row = rows[0]
         assert row['serial_number'] == ''
         assert row['acquisition_date'] == ''
@@ -1085,7 +1160,7 @@ class TestExportEquipmentCsv:
         make_equipment('Active', 'Co', 'M', area=area)
         make_equipment('Retired', 'Co', 'M', area=area, is_archived=True)
 
-        rows = list(_csv.DictReader(_io.StringIO(export_equipment_csv())))
+        rows = list(_csv.DictReader(_io.StringIO(export_equipment_csv(username='tester'))))
         names = [r['name'] for r in rows]
         assert names == ['Active']
 
@@ -1099,7 +1174,7 @@ class TestExportEquipmentCsv:
         make_equipment('Active', 'Co', 'M', area=area)
         make_equipment('Retired', 'Co', 'M', area=area, is_archived=True)
 
-        rows = list(_csv.DictReader(_io.StringIO(export_equipment_csv(include_archived=True))))
+        rows = list(_csv.DictReader(_io.StringIO(export_equipment_csv(username='tester', include_archived=True))))
         names = sorted(r['name'] for r in rows)
         assert names == ['Active', 'Retired']
         archived_row = next(r for r in rows if r['name'] == 'Retired')
@@ -1116,7 +1191,7 @@ class TestExportEquipmentCsv:
         make_equipment('Table Saw', 'SawStop', 'PCS', area=wood)
         make_equipment('Welder', 'Lincoln', '210MP', area=metal)
 
-        rows = list(_csv.DictReader(_io.StringIO(export_equipment_csv(area_id=wood.id))))
+        rows = list(_csv.DictReader(_io.StringIO(export_equipment_csv(username='tester', area_id=wood.id))))
         assert [r['name'] for r in rows] == ['Table Saw']
 
     def test_field_with_comma_is_quoted(self, app, make_area, make_equipment):
@@ -1128,5 +1203,5 @@ class TestExportEquipmentCsv:
             'Saw', 'Co', 'M', area=area,
             description='Model A, with stand',
         )
-        csv_text = export_equipment_csv()
+        csv_text = export_equipment_csv(username='tester')
         assert '"Model A, with stand"' in csv_text
