@@ -60,7 +60,7 @@ def export_csv():
     body = ('\ufeff' + csv_text).encode('utf-8')
     return Response(
         body,
-        mimetype='text/csv; charset=utf-8',
+        content_type='text/csv; charset=utf-8',
         headers={
             'Content-Disposition': 'attachment; filename="equipment_inventory.csv"',
         },

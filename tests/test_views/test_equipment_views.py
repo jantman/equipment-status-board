@@ -1256,10 +1256,13 @@ class TestExportCsv:
         assert b'/equipment/export.csv' in resp.data
 
     def test_response_is_utf8_with_bom(self, staff_client, make_equipment):
-        """Response body starts with a UTF-8 BOM and declares charset=utf-8."""
+        """Response body starts with a UTF-8 BOM and declares charset=utf-8 exactly once."""
         make_equipment('Équipe Saw', 'SawStop', 'PCS')
         resp = staff_client.get('/equipment/export.csv')
-        assert 'charset=utf-8' in resp.headers.get('Content-Type', '').lower()
+        content_type = resp.headers.get('Content-Type', '').lower()
+        assert 'charset=utf-8' in content_type
+        # Guard against a duplicated "charset=utf-8; charset=utf-8" header.
+        assert content_type.count('charset=') == 1
         assert resp.data.startswith(b'\xef\xbb\xbf')
         body = resp.data.decode('utf-8-sig')
         assert 'Équipe Saw' in body
