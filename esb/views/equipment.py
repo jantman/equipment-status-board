@@ -50,7 +50,7 @@ def index():
 def export_csv():
     """Download the equipment inventory as a CSV file."""
     area_id = request.args.get('area_id', type=int)
-    include_archived = request.args.get('include_archived', default='0') in ('1', 'true', 'True')
+    include_archived = request.args.get('include_archived', default='0').lower() in ('1', 'true')
     csv_text = equipment_service.export_equipment_csv(
         username=current_user.username,
         area_id=area_id,

@@ -1249,6 +1249,31 @@ class TestExportCsv:
         body = resp.data.decode('utf-8')
         assert 'Old Saw' in body
 
+    def test_include_archived_parsing_is_case_insensitive(
+        self, staff_client, make_equipment, db,
+    ):
+        """include_archived accepts truthy values regardless of case."""
+        eq = make_equipment('Old Saw', 'OldCo', 'Old')
+        eq.is_archived = True
+        db.session.commit()
+
+        for value in ('TRUE', 'True', 'true', 'TrUe'):
+            resp = staff_client.get(f'/equipment/export.csv?include_archived={value}')
+            body = resp.data.decode('utf-8')
+            assert 'Old Saw' in body, f'value={value!r} did not enable archived rows'
+
+    def test_include_archived_false_excludes_archived(
+        self, staff_client, make_equipment, db,
+    ):
+        """include_archived with a non-truthy value does not bring archived rows."""
+        eq = make_equipment('Old Saw', 'OldCo', 'Old')
+        eq.is_archived = True
+        db.session.commit()
+
+        resp = staff_client.get('/equipment/export.csv?include_archived=no')
+        body = resp.data.decode('utf-8')
+        assert 'Old Saw' not in body
+
     def test_list_page_has_export_button(self, staff_client):
         """Equipment list page exposes the Export CSV link."""
         resp = staff_client.get('/equipment/')
