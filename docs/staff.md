@@ -112,7 +112,7 @@ From the equipment detail page, you can upload and manage reference materials:
 
 The equipment detail page includes a **Repair History** table listing every repair record that has ever been filed against that piece of equipment — both open and resolved, **newest first**. Each row shows when the issue was opened, its severity, current status, assignee, and a short description. Click any row to jump to the full repair record, including timeline notes and photos.
 
-Resolved records (including "Closed - No Issue Found" and "Closed - Duplicate") remain in the history permanently so you can trace the repair history of a machine over its lifetime.
+Closed records — whether "Resolved", "Closed - No Issue Found", or "Closed - Duplicate" — remain in the history permanently so you can trace the repair history of a machine over its lifetime.
 
 ### Archiving Equipment
 
