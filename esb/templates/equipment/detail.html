@@ -245,7 +245,8 @@
                 </thead>
                 <tbody>
                     {% for record in repair_records %}
-                    <tr class="repair-history-row {% if record.status in closed_statuses %}text-muted{% endif %}"
+                    {% set is_non_resolution_closure = record.status in closed_statuses and record.status != 'Resolved' %}
+                    <tr class="repair-history-row {% if is_non_resolution_closure %}text-muted{% endif %}"
                         role="link" tabindex="0"
                         aria-label="Repair record opened {{ record.created_at|relative_time }}: {{ record.description }}"
                         data-href="{{ url_for('repairs.detail', id=record.id) }}">

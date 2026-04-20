@@ -623,10 +623,10 @@ class TestListRepairRecords:
         records = repair_service.list_repair_records()
         assert records == []
 
-    def test_eager_loads_assignee_to_avoid_n_plus_one(
+    def test_eager_load_assignee_flag_avoids_n_plus_one(
         self, app, make_equipment, tech_user,
     ):
-        """Accessing record.assignee after the query should not trigger extra queries."""
+        """With eager_load_assignee=True, accessing record.assignee triggers no extra queries."""
         eq = make_equipment()
         for i in range(5):
             _db.session.add(RepairRecord(
@@ -636,9 +636,10 @@ class TestListRepairRecords:
         _db.session.commit()
         _db.session.expire_all()
 
-        records = repair_service.list_repair_records(equipment_id=eq.id)
-        # Close the session's identity map window: force a fresh load path,
-        # then assert no lazy query fires when touching assignee.
+        records = repair_service.list_repair_records(
+            equipment_id=eq.id, eager_load_assignee=True,
+        )
+
         from sqlalchemy import event
         query_count = [0]
 
@@ -654,6 +655,36 @@ class TestListRepairRecords:
         assert all(u == tech_user.username for u in usernames)
         assert query_count[0] == 0, \
             f'Expected no lazy queries after joinedload, got {query_count[0]}'
+
+    def test_default_does_not_eager_load_assignee(
+        self, app, make_equipment, tech_user,
+    ):
+        """Default behavior leaves assignee lazy so callers that don't need it
+        don't pay for an unnecessary JOIN on users."""
+        eq = make_equipment()
+        _db.session.add(RepairRecord(
+            equipment_id=eq.id, description='Issue',
+            assignee_id=tech_user.id,
+        ))
+        _db.session.commit()
+        _db.session.expire_all()
+
+        records = repair_service.list_repair_records(equipment_id=eq.id)
+
+        from sqlalchemy import event
+        query_count = [0]
+
+        def _count(conn, cursor, statement, params, context, executemany):
+            query_count[0] += 1
+
+        event.listen(_db.engine, 'before_cursor_execute', _count)
+        try:
+            _ = records[0].assignee.username
+        finally:
+            event.remove(_db.engine, 'before_cursor_execute', _count)
+
+        assert query_count[0] >= 1, \
+            'Default list_repair_records should not eager-load assignee'
 
 
 class TestUpdateRepairRecord:

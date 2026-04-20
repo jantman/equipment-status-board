@@ -123,7 +123,9 @@ def detail(id):
     documents = upload_service.get_documents('equipment_doc', id)
     photos = upload_service.get_documents('equipment_photo', id)
     links = equipment_service.get_equipment_links(id)
-    repair_records = repair_service.list_repair_records(equipment_id=id)
+    repair_records = repair_service.list_repair_records(
+        equipment_id=id, eager_load_assignee=True,
+    )
     doc_form = DocumentUploadForm()
     photo_form = PhotoUploadForm()
     link_form = ExternalLinkForm()
