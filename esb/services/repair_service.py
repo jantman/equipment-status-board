@@ -200,12 +200,16 @@ def list_repair_records(
     Returns:
         List of RepairRecord instances ordered by created_at desc.
     """
-    query = db.select(RepairRecord).order_by(RepairRecord.created_at.desc())
+    query = (
+        db.select(RepairRecord)
+        .options(joinedload(RepairRecord.assignee))
+        .order_by(RepairRecord.created_at.desc())
+    )
     if equipment_id is not None:
         query = query.filter_by(equipment_id=equipment_id)
     if status is not None:
         query = query.filter_by(status=status)
-    return list(db.session.execute(query).scalars().all())
+    return list(db.session.execute(query).scalars().unique().all())
 
 
 CLOSED_STATUSES = ['Resolved', 'Closed - No Issue Found', 'Closed - Duplicate']

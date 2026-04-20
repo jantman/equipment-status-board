@@ -108,6 +108,12 @@ From the equipment detail page, you can upload and manage reference materials:
 - **Photos** — Upload equipment photos for identification
 - **Links** — Add external URLs for product pages, support sites, training videos, and other online resources
 
+### Repair History
+
+The equipment detail page includes a **Repair History** table listing every repair record that has ever been filed against that piece of equipment — both open and resolved, **newest first**. Each row shows when the issue was opened, its severity, current status, assignee, and a short description. Click any row to jump to the full repair record, including timeline notes and photos.
+
+Resolved records (including "Closed - No Issue Found" and "Closed - Duplicate") remain in the history permanently so you can trace the repair history of a machine over its lifetime.
+
 ### Archiving Equipment
 
 When a piece of equipment is retired or removed from the space, archive it instead of deleting it. Archiving is a soft delete that preserves all history (repair records, documents, photos) while removing the equipment from active views.

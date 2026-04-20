@@ -319,6 +319,29 @@ def seed_database():
                      'First layer adhesion issues. Possibly needs PINDA probe recalibration.',
                      assignee=jsmith, days_in_column=2)
 
+        # Repair records for Epilog Laser 60W (used in the equipment-detail screenshot
+        # to demonstrate the Repair History section)
+        make_repair(
+            'Epilog Laser 60W', 'Resolved', 'Down',
+            'Laser not firing. Replaced tube and realigned mirrors.',
+            assignee=jsmith, days_in_column=45,
+        )
+        make_repair(
+            'Epilog Laser 60W', 'Closed - No Issue Found', 'Degraded',
+            'Cuts appear inconsistent. On inspection, focus was simply set wrong.',
+            assignee=mgarcia, days_in_column=18,
+        )
+        make_repair(
+            'Epilog Laser 60W', 'Resolved', 'Degraded',
+            'Exhaust fan rattling. Rebalanced blade and re-secured duct clamps.',
+            assignee=jsmith, days_in_column=7,
+        )
+        make_repair(
+            'Epilog Laser 60W', 'In Progress', 'Degraded',
+            'Slight drift in X-axis homing. Investigating belt tension.',
+            assignee=jsmith, days_in_column=2,
+        )
+
         # Repair 8: Resolved example (for repair detail screenshot with rich timeline)
         resolved_repair = make_repair(
             'Horizontal Bandsaw', 'Resolved', 'Down',
@@ -494,10 +517,11 @@ def capture_screenshots(ids):
         page.screenshot(path=str(IMAGES_DIR / 'kanban-board.png'))
 
         # -- 9. Equipment detail (staff, desktop) --
+        # full_page=True so the Repair History table (below the fold) is visible.
         print('  Capturing: equipment-detail.png')
         page.goto(f'{BASE_URL}/equipment/{ids["detail_equipment_id"]}')
         page.wait_for_load_state('networkidle')
-        page.screenshot(path=str(IMAGES_DIR / 'equipment-detail.png'))
+        page.screenshot(path=str(IMAGES_DIR / 'equipment-detail.png'), full_page=True)
 
         # -- 10. User management (staff, desktop) --
         print('  Capturing: user-management.png')
