@@ -4,6 +4,7 @@ import os
 
 from flask import (
     Blueprint,
+    Response,
     abort,
     current_app,
     flash,
@@ -41,6 +42,28 @@ def index():
         equipment=equipment,
         areas=areas,
         selected_area_id=area_id,
+    )
+
+
+@equipment_bp.route('/export.csv')
+@login_required
+def export_csv():
+    """Download the equipment inventory as a CSV file."""
+    area_id = request.args.get('area_id', type=int)
+    include_archived = request.args.get('include_archived', default='0').lower() in ('1', 'true')
+    csv_text = equipment_service.export_equipment_csv(
+        username=current_user.username,
+        area_id=area_id,
+        include_archived=include_archived,
+    )
+    # Prepend UTF-8 BOM so Excel opens non-ASCII correctly; serve as UTF-8.
+    body = ('\ufeff' + csv_text).encode('utf-8')
+    return Response(
+        body,
+        content_type='text/csv; charset=utf-8',
+        headers={
+            'Content-Disposition': 'attachment; filename="equipment_inventory.csv"',
+        },
     )
 
 

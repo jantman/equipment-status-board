@@ -4,8 +4,12 @@ All area/equipment business logic lives here. Views call these functions;
 they never query models directly.
 """
 
+import csv
+import io
 from datetime import date
 from decimal import Decimal
+
+from sqlalchemy.orm import joinedload
 
 from esb.extensions import db
 from esb.models.area import Area
@@ -420,3 +424,88 @@ def get_equipment_links(equipment_id: int) -> list[ExternalLink]:
             .order_by(ExternalLink.created_at.desc())
         ).scalars().all()
     )
+
+
+CSV_EXPORT_COLUMNS = [
+    'id',
+    'name',
+    'manufacturer',
+    'model',
+    'serial_number',
+    'area',
+    'acquisition_date',
+    'acquisition_source',
+    'acquisition_cost',
+    'warranty_expiration',
+    'description',
+    'is_archived',
+    'created_at',
+    'updated_at',
+]
+
+_CSV_INJECTION_TRIGGERS = ('=', '+', '-', '@')
+
+
+def _sanitize_csv_cell(value):
+    """Prefix formula-leading characters with a single quote to defuse Excel/LibreOffice injection.
+
+    Spreadsheet apps ignore leading whitespace (including tabs and CRs) when
+    deciding whether a cell is a formula, so detect the formula triggers after
+    any leading whitespace while preserving the original string contents.
+    """
+    if isinstance(value, str) and value.lstrip().startswith(_CSV_INJECTION_TRIGGERS):
+        return "'" + value
+    return value
+
+
+def export_equipment_csv(
+    username: str,
+    area_id: int | None = None,
+    include_archived: bool = False,
+) -> str:
+    """Return CSV text of equipment inventory and emit an audit log entry.
+
+    Args:
+        username: User performing the export (recorded in the audit log).
+        area_id: If provided, limit export to equipment in this area.
+        include_archived: If True, include archived equipment in export.
+    """
+    query = (
+        db.select(Equipment)
+        .options(joinedload(Equipment.area))
+        .order_by(Equipment.name)
+    )
+    if not include_archived:
+        query = query.filter_by(is_archived=False)
+    if area_id is not None:
+        query = query.filter_by(area_id=area_id)
+    equipment = list(db.session.execute(query).scalars().all())
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(CSV_EXPORT_COLUMNS)
+    for eq in equipment:
+        writer.writerow([
+            eq.id,
+            _sanitize_csv_cell(eq.name),
+            _sanitize_csv_cell(eq.manufacturer),
+            _sanitize_csv_cell(eq.model),
+            _sanitize_csv_cell(eq.serial_number or ''),
+            _sanitize_csv_cell(eq.area.name) if eq.area else '',
+            eq.acquisition_date.isoformat() if eq.acquisition_date else '',
+            _sanitize_csv_cell(eq.acquisition_source or ''),
+            str(eq.acquisition_cost) if eq.acquisition_cost is not None else '',
+            eq.warranty_expiration.isoformat() if eq.warranty_expiration else '',
+            _sanitize_csv_cell(eq.description or ''),
+            'true' if eq.is_archived else 'false',
+            eq.created_at.isoformat() if eq.created_at else '',
+            eq.updated_at.isoformat() if eq.updated_at else '',
+        ])
+
+    log_mutation('equipment.exported_csv', username, {
+        'area_id': area_id,
+        'include_archived': include_archived,
+        'row_count': len(equipment),
+    })
+
+    return buf.getvalue()

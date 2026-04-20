@@ -1171,3 +1171,138 @@ class TestDocumentMutationLogging:
             if 'equipment_link.deleted' in r.message
         ]
         assert len(entries) == 1
+
+
+class TestExportCsv:
+    """Tests for GET /equipment/export.csv."""
+
+    def test_unauthenticated_redirects_to_login(self, client):
+        """Unauthenticated users are redirected to login."""
+        resp = client.get('/equipment/export.csv')
+        assert resp.status_code == 302
+        assert '/auth/login' in resp.headers['Location']
+
+    def test_staff_can_download(self, staff_client, make_equipment):
+        """Staff can download the CSV export."""
+        make_equipment('Table Saw', 'SawStop', 'PCS')
+        resp = staff_client.get('/equipment/export.csv')
+        assert resp.status_code == 200
+        assert resp.mimetype == 'text/csv'
+        assert 'attachment' in resp.headers.get('Content-Disposition', '')
+        assert 'equipment_inventory.csv' in resp.headers.get('Content-Disposition', '')
+
+    def test_tech_can_download(self, tech_client, make_equipment):
+        """Technicians can download the CSV export."""
+        make_equipment('Drill Press', 'JET', 'JDP-17')
+        resp = tech_client.get('/equipment/export.csv')
+        assert resp.status_code == 200
+
+    def test_csv_content_includes_equipment(self, staff_client, make_equipment):
+        """CSV body contains the equipment name and identifying fields."""
+        make_equipment('Table Saw', 'SawStop', 'PCS')
+        resp = staff_client.get('/equipment/export.csv')
+        body = resp.data.decode('utf-8')
+        assert 'Table Saw' in body
+        assert 'SawStop' in body
+        assert 'PCS' in body
+
+    def test_csv_has_header_row(self, staff_client):
+        """First CSV line is the header row."""
+        resp = staff_client.get('/equipment/export.csv')
+        body = resp.data.decode('utf-8')
+        first_line = body.splitlines()[0]
+        assert 'name' in first_line
+        assert 'manufacturer' in first_line
+        assert 'model' in first_line
+        assert 'serial_number' in first_line
+        assert 'area' in first_line
+
+    def test_area_filter_applies(self, staff_client, make_area, make_equipment):
+        """Passing area_id restricts export to that area."""
+        wood = make_area('Woodshop', '#wood')
+        metal = make_area('Metal Shop', '#metal')
+        make_equipment('Table Saw', 'SawStop', 'PCS', area=wood)
+        make_equipment('Welder', 'Lincoln', '210MP', area=metal)
+
+        resp = staff_client.get(f'/equipment/export.csv?area_id={wood.id}')
+        body = resp.data.decode('utf-8')
+        assert 'Table Saw' in body
+        assert 'Welder' not in body
+
+    def test_archived_excluded_by_default(self, staff_client, make_equipment, db):
+        """Archived equipment is not in the default export."""
+        eq = make_equipment('Old Saw', 'OldCo', 'Old')
+        eq.is_archived = True
+        db.session.commit()
+
+        resp = staff_client.get('/equipment/export.csv')
+        body = resp.data.decode('utf-8')
+        assert 'Old Saw' not in body
+
+    def test_include_archived_parameter(self, staff_client, make_equipment, db):
+        """include_archived=1 brings archived rows into the export."""
+        eq = make_equipment('Old Saw', 'OldCo', 'Old')
+        eq.is_archived = True
+        db.session.commit()
+
+        resp = staff_client.get('/equipment/export.csv?include_archived=1')
+        body = resp.data.decode('utf-8')
+        assert 'Old Saw' in body
+
+    def test_include_archived_parsing_is_case_insensitive(
+        self, staff_client, make_equipment, db,
+    ):
+        """include_archived accepts truthy values regardless of case."""
+        eq = make_equipment('Old Saw', 'OldCo', 'Old')
+        eq.is_archived = True
+        db.session.commit()
+
+        for value in ('TRUE', 'True', 'true', 'TrUe'):
+            resp = staff_client.get(f'/equipment/export.csv?include_archived={value}')
+            body = resp.data.decode('utf-8')
+            assert 'Old Saw' in body, f'value={value!r} did not enable archived rows'
+
+    def test_include_archived_false_excludes_archived(
+        self, staff_client, make_equipment, db,
+    ):
+        """include_archived with a non-truthy value does not bring archived rows."""
+        eq = make_equipment('Old Saw', 'OldCo', 'Old')
+        eq.is_archived = True
+        db.session.commit()
+
+        resp = staff_client.get('/equipment/export.csv?include_archived=no')
+        body = resp.data.decode('utf-8')
+        assert 'Old Saw' not in body
+
+    def test_list_page_has_export_button(self, staff_client):
+        """Equipment list page exposes the Export CSV link."""
+        resp = staff_client.get('/equipment/')
+        assert b'Export CSV' in resp.data
+        assert b'/equipment/export.csv' in resp.data
+
+    def test_response_is_utf8_with_bom(self, staff_client, make_equipment):
+        """Response body starts with a UTF-8 BOM and declares charset=utf-8 exactly once."""
+        make_equipment('Équipe Saw', 'SawStop', 'PCS')
+        resp = staff_client.get('/equipment/export.csv')
+        content_type = resp.headers.get('Content-Type', '').lower()
+        assert 'charset=utf-8' in content_type
+        # Guard against a duplicated "charset=utf-8; charset=utf-8" header.
+        assert content_type.count('charset=') == 1
+        assert resp.data.startswith(b'\xef\xbb\xbf')
+        body = resp.data.decode('utf-8-sig')
+        assert 'Équipe Saw' in body
+
+    def test_export_is_audit_logged(self, staff_client, make_equipment, capture):
+        """Downloading the CSV emits an equipment.exported_csv mutation log."""
+        make_equipment('Table Saw', 'SawStop', 'PCS')
+        capture.records.clear()
+        resp = staff_client.get('/equipment/export.csv?include_archived=1')
+        assert resp.status_code == 200
+        entries = [
+            json.loads(r.message) for r in capture.records
+            if 'equipment.exported_csv' in r.message
+        ]
+        assert len(entries) == 1
+        entry = entries[0]
+        assert entry['user'] == 'staffuser'
+        assert entry['data']['include_archived'] is True

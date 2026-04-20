@@ -112,6 +112,15 @@ From the equipment detail page, you can upload and manage reference materials:
 
 When a piece of equipment is retired or removed from the space, archive it instead of deleting it. Archiving is a soft delete that preserves all history (repair records, documents, photos) while removing the equipment from active views.
 
+### Exporting the Inventory to CSV
+
+From the equipment registry page, click the **Export CSV** button (next to **Add Equipment**) to download a spreadsheet of the equipment inventory. The file (`equipment_inventory.csv`) opens directly in Excel, Google Sheets, LibreOffice Calc, or any other spreadsheet tool.
+
+The export includes one row per equipment item with these columns: `id`, `name`, `manufacturer`, `model`, `serial_number`, `area`, `acquisition_date`, `acquisition_source`, `acquisition_cost`, `warranty_expiration`, `description`, `is_archived`, `created_at`, and `updated_at`.
+
+- If you have an area filter applied on the registry page, the export is scoped to just that area. Clear the filter first if you want the full inventory.
+- Archived equipment is excluded by default. To include archived items, append `?include_archived=1` to the export URL (or combine with an area filter, e.g. `/equipment/export.csv?area_id=3&include_archived=1`).
+
 ![Equipment Detail Page](images/equipment-detail.png)
 
 ## Managing Areas

@@ -5,9 +5,13 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h1>Equipment Registry</h1>
-    {% if current_user.role == 'staff' %}
-    <a href="{{ url_for('equipment.create') }}" class="btn btn-primary">Add Equipment</a>
-    {% endif %}
+    <div class="d-flex gap-2">
+        <a href="{{ url_for('equipment.export_csv', area_id=selected_area_id) if selected_area_id else url_for('equipment.export_csv') }}"
+           class="btn btn-outline-secondary">Export CSV</a>
+        {% if current_user.role == 'staff' %}
+        <a href="{{ url_for('equipment.create') }}" class="btn btn-primary">Add Equipment</a>
+        {% endif %}
+    </div>
 </div>
 
 <form method="GET" action="{{ url_for('equipment.index') }}" class="mb-3">
