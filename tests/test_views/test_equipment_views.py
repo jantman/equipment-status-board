@@ -2,6 +2,8 @@
 
 import io
 import json
+import re
+from datetime import datetime
 
 from esb.extensions import db as _db
 from esb.models.document import Document
@@ -204,6 +206,156 @@ class TestEquipmentDetail:
         eq = make_equipment('Item', 'Co', 'M')
         resp = tech_client.get(f'/equipment/{eq.id}')
         assert b'Edit' not in resp.data
+
+
+class TestEquipmentDetailRepairHistory:
+    """Tests for the Repair History section on GET /equipment/<id>."""
+
+    def test_repair_history_section_rendered(self, staff_client, make_equipment):
+        """The Repair History card is always rendered on the detail page."""
+        eq = make_equipment('Table Saw', 'SawStop', 'PCS')
+        resp = staff_client.get(f'/equipment/{eq.id}')
+        assert resp.status_code == 200
+        assert b'Repair History' in resp.data
+
+    def test_empty_state_when_no_records(self, staff_client, make_equipment):
+        """Empty state message is shown when the equipment has no repair records."""
+        eq = make_equipment('Table Saw', 'SawStop', 'PCS')
+        resp = staff_client.get(f'/equipment/{eq.id}')
+        assert resp.status_code == 200
+        assert b'No repair records yet.' in resp.data
+
+    def test_open_record_appears_in_history(
+        self, staff_client, make_equipment, make_repair_record,
+    ):
+        """Open repair records are listed in the history table."""
+        eq = make_equipment('Table Saw', 'SawStop', 'PCS')
+        rec = make_repair_record(
+            equipment=eq, status='New', severity='Down',
+            description='Motor making grinding noise',
+        )
+        resp = staff_client.get(f'/equipment/{eq.id}')
+        assert resp.status_code == 200
+        assert b'Motor making grinding noise' in resp.data
+        assert b'repair-history-table' in resp.data
+        # Row is clickable and data-href points at the repair detail page
+        body = resp.data.decode()
+        match = re.search(
+            r'<tr[^>]*class="repair-history-row[^"]*"[^>]*data-href="([^"]+)"',
+            body,
+        )
+        assert match is not None
+        assert match.group(1) == f'/repairs/{rec.id}'
+
+    def test_resolved_record_still_visible_in_history(
+        self, staff_client, make_equipment, make_repair_record,
+    ):
+        """Resolved repair records remain visible (this is the Issue #23 fix)."""
+        eq = make_equipment('Drill Press', 'JET', 'JDP-17')
+        rec = make_repair_record(
+            equipment=eq, status='Resolved', severity='Degraded',
+            description='Belt replaced; tested OK.',
+        )
+        resp = staff_client.get(f'/equipment/{eq.id}')
+        assert resp.status_code == 200
+        assert b'Belt replaced; tested OK.' in resp.data
+        assert f'/repairs/{rec.id}'.encode() in resp.data
+        assert b'Resolved' in resp.data
+
+    def test_closed_no_issue_and_duplicate_visible(
+        self, staff_client, make_equipment, make_repair_record,
+    ):
+        """Other closed statuses (No Issue Found, Duplicate) are also shown."""
+        eq = make_equipment('Laser', 'Epilog', 'Helix')
+        make_repair_record(
+            equipment=eq, status='Closed - No Issue Found',
+            description='Could not reproduce',
+        )
+        make_repair_record(
+            equipment=eq, status='Closed - Duplicate',
+            description='Same as #42',
+        )
+        resp = staff_client.get(f'/equipment/{eq.id}')
+        assert resp.status_code == 200
+        assert b'Could not reproduce' in resp.data
+        assert b'Same as #42' in resp.data
+        assert b'Closed - No Issue Found' in resp.data
+        assert b'Closed - Duplicate' in resp.data
+
+    def test_history_ordered_newest_first(
+        self, staff_client, make_equipment, make_repair_record,
+    ):
+        """Repair history is ordered most recent first."""
+        eq = make_equipment('CNC', 'ShopBot', 'Desktop')
+        older = make_repair_record(
+            equipment=eq, status='Resolved', description='First issue',
+        )
+        older.created_at = datetime(2024, 1, 1, 12, 0, 0)
+        newer = make_repair_record(
+            equipment=eq, status='New', description='Second issue',
+        )
+        newer.created_at = datetime(2024, 6, 1, 12, 0, 0)
+        _db.session.commit()
+
+        resp = staff_client.get(f'/equipment/{eq.id}')
+        body = resp.data.decode()
+        assert body.index('Second issue') < body.index('First issue')
+
+    def test_history_filters_to_this_equipment(
+        self, staff_client, make_area, make_equipment, make_repair_record,
+    ):
+        """Repair records for other equipment do not appear in this page's history."""
+        area1 = make_area('Woodshop', '#wood')
+        area2 = make_area('Metal Shop', '#metal')
+        eq1 = make_equipment('Table Saw', 'SawStop', 'PCS', area=area1)
+        eq2 = make_equipment('Drill Press', 'JET', 'JDP-17', area=area2)
+        make_repair_record(equipment=eq1, status='New', description='Saw blade issue')
+        make_repair_record(equipment=eq2, status='New', description='Drill chuck issue')
+
+        resp = staff_client.get(f'/equipment/{eq1.id}')
+        assert b'Saw blade issue' in resp.data
+        assert b'Drill chuck issue' not in resp.data
+
+    def test_technician_sees_repair_history(
+        self, tech_client, make_equipment, make_repair_record,
+    ):
+        """Technicians can see repair history on the equipment page."""
+        eq = make_equipment('Table Saw', 'SawStop', 'PCS')
+        make_repair_record(
+            equipment=eq, status='Resolved', description='Historical repair',
+        )
+        resp = tech_client.get(f'/equipment/{eq.id}')
+        assert resp.status_code == 200
+        assert b'Historical repair' in resp.data
+
+    def test_archived_equipment_still_shows_history(
+        self, staff_client, make_equipment, make_repair_record,
+    ):
+        """Archiving equipment does not hide its repair history."""
+        eq = make_equipment('Retired Mill', 'Old Co', 'V1')
+        make_repair_record(
+            equipment=eq, status='Resolved',
+            description='Spindle replaced before archive',
+        )
+        eq.is_archived = True
+        _db.session.commit()
+
+        resp = staff_client.get(f'/equipment/{eq.id}')
+        assert resp.status_code == 200
+        assert b'Spindle replaced before archive' in resp.data
+        assert b'Repair History' in resp.data
+
+    def test_unauthenticated_cannot_see_history(
+        self, client, make_equipment, make_repair_record,
+    ):
+        """Unauthenticated users are redirected to login (history not exposed)."""
+        eq = make_equipment('Table Saw', 'SawStop', 'PCS')
+        make_repair_record(
+            equipment=eq, status='New', description='Confidential repair note',
+        )
+        resp = client.get(f'/equipment/{eq.id}')
+        assert resp.status_code == 302
+        assert '/auth/login' in resp.headers['Location']
 
 
 class TestEditEquipment:

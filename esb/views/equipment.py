@@ -23,7 +23,7 @@ from esb.forms.equipment_forms import (
     ExternalLinkForm,
     PhotoUploadForm,
 )
-from esb.services import equipment_service, upload_service
+from esb.services import equipment_service, repair_service, upload_service
 from esb.utils.decorators import role_required
 from esb.utils.exceptions import ValidationError
 
@@ -123,6 +123,9 @@ def detail(id):
     documents = upload_service.get_documents('equipment_doc', id)
     photos = upload_service.get_documents('equipment_photo', id)
     links = equipment_service.get_equipment_links(id)
+    repair_records = repair_service.list_repair_records(
+        equipment_id=id, eager_load_assignee=True,
+    )
     doc_form = DocumentUploadForm()
     photo_form = PhotoUploadForm()
     link_form = ExternalLinkForm()
@@ -134,6 +137,8 @@ def detail(id):
         documents=documents,
         photos=photos,
         links=links,
+        repair_records=repair_records,
+        closed_statuses=repair_service.CLOSED_STATUSES,
         doc_form=doc_form,
         photo_form=photo_form,
         link_form=link_form,

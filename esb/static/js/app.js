@@ -2,7 +2,7 @@
 
 document.addEventListener('DOMContentLoaded', function () {
   // --- Clickable queue rows (with keyboard support) ---
-  document.querySelectorAll('.queue-row[data-href]').forEach(function (row) {
+  document.querySelectorAll('.queue-row[data-href], .repair-history-row[data-href]').forEach(function (row) {
     row.style.cursor = 'pointer';
     row.addEventListener('click', function () {
       window.location.href = row.dataset.href;

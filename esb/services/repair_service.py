@@ -190,22 +190,31 @@ def get_repair_record(repair_record_id: int) -> RepairRecord:
 def list_repair_records(
     equipment_id: int | None = None,
     status: str | None = None,
+    eager_load_assignee: bool = False,
 ) -> list[RepairRecord]:
     """List repair records, optionally filtered.
 
     Args:
         equipment_id: Filter by equipment ID.
         status: Filter by status.
+        eager_load_assignee: If True, join-load the assignee relationship to
+            avoid N+1 queries when the caller will access ``record.assignee``
+            for every row (e.g. the equipment-detail history table).
 
     Returns:
         List of RepairRecord instances ordered by created_at desc.
     """
     query = db.select(RepairRecord).order_by(RepairRecord.created_at.desc())
+    if eager_load_assignee:
+        query = query.options(joinedload(RepairRecord.assignee))
     if equipment_id is not None:
         query = query.filter_by(equipment_id=equipment_id)
     if status is not None:
         query = query.filter_by(status=status)
-    return list(db.session.execute(query).scalars().all())
+    scalars = db.session.execute(query).scalars()
+    if eager_load_assignee:
+        scalars = scalars.unique()
+    return list(scalars.all())
 
 
 CLOSED_STATUSES = ['Resolved', 'Closed - No Issue Found', 'Closed - Duplicate']
