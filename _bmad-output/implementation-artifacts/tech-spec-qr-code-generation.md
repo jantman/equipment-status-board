@@ -12,26 +12,33 @@ tech_stack:
   - 'SQLAlchemy (via Flask-SQLAlchemy, not used in QR flow)'
   - 'Jinja2 (Bootstrap 5 locally-bundled)'
   - 'qrcode[pil]>=8.0 (already in requirements.txt; pulls Pillow)'
+  - 'pyzbar (NEW — QR decode for round-trip tests; requires libzbar0 system package)'
+  - 'libzbar0 (system dep, installed via apt in Dockerfile and CI test job)'
   - 'pytest + pytest factories (make_area, make_equipment; staff_client, tech_client)'
 files_to_modify:
   - 'esb/config.py (add ESB_BASE_URL to Config)'
   - '.env.example (add ESB_BASE_URL line)'
   - 'esb/services/qr_service.py (full rewrite)'
-  - 'esb/utils/text.py (NEW — slugify_filename)'
+  - 'esb/utils/text.py (NEW — slugify_filename + get_normalized_base_url)'
   - 'esb/forms/equipment_forms.py (add QRGenerateForm)'
-  - 'esb/views/equipment.py (add qr, qr_preview routes)'
+  - 'esb/views/equipment.py (add qr, qr_preview routes + _get_active_equipment_or_404 helper)'
   - 'esb/templates/equipment/qr.html (NEW)'
   - 'esb/templates/equipment/detail.html (add button in action row)'
   - 'esb/static/fonts/DejaVuSans-Bold.ttf (NEW — vendored font)'
+  - 'esb/static/fonts/LICENSE (NEW — full DejaVu / Bitstream Vera license text)'
   - 'esb/static/js/app.js (append preview updater)'
   - 'esb/static/qrcodes/ (DELETE directory)'
   - '.gitignore (remove qrcodes/*.png line)'
+  - 'requirements.txt (add pyzbar)'
+  - 'Dockerfile (add libzbar0 to apt-get install)'
+  - '.github/workflows/ci.yml (add libzbar0 apt step to test job)'
   - 'docs/administrators.md (add ESB_BASE_URL env-var row)'
-  - 'docs/staff.md (add QR Code Labels section)'
+  - 'docs/staff.md (add QR Code Labels section; cross-ref existing qr-equipment-page-mobile.png)'
   - 'docs/images/qr-generation.png (NEW screenshot)'
-  - 'tests/test_services/test_qr_service.py (replace contents)'
-  - 'tests/test_views/test_equipment_views.py (append QR tests)'
-  - 'tests/test_utils/test_text.py (NEW)'
+  - 'tests/conftest.py (add configured_base_url fixture)'
+  - 'tests/test_services/test_qr_service.py (replace contents; uses pyzbar for decode)'
+  - 'tests/test_views/test_equipment_views.py (append QR tests, using configured_base_url fixture)'
+  - 'tests/test_utils/test_text.py (NEW — slugify_filename + get_normalized_base_url tests)'
 code_patterns:
   - 'Service layer: views are thin; business logic in services; dependency flow views → services → models'
   - 'Services imported via module (from esb.services import qr_service); services/__init__.py is empty'
@@ -42,13 +49,16 @@ code_patterns:
   - 'Jinja filters registered in esb/utils/filters.py; CSRF token via {{ csrf_token() }} in templates'
   - 'Single app.css and app.js — no per-page assets'
   - 'snake_case templates; underscore-prefix for partials'
+  - 'Only two roles in practice: staff and technician (VALID_ROLES in user_service.py); no member role is currently defined'
+  - 'qr_service.py MUST NOT import from esb.forms (preserves the import graph: forms → services, not services → forms)'
 test_patterns:
   - 'pytest with SQLite in-memory (TestingConfig); CSRF disabled in tests (WTF_CSRF_ENABLED=False)'
   - 'Fixtures in tests/conftest.py: app, client, db, make_area, make_equipment, staff_client, tech_client, staff_user, tech_user, capture (mutation logger)'
   - 'Service tests live at tests/test_services/test_{service}.py with TestX class containers per function'
   - 'View tests at tests/test_views/test_{blueprint}_views.py; assert on resp.status_code and resp.data bytes'
-  - 'Util tests at tests/test_utils/test_{module}.py'
-  - 'No make_user/member_client fixture — use staff_client and tech_client both to prove any-role access'
+  - 'Util tests at tests/test_utils/test_{module}.py (confirmed __init__.py present)'
+  - 'Only staff_client and tech_client exist — these are the only two roles in code; any QR test that uses both proves access works for the full role set'
+  - 'configured_base_url fixture (NEW) sets app.config["ESB_BASE_URL"] before QR tests that need it, preventing accidental empty-config redirects'
 issue: 14
 ---
 
@@ -102,32 +112,56 @@ Makers need printable QR code labels/stickers to attach to physical equipment so
 - **Stack:** Python 3.14, Flask, Flask-WTF, Jinja2, SQLAlchemy (unused here), existing `qrcode[pil]>=8.0` dependency (already in `requirements.txt`). Pillow comes via `qrcode[pil]`.
 - **Permissions:** Route uses `@login_required` only (no `@role_required`) — any role can generate.
 - **Config pattern:** Read env var on the `Config` class (`ESB_BASE_URL = os.environ.get('ESB_BASE_URL', '')`). Accessed via `current_app.config['ESB_BASE_URL']`. No DB override.
-- **Base URL normalization & empty-value behavior:** The **view** reads `current_app.config['ESB_BASE_URL']` and `rstrip('/')`s it (so `http://esb.example.com:8080/` → `http://esb.example.com:8080`). If empty/unset, the `/equipment/<id>/qr` view flashes a `danger` message ("ESB_BASE_URL is not configured — contact your administrator.") and redirects back to the equipment detail page. The "Generate QR Code" control on the equipment detail page is rendered as a normal anchor when configured, and as a disabled `<button>` with tooltip "ESB_BASE_URL not configured" when empty. The service does **not** read Flask config — it is pure and takes `base_url` as a keyword argument.
+- **Base URL normalization, validation & empty-value behavior:** All normalization + validation goes through a single helper `esb.utils.text.get_normalized_base_url(raw: str) -> str` that: (a) strips leading/trailing whitespace; (b) rejects empty result with a specific `ValueError('ESB_BASE_URL is empty')`; (c) parses via `urllib.parse.urlsplit` and rejects if `scheme` is not in `{'http', 'https'}` or `netloc` is empty, raising `ValueError('ESB_BASE_URL must be an http(s) URL with a host')`; (d) rstrips trailing slashes. The **view** calls the helper inside a try/except; on any `ValueError`, the `/equipment/<id>/qr` view flashes a `danger` message (using the exception's text) and redirects back to the equipment detail page; the `/equipment/<id>/qr/preview` endpoint returns a 404 (no useful behavior without config). The "Generate QR Code" control on the equipment detail page renders as a normal anchor only when `config['ESB_BASE_URL']` is non-empty after strip; otherwise as a disabled `<button>` with tooltip "ESB_BASE_URL not configured". (The detail-page template performs a lightweight truthy check; full scheme validation happens at the route level. A misconfigured non-empty value yields a normal-looking link that, when clicked, flashes the specific validation error.) The service does **not** read Flask config — it is pure and takes `base_url` as a keyword argument. **The service trusts its `base_url` parameter; all validation happens upstream in the view via `get_normalized_base_url`.**
 - **Size presets:** Centralized in `esb/services/qr_service.py` — `@dataclass QRSizePreset(key: str, label: str, width_in: float, height_in: float)`, exposed as both `QR_SIZE_PRESETS: tuple[QRSizePreset, ...]` (ordered for the dropdown) and `QR_PRESETS_BY_KEY: dict[str, QRSizePreset]` (for view-side lookup on form submit). Rendering is fixed at **300 DPI** for all presets. Adding a new size is a single-file edit. File-size trade-off acknowledged: 8.5"×11" at 300 DPI = 2550×3300 pixels, ~8 MB PNG — acceptable for occasional admin downloads; no dynamic DPI selection in this change.
-- **Rendering pattern:** Use `qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_M, border=4)`. Build the matrix with `make_image(...).convert('RGB')`, then resize to the target QR pixel dimensions using `Image.NEAREST` — **never LANCZOS** (anti-aliasing blurs module edges and reduces scannability). Compose the final image on a white `Image.new('RGB', (canvas_w_px, canvas_h_px), 'white')`. Dimensions: `canvas_w_px = round(width_in * 300)`, `canvas_h_px = round(height_in * 300)`, `font_px = round(pt * 300 / 72)`.
-- **Aspect-ratio / layout rule:** Text rows reserve a fraction of canvas height — 0 if disabled, otherwise 15% for name (top) and 15% for URL (bottom). The QR is rendered as a square sized to `min(canvas_w_px, canvas_h_px - reserved_text_px) - margin` and centered horizontally in the canvas, vertically positioned between the (possibly zero-height) text rows. This rule applies uniformly from 1"×1" stickers up to 8.5"×11" pages and to wide Avery 5160 labels (a legible small square QR with optional text above/below — acceptable for first release; sidebar layouts can follow later if needed).
-- **Text constraints:** (a) single line; (b) rendered text pixel width ≤ 120% of the QR pixel width — shrink the font until it fits; (c) minimum font size **12 pt** floor; (d) if the text still exceeds the cap at the minimum size, truncate with an ellipsis (`…`) until it fits. Width is measured via `ImageDraw.textbbox((0,0), text, font=font)`. Both `include_name` and `include_url` default OFF.
-- **Vendored font:** Commit `DejaVuSans-Bold.ttf` to `esb/static/fonts/` (Bitstream Vera / DejaVu license — redistributable) to make rendering deterministic across OS images. Service loads via `ImageFont.truetype(os.path.join(current_app.static_folder, 'fonts', 'DejaVuSans-Bold.ttf'), font_px)`. No `load_default()` fallback needed once the font is vendored.
+- **Rendering pattern:** Use `qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_M, border=4)`. Build the matrix with `make_image(...).convert('RGB')`, then resize to the target QR pixel dimensions using `Image.NEAREST` — **never LANCZOS** (anti-aliasing blurs module edges and reduces scannability). Compose the final image on a white `Image.new('RGB', (canvas_w_px, canvas_h_px), 'white')`. Dimensions: `canvas_w_px = int(width_in * 300 + 0.5)`, `canvas_h_px = int(height_in * 300 + 0.5)`, `font_px = int(pt * 300 / 72 + 0.5)`. Use `int(x + 0.5)` (half-away-from-zero) rather than Python's `round()` (banker's rounding) for predictable pixel math on edge-case fractional inches.
+- **QR pixel alignment:** The target QR pixel dimension `qr_px` must be an integer multiple of the QR's native matrix size `(module_count + 2 * border)` — otherwise NEAREST resize produces some modules at N px and others at N+1 px, which still scans but is visually uneven. Algorithm: compute available square `avail = min(canvas_w_px, canvas_h_px - reserved_top - reserved_bottom) - margin`; get `native = module_count + 2 * border` (where `module_count = len(qr.get_matrix())` after `qr.make(fit=True)`); set `qr_px = (avail // native) * native`. This guarantees uniform module width. If `qr_px // native < 5` (module would be under 5 px, i.e. marginal scannability at 300 DPI), log a warning via `mutation_logger` (no — use `logging.getLogger('esb.qr').warning(...)` to avoid polluting the mutation log). Generation still proceeds; the warning alerts operators to consider a larger preset or shorter base URL.
+- **Aspect-ratio / layout rule:** Text rows reserve a fraction of canvas height — 0 if disabled, otherwise 15% for name (top) and 15% for URL (bottom). The QR is rendered as a square sized via the alignment algorithm above and centered horizontally in the canvas, vertically positioned between the (possibly zero-height) text rows. This rule applies uniformly from 1"×1" stickers up to 8.5"×11" pages and to wide Avery 5160 labels (a legible small square QR with optional text above/below — acceptable for first release; sidebar layouts can follow later if needed).
+- **Text constraints:** (a) single line; (b) rendered text pixel width ≤ 120% of the QR pixel width — shrink the font until it fits; (c) minimum font size **8 pt** floor (8 pt at 300 DPI = 33 px, which fits inside 15% of a 300 px canvas = 45 px row with headroom — the prior 12 pt / 50 px floor did not fit the smallest preset); (d) if the text still exceeds the cap at the minimum size, truncate with an ellipsis (`…`) until it fits; (e) if even `'…'` alone at the minimum font exceeds the cap, render the empty string (effectively omitting the text row visually but still reserving space — consistent layout). Width is measured as `right - left` from `ImageDraw.textbbox((0, 0), text, font=font)` — **not** `right` directly, because for TrueType fonts `left` can be negative due to glyph bearings. Both `include_name` and `include_url` default OFF.
+- **`_fit_text` algorithm (precise):**
+  1. Start at `size_px = max_height_px`; step down by `max(1, int(max_height_px * 0.05))`.
+  2. On each iteration: build `font = ImageFont.truetype(font_path, size_px)`; measure `(l, t, r, b) = ImageDraw(...).textbbox((0, 0), text, font=font)`; compute `width = r - l`; if `width <= max_width_px`: return `(font, text)`.
+  3. Otherwise decrement until `size_px < min_size_px` (where `min_size_px = int(8 * 300 / 72 + 0.5) = 33`); at that point, pin `size_px = min_size_px` and build the min font once.
+  4. Truncation loop: while the text (with appended `'…'`) exceeds `max_width_px` at `min_size_px`, drop the last character of `text`. If `text` becomes empty and `'…'` alone still exceeds the cap, return `(min_font, '')`. Otherwise return `(min_font, text + '…')`.
+  5. The returned font height determines vertical centering within the reserved row.
+- **Vendored font + license:** Commit `DejaVuSans-Bold.ttf` to `esb/static/fonts/` (DejaVu / Bitstream Vera licenses — redistributable) to make rendering deterministic across OS images. Also commit the **full license text** to `esb/static/fonts/LICENSE` — redistribution under the DejaVu + Bitstream Vera terms requires the license text accompany the font, not just a "brief note". Use the upstream license file from the DejaVu fonts project. Service loads via `ImageFont.truetype(os.path.join(current_app.static_folder, 'fonts', 'DejaVuSans-Bold.ttf'), font_px)`. No `load_default()` fallback needed once the font is vendored.
 - **Service API (clean break, new names):** Single public function `render_qr_png(equipment, preset, *, include_name=False, include_url=False, base_url) -> bytes` — returns PNG bytes. `preset` is a `QRSizePreset` instance (view does the key→preset lookup via `QR_PRESETS_BY_KEY`). **Delete** `generate_qr_code`, `get_qr_code_path`, and `generate_all_qr_codes`; these are not referenced outside the service and its tests. Also delete the `esb/static/qrcodes/` directory (and its `.gitkeep`).
-- **Route shape:** A single route `GET/POST /equipment/<int:id>/qr` handles both the form render (GET) and the PNG download (POST). Preview mechanism — deferred to Step 2.
+- **Route shape:** A single route `GET/POST /equipment/<int:id>/qr` handles both the form render (GET) and the PNG download (POST); a second route `GET /equipment/<int:id>/qr/preview` returns an inline PNG for live preview. Preview responses set `Cache-Control: public, max-age=300` — the response is deterministic from its query params, so browser caching is correct and avoids re-rendering on repeat views.
+- **Active-equipment helper (DRY):** Both routes use a private helper `_get_active_equipment_or_404(id)` in `esb/views/equipment.py`:
+  ```python
+  def _get_active_equipment_or_404(id):
+      try:
+          eq = equipment_service.get_equipment(id)
+      except ValidationError:
+          abort(404)
+      if eq.is_archived:
+          abort(404)
+      return eq
+  ```
+  Reused by both `qr` and `qr_preview`.
 - **Form placement:** `QRGenerateForm(FlaskForm)` is added to the existing `esb/forms/equipment_forms.py` (matches domain grouping). Fields: `size = SelectField(choices=[(p.key, p.label) for p in QR_SIZE_PRESETS], validators=[DataRequired()])`, `include_name = BooleanField(default=False)`, `include_url = BooleanField(default=False)`.
 - **Response:** `flask.send_file(io.BytesIO(png_bytes), mimetype='image/png', as_attachment=True, download_name=f'qr-{equipment.id}-{slugify_filename(equipment.name)}.png')`.
-- **Slug helper placement:** Step 2 identifies the best existing module in `esb/utils/` for `slugify_filename(name)` → `re.sub(r'[^A-Za-z0-9-]+', '-', name).strip('-')[:50] or 'equipment'`. If none fits, create `esb/utils/text.py`. Unit-tested.
+- **Slug helper + URL normalizer placement:** A new module `esb/utils/text.py` hosts both `slugify_filename(name)` and `get_normalized_base_url(raw)`. No existing module in `esb/utils/` fits. Both are unit-tested in `tests/test_utils/test_text.py`.
+- **Truthy-value convention (view + JS + WTForms alignment):** The preview endpoint (`GET /qr/preview`) parses booleans as `request.args.get(key) in ('1', 'true', 'on')` — the same set used by WTForms `BooleanField._coerce_for_session` effectively (WTForms accepts `('y', 'yes', 'true', 'on', '1')`). JS always sends `'1'` when checked and omits the param otherwise, staying in the intersection. This consistent-subset approach is documented; a future change on either side should update the documented set in this spec.
 - **Audit logging:** QR generation is read-only. Explicitly **no** `log_mutation()` call — this is intentional and should be noted in a brief code comment on the view so reviewers don't flag the absence.
 - **Architecture rules (from CLAUDE.md + prior story):** service layer holds all business logic; views are thin; no new models; single `app.css`/`app.js` only; Flask-WTF with CSRF.
 - **Docs:** Administrators doc table — add `ESB_BASE_URL` with **Required: Yes** (empty value disables the feature). Staff guide gets its own `## QR Code Labels` section with a new screenshot `docs/images/qr-generation.png`.
-- **Testing:** pytest with SQLite in-memory. Service tests verify the QR payload by round-tripping: build a fresh `qrcode.QRCode`, add the expected URL, call `get_matrix()`, and compare against `qrcode.QRCode.get_matrix()` extracted from reading back the generated PNG with Pillow + parsing module-to-module. Image-size assertions compare `Image.open(BytesIO(result)).size` against the preset's `(width_in*300, height_in*300)`. `pyzbar` is not used (unavailable per prior story 4.3 experience).
+- **Testing:** pytest with SQLite in-memory. Service tests verify the QR payload by **actually decoding** the rendered PNG with `pyzbar.pyzbar.decode(Image.open(BytesIO(result)))` and asserting the decoded text equals the expected URL. `pyzbar` IS available — the prior story's "unavailable" note was incorrect. It only requires the system package `libzbar0`, which is added to the Dockerfile and CI test job as part of this work. Image-size assertions compare `Image.open(BytesIO(result)).size` against `(int(width_in*300+0.5), int(height_in*300+0.5))` for each preset.
 - **Commit convention:** "Issue #14: …" prefix (per project memory).
 
 ### Codebase Patterns (confirmed)
 
 - Blueprint URL prefix: `/equipment` (registered in `esb/__init__.py` via `equipment_bp = Blueprint('equipment', __name__, url_prefix='/equipment')`). New routes will be `/equipment/<int:id>/qr` and `/equipment/<int:id>/qr/preview`.
-- Views catch `ValidationError` from services (used as a generic "not found / invalid") and `abort(404)`; NO `EquipmentNotFound` class (the story 4.3 context was out-of-date).
+- Views catch `ValidationError` from services (used as a generic "not found / invalid") and `abort(404)`; NO `EquipmentNotFound` class (the story 4.3 context was out-of-date). Note: `equipment_service.get_equipment(id)` returns archived records (does not raise) — archived 404 must be an explicit separate check. The new helper `_get_active_equipment_or_404` encapsulates both checks.
 - Equipment detail-page action buttons live in a `<div class="d-flex gap-2">` inside `{% if not equipment.is_archived %}` — new QR button goes in that container.
 - Gitignore already contains `esb/static/qrcodes/*.png` (line 193). When removing the directory, also remove this line from `.gitignore`.
 - Local host has `/usr/share/fonts/TTF/DejaVuSans-Bold.ttf` (Arch), but the production Dockerfile is `python:3.14-slim` which does **not** include DejaVu fonts. Vendored font at `esb/static/fonts/DejaVuSans-Bold.ttf` is the correct approach.
 - Existing `esb/static/js/app.js` is the single JS file for the app — append the preview-updater block here (no new JS files).
 - Existing `esb/static/qrcodes/` contains stray `1.png`, `2.png`, `3.png` from prior test runs. Directory + files will be removed.
+- **Role reality check:** `esb/services/user_service.py` defines `VALID_ROLES = ('technician', 'staff')`. CLAUDE.md mentions a `member` role that is not implemented today. "Any logged-in user can generate QR codes" therefore means "any of the two real roles" in practice; the design is future-proof for a `member` role if added.
+- **Dead-code callers confirmed removed:** `grep -rn 'generate_qr_code\|get_qr_code_path\|generate_all_qr_codes' esb/ tests/ scripts/ docs/ .github/` returns only `esb/services/qr_service.py` and `tests/test_services/test_qr_service.py` (both rewritten in this spec). The `esb/static/qrcodes/` URL is referenced nowhere in templates, CSS, or scripts — directory can be safely deleted.
+- **CI config (`.github/workflows/ci.yml`):** test job installs from `requirements-dev.txt` and runs pytest on ubuntu-latest. Adding `libzbar0` requires a `sudo apt-get update && sudo apt-get install -y libzbar0` step before `pip install`. The `docker-build` job builds from the Dockerfile (so libzbar0 in Dockerfile covers runtime); the `screenshots-check` job does not touch QR decoding and does not need libzbar0.
+- **Existing QR-related screenshot:** `docs/images/qr-equipment-page-mobile.png` already exists (showing the public equipment page, NOT the new admin QR generator). The new `docs/images/qr-generation.png` screenshot is distinct; the staff-guide section cross-references the existing mobile screenshot as "what the scanned page looks like to a member".
 
 ### Files to Reference
 
@@ -135,32 +169,36 @@ Makers need printable QR code labels/stickers to attach to physical equipment so
 | ---- | ------- |
 | `esb/config.py` | Add `ESB_BASE_URL = os.environ.get('ESB_BASE_URL', '')` on the `Config` class |
 | `esb/forms/equipment_forms.py` | Append `QRGenerateForm(FlaskForm)` next to other equipment forms |
-| `esb/views/equipment.py` | Add two routes: `GET/POST /qr` (form + attachment download) and `GET /qr/preview` (inline PNG) |
-| `esb/services/qr_service.py` | Full rewrite — `@dataclass QRSizePreset`, `QR_SIZE_PRESETS`, `QR_PRESETS_BY_KEY`, `render_qr_png(...)`; delete old functions |
-| `esb/utils/text.py` | NEW — `slugify_filename(name)` helper |
+| `esb/views/equipment.py` | Add helper `_get_active_equipment_or_404`; add two routes: `GET/POST /qr` (form + attachment download) and `GET /qr/preview` (inline PNG with Cache-Control) |
+| `esb/services/qr_service.py` | Full rewrite — `@dataclass QRSizePreset`, `QR_SIZE_PRESETS`, `QR_PRESETS_BY_KEY`, `render_qr_png(...)`, private `_fit_text`; delete old functions. Must NOT import from `esb.forms`. |
+| `esb/utils/text.py` | NEW — `slugify_filename(name)` and `get_normalized_base_url(raw)` helpers |
 | `esb/utils/filters.py` | Reference only (no change) — shows Jinja filter registration pattern |
 | `esb/utils/logging.py` | Reference only — confirms QR view should NOT call `log_mutation()` |
-| `esb/templates/equipment/detail.html` | Add "Generate QR Code" button in action-row `d-flex gap-2` container; disabled `<button>` if `ESB_BASE_URL` empty |
-| `esb/templates/equipment/qr.html` | NEW — extends `base.html`, renders the form + inline preview `<img id="qr-preview">` |
-| `esb/static/fonts/DejaVuSans-Bold.ttf` | NEW — vendored TTF for deterministic text rendering (DejaVu/Bitstream Vera license) |
+| `esb/templates/equipment/detail.html` | Add "Generate QR Code" control in action-row `d-flex gap-2` container; anchor if `config['ESB_BASE_URL']` non-empty (after strip), disabled `<button>` otherwise |
+| `esb/templates/equipment/qr.html` | NEW — extends `base.html`, renders the form + inline preview `<img id="qr-preview">` with `data-preview-base` attribute on `<form id="qr-form">` |
+| `esb/static/fonts/DejaVuSans-Bold.ttf` | NEW — vendored TTF for deterministic text rendering |
+| `esb/static/fonts/LICENSE` | NEW — full DejaVu + Bitstream Vera license text (required by the license for redistribution) |
 | `esb/static/js/app.js` | Append vanilla-JS preview updater (listens for form `change` events, updates `<img src>`) |
 | `esb/static/qrcodes/` | **Delete directory** (no longer used) |
 | `.env.example` | Add `ESB_BASE_URL=http://localhost:5000` with explanatory comment |
 | `.gitignore` | Remove `esb/static/qrcodes/*.png` line |
-| `docs/administrators.md` | Add `ESB_BASE_URL` row to "Environment Variable Reference" table |
-| `docs/staff.md` | Add `## QR Code Labels` section with usage steps |
+| `requirements.txt` | Add `pyzbar` (pin to latest stable, e.g. `pyzbar>=0.1.9`) |
+| `Dockerfile` | Extend the existing `apt-get install` line to include `libzbar0` (runtime system dep for `pyzbar`; only needed if QR decode is used at runtime, but safer to install since `qrcode` generation itself does not pull it in) |
+| `.github/workflows/ci.yml` | In the `test` job, before `pip install -r requirements-dev.txt`, add `sudo apt-get update && sudo apt-get install -y libzbar0` |
+| `docs/administrators.md` | Add `ESB_BASE_URL` row to "Environment Variable Reference" table; note requirement and unset behavior |
+| `docs/staff.md` | Add `## QR Code Labels` section with usage steps; cross-reference `images/qr-equipment-page-mobile.png` for "what members see when they scan" |
 | `docs/images/qr-generation.png` | NEW — screenshot of the QR form page |
-| `tests/test_services/test_qr_service.py` | Replace contents — test presets, payload correctness, image dims, text toggles, font-fit shrink/truncate |
-| `tests/test_views/test_equipment_views.py` | Append `TestEquipmentQR` class — GET form, POST download, GET preview, auth, empty-config behavior, archived behavior |
-| `tests/test_utils/test_text.py` | NEW — `slugify_filename` tests |
-| `tests/conftest.py` | Reference only — use existing fixtures `make_area`, `make_equipment`, `staff_client`, `tech_client`, `client` |
+| `tests/test_services/test_qr_service.py` | Replace contents — test presets, payload correctness via `pyzbar.decode`, image dims, text toggles, font-fit shrink/truncate, NEAREST pixel property, module-alignment |
+| `tests/test_views/test_equipment_views.py` | Append `TestEquipmentQR` class — GET form, POST download, GET preview, auth, empty-config behavior, invalid-URL behavior, archived behavior, Cache-Control header, filename header |
+| `tests/test_utils/test_text.py` | NEW — `slugify_filename` + `get_normalized_base_url` tests |
+| `tests/conftest.py` | Add `configured_base_url` fixture that sets `app.config['ESB_BASE_URL'] = 'http://esb.test:5000'` via `monkeypatch`-style setup within the `app` context |
 
 ### Technical Decisions (resolved in Step 2)
 
 1. **Preview mechanism — two-route split.**
    - `GET/POST /equipment/<int:id>/qr`: GET renders the form page (with an inline preview using sensible defaults); POST validates form and returns PNG as attachment.
-   - `GET /equipment/<int:id>/qr/preview?size=KEY&include_name=1&include_url=1`: returns the PNG inline (no attachment). Read-only GET — no CSRF needed.
-   - A small vanilla-JS block in `app.js` listens for `change` events on the form controls and updates `document.getElementById('qr-preview').src` to the preview URL with current query params. **Rationale:** clean separation of concerns (attachment download vs. inline preview), no CSRF complications on the preview path, matches the project's "vanilla JS only, single app.js" rule, graceful degradation (without JS, the user just sees the initial preview and submits to download).
+   - `GET /equipment/<int:id>/qr/preview?size=KEY&include_name=1&include_url=1`: returns the PNG inline (no attachment), with `Cache-Control: public, max-age=300` so repeat views and browser history don't re-trigger server renders.
+   - A small vanilla-JS block in `app.js` listens for `change` events on the form controls and updates `document.getElementById('qr-preview').src` to the preview URL with current query params. **Rationale:** clean separation of concerns (attachment download vs. inline preview); graceful degradation (without JS, the user just sees the initial preview and submits to download); single `app.js` rule preserved; GET with query params makes the preview URL deterministic and cacheable. (Note: GET requests are always CSRF-exempt in Flask-WTF — CSRF only applies to POST/PUT/DELETE/PATCH; this is a framework default, not a design choice.)
 
 2. **Service API signature — pure function, preset object in.**
    - `render_qr_png(equipment: Equipment, preset: QRSizePreset, *, include_name: bool = False, include_url: bool = False, base_url: str) -> bytes`.
@@ -190,7 +228,28 @@ Makers need printable QR code labels/stickers to attach to physical equipment so
    - Insert a "Generate QR Code" control in the `d-flex gap-2` action-row container in `detail.html`, before the "Edit"/"Archive" controls, *inside* the `{% if not equipment.is_archived %}` block (so archived equipment hides it, consistent with other actions).
    - When `config['ESB_BASE_URL']` is empty: render a `<button type="button" class="btn btn-outline-secondary btn-sm" disabled title="ESB_BASE_URL not configured">Generate QR Code</button>`. When set: render `<a class="btn btn-outline-secondary btn-sm" href="{{ url_for('equipment.qr', id=equipment.id) }}">Generate QR Code</a>`.
 
-7. **QR decode verification in tests.** Use `qrcode` library's own matrix rebuild (compare matrices of an independently-built QR with the expected URL vs. the rendered PNG parsed back into a matrix via Pillow pixel sampling at the known module grid). `pyzbar` is not used — prior story 4.3 confirmed unavailability.
+7. **QR decode verification in tests — uses `pyzbar`.** The service test asserts `pyzbar.pyzbar.decode(Image.open(BytesIO(result)))[0].data.decode('utf-8') == expected_url`. `pyzbar` IS available; the prior "unavailable" note in story 4.3 was incorrect. It requires the system package `libzbar0`, which this spec adds to the Dockerfile runtime image and to the CI `test` job's pre-install step.
+
+8. **`get_normalized_base_url(raw)` helper behavior (precise).**
+   ```python
+   from urllib.parse import urlsplit
+
+   def get_normalized_base_url(raw: str) -> str:
+       stripped = (raw or '').strip()
+       if not stripped:
+           raise ValueError('ESB_BASE_URL is not configured')
+       parts = urlsplit(stripped)
+       if parts.scheme not in ('http', 'https'):
+           raise ValueError('ESB_BASE_URL must be an http(s) URL')
+       if not parts.netloc:
+           raise ValueError('ESB_BASE_URL must include a host')
+       return stripped.rstrip('/')
+   ```
+   The view catches `ValueError` and flashes `str(e)` with category `'danger'`. The preview endpoint catches `ValueError` and returns a 404 (no UX for invalid config on a sub-resource).
+
+9. **Preview-endpoint response headers.** `send_file(BytesIO(png), mimetype='image/png')` — additionally set `response.headers['Cache-Control'] = 'public, max-age=300'` before returning. The form-page POST download does NOT set `Cache-Control` (attachments are fire-and-forget per request).
+
+10. **Module-alignment & minimum-module-pixel-size warning.** After calling `qr.make(fit=True)`, the matrix size is `module_count = len(qr.get_matrix())`. Native QR pixel dimension = `(module_count + 2 * border)` modules. Computed `qr_px` is snapped down to the largest integer multiple of that native size that fits. A warning is logged via `logging.getLogger('esb.qr')` when the resulting `qr_px // (module_count + 2 * border) < 5` (modules below 5 px at 300 DPI — ~0.017 inches — may scan unreliably on smaller presets or long URLs).
 
 ## Implementation Plan
 
@@ -214,12 +273,14 @@ Ordered by dependency — earlier tasks are prerequisites of later ones.
     ```
   - Notes: The default `http://localhost:5000` lets local dev work out-of-the-box; production must set a real URL.
 
-- [ ] **Task 3: Create `slugify_filename` helper.**
+- [ ] **Task 3: Create `slugify_filename` and `get_normalized_base_url` helpers.**
   - File: `esb/utils/text.py` (NEW)
-  - Action: Create module with:
+  - Action: Create module with both helpers:
     ```python
     """Text helpers."""
     import re
+    from urllib.parse import urlsplit
+
 
     def slugify_filename(name: str) -> str:
         """Produce a filesystem-safe slug from a human name for use in download filenames.
@@ -230,38 +291,105 @@ Ordered by dependency — earlier tasks are prerequisites of later ones.
         """
         slug = re.sub(r'[^A-Za-z0-9-]+', '-', name or '').strip('-')[:50]
         return slug or 'equipment'
+
+
+    def get_normalized_base_url(raw: str) -> str:
+        """Validate and normalize ESB_BASE_URL for use as a QR code target prefix.
+
+        Strips whitespace, rejects empty/non-http(s) values, and rstrips trailing slashes.
+
+        Raises:
+            ValueError: if the value is empty after stripping, has a non-http(s) scheme,
+                or is missing a host.
+        """
+        stripped = (raw or '').strip()
+        if not stripped:
+            raise ValueError('ESB_BASE_URL is not configured')
+        parts = urlsplit(stripped)
+        if parts.scheme not in ('http', 'https'):
+            raise ValueError('ESB_BASE_URL must be an http(s) URL')
+        if not parts.netloc:
+            raise ValueError('ESB_BASE_URL must include a host')
+        return stripped.rstrip('/')
     ```
-  - Notes: No existing module in `esb/utils/` fits; create a new one. Keep tiny and focused.
 
 - [ ] **Task 4: Create `tests/test_utils/test_text.py`.**
   - File: `tests/test_utils/test_text.py` (NEW)
-  - Action: Write a `TestSlugifyFilename` class with cases: normal alnum name; spaces → hyphens; unicode stripped; multi-run punctuation collapsed; empty string → `'equipment'`; name longer than 50 chars truncated; leading/trailing punctuation stripped; names consisting only of punctuation → `'equipment'`.
+  - Action: Two test classes:
+    - `TestSlugifyFilename`: normal alnum name; spaces → hyphens; unicode stripped; multi-run punctuation collapsed; empty string → `'equipment'`; name longer than 50 chars truncated; leading/trailing punctuation stripped; names consisting only of punctuation → `'equipment'`.
+    - `TestGetNormalizedBaseUrl`: valid `http://host` returns `'http://host'`; valid `https://host:8080/` returns `'https://host:8080'`; trailing-slash stripped; leading/trailing whitespace stripped; empty string raises `ValueError` with "not configured"; `'javascript:alert(1)'` raises with "http(s) URL"; `'ftp://host'` raises with "http(s) URL"; `'http://'` raises with "host"; `'just-text'` raises with "http(s) URL" (no scheme, urlsplit returns `scheme=''`); multiple trailing slashes `'http://host///'` → `'http://host'`.
 
-- [ ] **Task 5: Vendor the DejaVu Sans Bold font.**
-  - File: `esb/static/fonts/DejaVuSans-Bold.ttf` (NEW — binary)
-  - Action: Create directory `esb/static/fonts/`. Copy `DejaVuSans-Bold.ttf` into it (either from `/usr/share/fonts/TTF/DejaVuSans-Bold.ttf` on the dev host or the upstream DejaVu release). The DejaVu/Bitstream Vera license permits redistribution.
+- [ ] **Task 5: Vendor the DejaVu Sans Bold font + its license.**
+  - Files:
+    - `esb/static/fonts/DejaVuSans-Bold.ttf` (NEW — binary)
+    - `esb/static/fonts/LICENSE` (NEW — plain text)
+  - Action: Create directory `esb/static/fonts/`. Copy `DejaVuSans-Bold.ttf` into it (from `/usr/share/fonts/TTF/DejaVuSans-Bold.ttf` on the dev host or the upstream DejaVu release at https://dejavu-fonts.github.io/ ). **Also copy the full DejaVu + Bitstream Vera license text** (the upstream `LICENSE` file from the DejaVu fonts distribution) into `esb/static/fonts/LICENSE`. Both are required for lawful redistribution.
   - Notes: Required because the `python:3.14-slim` container does not ship DejaVu fonts. Deterministic rendering across OS images.
+
+- [ ] **Task 5a: Add `libzbar0` system dependency to the Dockerfile.**
+  - File: `Dockerfile`
+  - Action: Extend the existing `apt-get install -y --no-install-recommends gcc` line to include `libzbar0`:
+    ```dockerfile
+    RUN apt-get update && apt-get install -y --no-install-recommends \
+        gcc \
+        libzbar0 \
+        && rm -rf /var/lib/apt/lists/*
+    ```
+  - Notes: Installs the zbar C library needed by `pyzbar` at runtime. Keeps the image slim (`libzbar0` is ~100 KB).
+
+- [ ] **Task 5b: Add `libzbar0` to the CI test job.**
+  - File: `.github/workflows/ci.yml`
+  - Action: In the `test` job, before the `pip install -r requirements-dev.txt` step, add:
+    ```yaml
+          - run: sudo apt-get update && sudo apt-get install -y libzbar0
+    ```
+  - Notes: The `screenshots-check` and `docker-build` jobs don't need this change (the former doesn't import pyzbar; the latter goes through the Dockerfile).
+
+- [ ] **Task 5c: Add `pyzbar` to `requirements.txt`.**
+  - File: `requirements.txt`
+  - Action: Append `pyzbar>=0.1.9` after the existing `qrcode[pil]>=8.0` line.
+  - Notes: Used for QR decode round-trip in tests. Imported only from `tests/test_services/test_qr_service.py` (production code does not decode QRs).
 
 - [ ] **Task 6: Rewrite `esb/services/qr_service.py`.**
   - File: `esb/services/qr_service.py`
   - Action: Replace the entire file with:
+    - Imports: `io`, `logging`, `os`, `from dataclasses import dataclass`, `qrcode`, `from PIL import Image, ImageDraw, ImageFont`, `from flask import current_app`. Do **not** import from `esb.forms` or `esb.views` (preserves the import graph; enforced by AC/test).
+    - Module logger: `_log = logging.getLogger('esb.qr')`.
     - `@dataclass(frozen=True) class QRSizePreset` with `key, label, width_in, height_in`.
     - `QR_SIZE_PRESETS: tuple[QRSizePreset, ...]` populated with the 8 presets from the Technical Decisions table (in that order).
     - `QR_PRESETS_BY_KEY: dict[str, QRSizePreset] = {p.key: p for p in QR_SIZE_PRESETS}`.
+    - Constants: `_DPI = 300`, `_MIN_FONT_PT = 8`.
+    - Helper `_px(inches: float) -> int: return int(inches * _DPI + 0.5)` and `_pt_to_px(pt: int) -> int: return int(pt * _DPI / 72 + 0.5)`.
     - `render_qr_png(equipment, preset, *, include_name=False, include_url=False, base_url: str) -> bytes`:
-      1. Compute `canvas_w_px = round(preset.width_in * 300)`, `canvas_h_px = round(preset.height_in * 300)`.
-      2. Compute `reserved_top = round(canvas_h_px * 0.15) if include_name else 0` and same for `reserved_bottom` with `include_url`.
-      3. Compute `qr_px = min(canvas_w_px, canvas_h_px - reserved_top - reserved_bottom) - margin` with a small margin (e.g. `round(canvas_w_px * 0.02)`, min 4 px).
-      4. Build the QR: `qr = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_M, border=4); qr.add_data(f'{base_url}/public/equipment/{equipment.id}'); qr.make(fit=True); qr_img = qr.make_image(fill_color='black', back_color='white').convert('RGB').resize((qr_px, qr_px), Image.NEAREST)`.
-      5. Compose on white canvas: `canvas = Image.new('RGB', (canvas_w_px, canvas_h_px), 'white')`.
-      6. Paste QR centered horizontally at `y = reserved_top + ((canvas_h_px - reserved_top - reserved_bottom) - qr_px) // 2`.
-      7. If `include_name` or `include_url`: for each text row, compute max row height = `reserved_top` / `reserved_bottom`; call a private `_fit_text(text, max_width_px=int(qr_px * 1.2), max_height_px, font_path)` helper that binary-searches / steps font size from `max_height_px` down to a minimum of `round(12 * 300 / 72) = 50 px` and returns `(ImageFont, truncated_text)`; render centered horizontally and vertically within the row using `ImageDraw.text()`.
-      8. Save to `BytesIO` as PNG, return `.getvalue()`.
-    - Private helper `_fit_text(text, max_width_px, max_height_px, font_path) -> (ImageFont, str)`:
-      - Start at `size = max_height_px`; while `size >= round(12 * 300 / 72)`: build font; measure via `ImageDraw(...).textbbox((0,0), text, font)`; if `width <= max_width_px`: return `(font, text)`; else `size -= round(max_height_px * 0.05)`.
-      - At min size: truncate with ellipsis `'…'` — loop reducing text length by 1 char until width fits; return `(font, truncated_or_original)`.
+      1. `canvas_w_px = _px(preset.width_in)`, `canvas_h_px = _px(preset.height_in)`.
+      2. `reserved_top = int(canvas_h_px * 0.15) if include_name else 0`; `reserved_bottom = int(canvas_h_px * 0.15) if include_url else 0`.
+      3. `margin = max(4, int(canvas_w_px * 0.02))`.
+      4. `avail = min(canvas_w_px, canvas_h_px - reserved_top - reserved_bottom) - margin`.
+      5. Build the QR: `qr = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_M, border=4); qr.add_data(f'{base_url}/public/equipment/{equipment.id}'); qr.make(fit=True)`. Get `module_count = len(qr.get_matrix())`; `native = module_count + 2 * 4` (border modules on each side included in `make_image`). Compute `module_px = max(1, avail // native)`; `qr_px = module_px * native`.
+      6. If `module_px < 5`: `_log.warning('QR for equipment %s at preset %s has %d px modules (<5); scannability may be marginal', equipment.id, preset.key, module_px)`. Proceed anyway.
+      7. `qr_img = qr.make_image(fill_color='black', back_color='white').convert('RGB').resize((qr_px, qr_px), Image.NEAREST)`.
+      8. Compose on white canvas: `canvas = Image.new('RGB', (canvas_w_px, canvas_h_px), 'white')`.
+      9. Paste QR centered horizontally at `x = (canvas_w_px - qr_px) // 2`, `y = reserved_top + ((canvas_h_px - reserved_top - reserved_bottom) - qr_px) // 2`.
+      10. If `include_name`: `_draw_text_row(canvas, equipment.name, row_top=0, row_height=reserved_top, max_width_px=int(qr_px * 1.2))`.
+      11. If `include_url`: `_draw_text_row(canvas, f'{base_url}/public/equipment/{equipment.id}', row_top=canvas_h_px - reserved_bottom, row_height=reserved_bottom, max_width_px=int(qr_px * 1.2))`.
+      12. Save to `BytesIO` as PNG, return `.getvalue()`.
+    - Private helper `_draw_text_row(canvas, text, *, row_top, row_height, max_width_px)`:
+      - `font_path = os.path.join(current_app.static_folder, 'fonts', 'DejaVuSans-Bold.ttf')`.
+      - `font, rendered = _fit_text(text, max_width_px=max_width_px, max_height_px=row_height, font_path=font_path)`.
+      - If `rendered == ''`: return (nothing to draw).
+      - Measure final `(l, t, r, b) = ImageDraw.Draw(canvas).textbbox((0, 0), rendered, font=font)`; `width = r - l`; `height = b - t`.
+      - Compute center: `x = (canvas.width - width) // 2 - l`; `y = row_top + (row_height - height) // 2 - t`.
+      - `ImageDraw.Draw(canvas).text((x, y), rendered, fill='black', font=font)`.
+    - Private helper `_fit_text(text, *, max_width_px, max_height_px, font_path) -> (ImageFont, str)`:
+      1. `min_px = _pt_to_px(_MIN_FONT_PT)` (= 33 at 300 DPI).
+      2. `size_px = max_height_px`; `step = max(1, int(max_height_px * 0.05))`.
+      3. While `size_px >= min_px`: build `font = ImageFont.truetype(font_path, size_px)`; `(l, _, r, _) = ImageDraw.Draw(Image.new('RGB', (1, 1))).textbbox((0, 0), text, font=font)`; if `r - l <= max_width_px`: return `(font, text)`; else `size_px -= step`.
+      4. Truncation branch — pin `font = ImageFont.truetype(font_path, min_px)` and `draw = ImageDraw.Draw(Image.new('RGB', (1, 1)))`.
+      5. Check ellipsis-alone: `(l, _, r, _) = draw.textbbox((0, 0), '…', font=font)`. If `r - l > max_width_px`: return `(font, '')` (cannot fit anything).
+      6. Truncation loop: while `text`: `candidate = text + '…'`; `(l, _, r, _) = draw.textbbox((0, 0), candidate, font=font)`; if `r - l <= max_width_px`: return `(font, candidate)`; else `text = text[:-1]`.
+      7. Fallback (unreachable given step 5's guard): `return (font, '…')`.
     - **Delete** all prior functions (`generate_qr_code`, `get_qr_code_path`, `generate_all_qr_codes`).
-  - Notes: Use `Image.NEAREST` (critical). Font path = `os.path.join(current_app.static_folder, 'fonts', 'DejaVuSans-Bold.ttf')`. No `log_mutation()`.
+  - Notes: Use `Image.NEAREST` (critical — AC 15). Module-aligned `qr_px` guarantees uniform module pixel width (AC 16). Font path via `current_app.static_folder`. No `log_mutation()` call — QR generation is read-only.
 
 - [ ] **Task 7: Add `QRGenerateForm` to `equipment_forms.py`.**
   - File: `esb/forms/equipment_forms.py`
@@ -283,24 +411,30 @@ Ordered by dependency — earlier tasks are prerequisites of later ones.
     ```
   - Notes: Also add `BooleanField` to the existing `from wtforms import …` import.
 
-- [ ] **Task 8: Add `qr` and `qr_preview` routes to `esb/views/equipment.py`.**
+- [ ] **Task 8: Add `_get_active_equipment_or_404`, `qr`, and `qr_preview` to `esb/views/equipment.py`.**
   - File: `esb/views/equipment.py`
-  - Action: Add two routes:
+  - Action: Add one private helper and two routes:
     ```python
-    @equipment_bp.route('/<int:id>/qr', methods=['GET', 'POST'])
-    @login_required
-    def qr(id):
-        """QR code generation page. Read-only — no mutation logging."""
+    def _get_active_equipment_or_404(id):
+        """Return a non-archived equipment or raise 404."""
         try:
             eq = equipment_service.get_equipment(id)
         except ValidationError:
             abort(404)
         if eq.is_archived:
             abort(404)
+        return eq
 
-        base_url = (current_app.config.get('ESB_BASE_URL') or '').rstrip('/')
-        if not base_url:
-            flash('ESB_BASE_URL is not configured — contact your administrator.', 'danger')
+
+    @equipment_bp.route('/<int:id>/qr', methods=['GET', 'POST'])
+    @login_required
+    def qr(id):
+        """QR code generation page. Read-only — no mutation logging."""
+        eq = _get_active_equipment_or_404(id)
+        try:
+            base_url = get_normalized_base_url(current_app.config.get('ESB_BASE_URL', ''))
+        except ValueError as exc:
+            flash(str(exc), 'danger')
             return redirect(url_for('equipment.detail', id=id))
 
         form = QRGenerateForm()
@@ -325,16 +459,11 @@ Ordered by dependency — earlier tasks are prerequisites of later ones.
     @equipment_bp.route('/<int:id>/qr/preview')
     @login_required
     def qr_preview(id):
-        """Inline PNG preview for the QR form. Query params: size, include_name, include_url."""
+        """Inline PNG preview. Query params: size, include_name, include_url."""
+        eq = _get_active_equipment_or_404(id)
         try:
-            eq = equipment_service.get_equipment(id)
-        except ValidationError:
-            abort(404)
-        if eq.is_archived:
-            abort(404)
-
-        base_url = (current_app.config.get('ESB_BASE_URL') or '').rstrip('/')
-        if not base_url:
+            base_url = get_normalized_base_url(current_app.config.get('ESB_BASE_URL', ''))
+        except ValueError:
             abort(404)
 
         size_key = request.args.get('size', 'sticker_2')
@@ -350,9 +479,11 @@ Ordered by dependency — earlier tasks are prerequisites of later ones.
             include_url=include_url,
             base_url=base_url,
         )
-        return send_file(io.BytesIO(png_bytes), mimetype='image/png')
+        response = send_file(io.BytesIO(png_bytes), mimetype='image/png')
+        response.headers['Cache-Control'] = 'public, max-age=300'
+        return response
     ```
-  - Notes: Add required imports at top of file: `import io`, `from flask import send_file`, `from esb.forms.equipment_forms import QRGenerateForm`, `from esb.services import qr_service`, `from esb.utils.text import slugify_filename`. The `request` import already exists.
+  - Notes: Add required imports at top of file: `import io`, `from flask import send_file`, `from esb.forms.equipment_forms import QRGenerateForm`, `from esb.services import qr_service`, `from esb.utils.text import get_normalized_base_url, slugify_filename`. The `request` import already exists.
 
 - [ ] **Task 9: Create `esb/templates/equipment/qr.html`.**
   - File: `esb/templates/equipment/qr.html` (NEW)
@@ -368,13 +499,13 @@ Ordered by dependency — earlier tasks are prerequisites of later ones.
   - File: `esb/templates/equipment/detail.html`
   - Action: Inside the `<div class="d-flex gap-2">` block (within `{% if not equipment.is_archived %}`), insert *before* the "Report Issue" / "Edit" buttons:
     ```jinja2
-    {% if config['ESB_BASE_URL'] %}
+    {% if config['ESB_BASE_URL']|trim %}
     <a href="{{ url_for('equipment.qr', id=equipment.id) }}" class="btn btn-outline-secondary btn-sm">Generate QR Code</a>
     {% else %}
     <button type="button" class="btn btn-outline-secondary btn-sm" disabled title="ESB_BASE_URL not configured">Generate QR Code</button>
     {% endif %}
     ```
-  - Notes: Control visible to any logged-in user (no role gate), hidden when equipment is archived (enclosing `if`), shown disabled if config empty.
+  - Notes: Control visible to any logged-in user (no role gate), hidden when equipment is archived (enclosing `if`), shown disabled if config empty-or-whitespace. Full scheme validation happens at the route level — a misconfigured non-empty value yields a normal-looking link that, when clicked, flashes the specific `get_normalized_base_url` error.
 
 - [ ] **Task 11: Append live-preview JS to `esb/static/js/app.js`.**
   - File: `esb/static/js/app.js`
@@ -401,42 +532,64 @@ Ordered by dependency — earlier tasks are prerequisites of later ones.
 
 - [ ] **Task 12: Remove the old on-disk cache directory and its gitignore entry.**
   - Files: `esb/static/qrcodes/` (DELETE directory and all contents), `.gitignore` (remove line `esb/static/qrcodes/*.png`).
-  - Notes: Use `git rm -r esb/static/qrcodes/`. Edit `.gitignore` with Edit tool.
+  - Action: Before deleting, run `grep -rn 'esb/static/qrcodes\|qrcodes/' esb/ tests/ scripts/ docs/ .github/` to confirm no remaining references. Then `git rm -r esb/static/qrcodes/`. Edit `.gitignore` with the Edit tool to remove the line.
+  - Notes: Only stray PNGs and (possibly) a `.gitkeep` live in this directory; the grep confirms no code references it.
 
 - [ ] **Task 13: Replace service tests.**
   - File: `tests/test_services/test_qr_service.py`
   - Action: Replace contents with a test module covering:
     - `TestQRSizePresets`: `QR_SIZE_PRESETS` has 8 entries; `QR_PRESETS_BY_KEY[k].key == k` for all; all keys unique; all dimensions positive.
     - `TestRenderQRPng::test_returns_png_bytes`: result is bytes, `Image.open(BytesIO(result)).format == 'PNG'`.
-    - `TestRenderQRPng::test_dimensions_match_preset_at_300_dpi`: parametrized over a couple presets (e.g. `sticker_2`, `avery_5160`, `letter`) — `Image.open(...).size == (round(w_in*300), round(h_in*300))`.
-    - `TestRenderQRPng::test_payload_contains_expected_url`: render with a known equipment + base_url; decode the QR by re-building a matrix with `qrcode.QRCode().add_data(expected_url).make(); compare to the matrix extracted from the rendered PNG via Pillow pixel sampling at the known module grid.
-    - `TestRenderQRPng::test_trailing_slash_handled`: when `base_url` has trailing slash stripped upstream (parametrized `'http://x:5000'` vs `'http://x:5000/'` after rstrip) — the payload is identical; i.e. the service relies on normalized input.
-    - `TestRenderQRPng::test_name_disabled_default`: default render vs `include_name=True` differ in pixel output (there is text drawn).
-    - `TestRenderQRPng::test_url_toggle`: include_url=True produces different output than include_url=False.
-    - `TestRenderQRPng::test_text_width_cap_shrinks_font`: a very long equipment name is rendered at a font smaller than a max-size baseline (compare actual measured text width to `qr_px * 1.2`).
-    - `TestRenderQRPng::test_text_truncated_at_min_font`: an equipment name that cannot fit at 12 pt is truncated with `…`. Verify by… (impl detail — could expose `_fit_text` for unit testing with `# noqa`-acceptable private-import, or test via a sentinel like asserting the rendered image's pixel count where text occurs is below some threshold).
-    - `TestRenderQRPng::test_qr_uses_nearest_resize`: scan the rendered QR region for only black and white pixels (NEAREST produces no grayscale intermediate values; LANCZOS would). Assert no pixel has R,G,B all in (1..254).
-  - Notes: Delete all prior tests (those reference removed functions).
+    - `TestRenderQRPng::test_dimensions_match_preset_at_300_dpi` (parametrized over all 8 presets): `Image.open(...).size == (int(p.width_in*300+0.5), int(p.height_in*300+0.5))`.
+    - `TestRenderQRPng::test_payload_decodes_to_expected_url`: render with `base_url='http://esb.test:5000'` and equipment id 42; `import from pyzbar.pyzbar import decode`; `decoded = decode(Image.open(BytesIO(result)))`; assert `decoded[0].data.decode('utf-8') == 'http://esb.test:5000/public/equipment/42'`.
+    - `TestRenderQRPng::test_name_text_renders` (`include_name=True` on a preset that can fit): decode still succeeds (proves text doesn't overlap QR); Pillow pixel scan of the top 15% row contains non-white pixels (proves text was drawn).
+    - `TestRenderQRPng::test_name_omitted_by_default`: with `include_name=False`, the top 15% row contains ONLY white pixels.
+    - `TestRenderQRPng::test_url_text_toggle`: same pattern, applied to bottom 15% row.
+    - `TestRenderQRPng::test_text_width_cap`: long name ("X" * 100), include_name=True, preset=sticker_3 — measure the actual text bounding-box width using a Pillow `ImageDraw.textbbox` scan OR introspect the drawn-text region and assert `measured_width <= int(qr_px * 1.2)`.
+    - `TestRenderQRPng::test_text_truncated_with_ellipsis`: with a name whose length forces truncation at the 8-pt minimum, the rendered text ends with `…` (verify by rendering the candidate at min font ourselves with the vendored TTF and comparing against the rendered region, OR by exposing `_fit_text` as a tested private — preferred: import `_fit_text` directly and test it in a dedicated class).
+    - `TestFitText::test_fits_as_is_when_short`: short text returns original font (max size) and unchanged text.
+    - `TestFitText::test_shrinks_when_long_but_fits_at_min`: medium-long text returns a smaller font and unchanged text.
+    - `TestFitText::test_truncates_with_ellipsis_when_too_long_at_min`: long text returns min-size font and text ending with `…`.
+    - `TestFitText::test_returns_empty_when_ellipsis_alone_too_long`: simulate a tiny `max_width_px` (smaller than ellipsis glyph at 8pt) — returns `(font, '')`.
+    - `TestRenderQRPng::test_qr_uses_nearest_resize`: scan the QR region for each pixel; assert every pixel is pure black `(0,0,0)` or pure white `(255,255,255)` — NEAREST preserves this on a 1-bit source; LANCZOS would introduce grays.
+    - `TestRenderQRPng::test_modules_have_uniform_pixel_width` (module-alignment): on a mid-size preset, scan horizontally across the top row of the QR region, count run-length of each color, assert every run length is identical (within the module region excluding any centering offset).
+    - `TestRenderQRPng::test_marginal_module_size_logs_warning`: use a preset+long URL combo that produces module_px < 5; with caplog, assert `logging.getLogger('esb.qr')` emits a warning containing "scannability may be marginal".
+    - `TestNoFormImport::test_qr_service_does_not_import_forms`: `import esb.services.qr_service` then `assert 'esb.forms' not in sys.modules` (OR: introspect `inspect.getsource(qr_service)` and assert no `from esb.forms` / `import esb.forms` lines). Guards against circular-import regressions.
+  - Notes: Delete all prior tests (those reference removed functions). Module top: `from pyzbar.pyzbar import decode`; CI has `libzbar0` installed per Task 5b.
 
-- [ ] **Task 14: Append view tests to `tests/test_views/test_equipment_views.py`.**
-  - File: `tests/test_views/test_equipment_views.py`
-  - Action: Add `class TestEquipmentQR:` with tests:
-    - `test_get_qr_form_staff`: `staff_client.get('/equipment/<id>/qr')` → 200, has size select, name checkbox, url checkbox, preview img.
-    - `test_get_qr_form_tech`: same via `tech_client` → 200 (proves any-role access).
-    - `test_get_qr_form_unauthenticated`: `client.get(...)` → 302 to login.
-    - `test_get_qr_form_not_found`: missing id → 404.
-    - `test_get_qr_form_archived_returns_404`: archived equipment → 404.
-    - `test_get_qr_form_empty_base_url_redirects`: with `app.config['ESB_BASE_URL']=''`, GET → 302 to equipment.detail with flash.
-    - `test_post_qr_download_returns_png_attachment`: POST with valid form → 200, content-type `image/png`, Content-Disposition attachment with filename `qr-<id>-<slug>.png`.
-    - `test_post_qr_download_unknown_size_rejected`: POST with invalid size key → 200 with re-rendered form (WTForms SelectField rejects).
-    - `test_get_qr_preview_png_inline`: `staff_client.get('/equipment/<id>/qr/preview?size=sticker_2')` → 200, content-type `image/png`, no attachment disposition.
-    - `test_get_qr_preview_invalid_size_400`: bad size key → 400.
-    - `test_get_qr_preview_empty_base_url_404`: config empty → 404.
-    - `test_get_qr_preview_archived_404`: archived equipment → 404.
-    - `test_detail_page_shows_generate_qr_button_when_configured`: sets `ESB_BASE_URL`, checks HTML contains link to `/qr`.
-    - `test_detail_page_shows_disabled_generate_qr_button_when_unconfigured`: empty `ESB_BASE_URL`, checks HTML contains `disabled` button with `ESB_BASE_URL not configured` title.
-    - `test_detail_page_hides_qr_button_when_archived`: archived equipment — no QR control rendered at all.
-  - Notes: Use `monkeypatch` or direct `app.config['ESB_BASE_URL'] = 'http://test.example:5000'` on the `app` fixture. Default testing config has `ESB_BASE_URL=''` — set explicitly per test.
+- [ ] **Task 14: Add `configured_base_url` fixture; append view tests to `tests/test_views/test_equipment_views.py`.**
+  - Files:
+    - `tests/conftest.py` — add fixture:
+      ```python
+      @pytest.fixture
+      def configured_base_url(app):
+          """Set ESB_BASE_URL for tests that need the QR feature enabled.
+
+          Yields the configured value so tests can assert against it.
+          """
+          original = app.config.get('ESB_BASE_URL', '')
+          app.config['ESB_BASE_URL'] = 'http://esb.test:5000'
+          yield app.config['ESB_BASE_URL']
+          app.config['ESB_BASE_URL'] = original
+      ```
+    - `tests/test_views/test_equipment_views.py` — add `class TestEquipmentQR:` with tests (all that exercise the QR feature pull in `configured_base_url`):
+      - `test_get_qr_form_staff(staff_client, make_equipment, configured_base_url)` → 200, response contains size `<select>`, name/url checkboxes, preview `<img id="qr-preview">`.
+      - `test_get_qr_form_tech(tech_client, make_equipment, configured_base_url)` → 200 (proves both real roles work).
+      - `test_get_qr_form_unauthenticated(client, make_equipment, configured_base_url)` → 302 to login.
+      - `test_get_qr_form_not_found(staff_client, configured_base_url)` → 404.
+      - `test_get_qr_form_archived_returns_404(staff_client, make_equipment, configured_base_url)`: archive via `eq.is_archived=True; db.session.commit()` → 404.
+      - `test_get_qr_form_empty_base_url_redirects(staff_client, make_equipment, app)`: explicitly do NOT use `configured_base_url`; set `app.config['ESB_BASE_URL']=''`; GET → 302 to `/equipment/<id>`; follow redirect and assert the flash text "ESB_BASE_URL is not configured" appears.
+      - `test_get_qr_form_invalid_scheme_redirects(staff_client, make_equipment, app)`: `app.config['ESB_BASE_URL']='javascript:alert(1)'`; GET → 302 with flash containing "http(s) URL".
+      - `test_post_qr_download_returns_png_attachment(staff_client, make_equipment, configured_base_url)`: POST size=sticker_2 → 200, `content-type` starts with `image/png`, `Content-Disposition` contains `attachment` AND substring `filename="qr-<id>-Slug.png"` (match the literal slugified name).
+      - `test_post_qr_download_unknown_size_rejected(staff_client, make_equipment, configured_base_url)`: POST size=nonsense → 200 with re-rendered form (WTForms SelectField validates against choices).
+      - `test_get_qr_preview_png_inline(staff_client, make_equipment, configured_base_url)`: GET `.../qr/preview?size=sticker_2` → 200, `content-type` starts with `image/png`, no `Content-Disposition: attachment` header, `Cache-Control` header contains `max-age=300`.
+      - `test_get_qr_preview_invalid_size_400(staff_client, make_equipment, configured_base_url)`: bad size → 400.
+      - `test_get_qr_preview_empty_base_url_404(staff_client, make_equipment, app)`: config empty → 404.
+      - `test_get_qr_preview_archived_404(staff_client, make_equipment, configured_base_url)`: archived → 404.
+      - `test_detail_page_shows_generate_qr_button_when_configured(staff_client, make_equipment, configured_base_url)`: response contains `href="/equipment/<id>/qr"`.
+      - `test_detail_page_shows_disabled_generate_qr_button_when_unconfigured(staff_client, make_equipment, app)`: `app.config['ESB_BASE_URL']=''`; response contains `disabled` and `ESB_BASE_URL not configured`.
+      - `test_detail_page_hides_qr_button_when_archived(staff_client, make_equipment, configured_base_url)`: archived equipment → neither the link nor the disabled button is rendered.
+  - Notes: The `configured_base_url` fixture works because `app.config` is mutable during the test's app context. Teardown restores the original value so tests don't bleed state. Tests that intentionally check empty/invalid config explicitly set it themselves and do NOT pull in `configured_base_url`.
 
 - [ ] **Task 15: Document `ESB_BASE_URL` in `docs/administrators.md`.**
   - File: `docs/administrators.md`
@@ -455,6 +608,7 @@ Ordered by dependency — earlier tasks are prerequisites of later ones.
     - What to do if the button is disabled (contact administrator to set `ESB_BASE_URL`).
     - Brief note about print resolution (300 DPI across all sizes).
     - Embed the new screenshot with `![QR Code Generation](images/qr-generation.png)`.
+    - Cross-reference: "When someone scans a printed QR label, they see the public equipment status page — see `![Scanned equipment page (mobile)](images/qr-equipment-page-mobile.png)` for the member-side view."
 
 - [ ] **Task 17: Capture the screenshot `docs/images/qr-generation.png`.**
   - File: `docs/images/qr-generation.png` (NEW)
@@ -467,65 +621,89 @@ Ordered by dependency — earlier tasks are prerequisites of later ones.
 
 - [ ] **Task 19: Commit and push in focused commits; open PR.**
   - Files: N/A
-  - Action: Follow project commit conventions: prefix all commit subjects with `Issue #14: …`. Suggested split (single-commit-per-concern, final PR ties together):
-    1. `Issue #14: add ESB_BASE_URL config and .env.example entry`
-    2. `Issue #14: rewrite qr_service with size presets and in-memory renderer`
-    3. `Issue #14: add QR generation UI to equipment admin page`
-    4. `Issue #14: document ESB_BASE_URL and QR generation in admin/staff guides`
-    5. `Issue #14: remove on-disk QR cache directory and gitignore entry`
-  - PR description: explicitly call out the new `ESB_BASE_URL` environment variable, its required nature, behavior when unset, and the administrators-guide reference (per the issue's own instructions).
+  - Action: Follow project commit conventions: prefix all commit subjects with `Issue #14: …`. Suggested split:
+    1. `Issue #14: add ESB_BASE_URL config, .env.example entry, and normalization helper`
+    2. `Issue #14: add pyzbar test dep and libzbar0 to Dockerfile + CI`
+    3. `Issue #14: vendor DejaVuSans-Bold.ttf with license`
+    4. `Issue #14: rewrite qr_service with size presets and in-memory renderer`
+    5. `Issue #14: add QR generation UI to equipment admin page`
+    6. `Issue #14: document ESB_BASE_URL and QR generation in admin/staff guides`
+    7. `Issue #14: remove on-disk QR cache directory and gitignore entry`
+  - PR description: explicitly call out the new `ESB_BASE_URL` environment variable, its required nature, behavior when unset, and the administrators-guide reference (per the issue's own instructions). Also note the new `pyzbar` Python dep + `libzbar0` system dep required by the test job.
 
 ### Acceptance Criteria
 
 - [ ] **AC 1 — Config loaded.** Given `ESB_BASE_URL=http://esb.example.com:8080` is set in the process environment, when the Flask app starts, then `app.config['ESB_BASE_URL']` equals `'http://esb.example.com:8080'`.
-- [ ] **AC 2 — Normalization.** Given `ESB_BASE_URL=http://esb.example.com:8080/` (with trailing slash), when a QR is generated, then the encoded URL is exactly `http://esb.example.com:8080/public/equipment/<id>` (no double slash).
-- [ ] **AC 3 — Empty-config UI (disabled button).** Given `ESB_BASE_URL=''`, when a logged-in user views `/equipment/<id>`, then the "Generate QR Code" control is rendered as a disabled `<button>` with tooltip "ESB_BASE_URL not configured".
-- [ ] **AC 4 — Empty-config view redirect.** Given `ESB_BASE_URL=''`, when a logged-in user GETs `/equipment/<id>/qr`, then the response is a 302 to `/equipment/<id>` with a flash message "ESB_BASE_URL is not configured — contact your administrator.".
-- [ ] **AC 5 — Any-role access (staff).** Given a staff user is logged in, when they GET `/equipment/<id>/qr`, then the response is 200 and contains a size `<select>`, an "Include equipment name" checkbox, an "Include URL" checkbox, and an `<img id="qr-preview">`.
-- [ ] **AC 6 — Any-role access (technician).** Given a technician user is logged in, when they GET `/equipment/<id>/qr`, then the response is 200 (proving no role gate).
-- [ ] **AC 7 — Anonymous denied.** Given no user is logged in, when a client GETs `/equipment/<id>/qr` or `/equipment/<id>/qr/preview`, then the response is a 302 to `/auth/login`.
-- [ ] **AC 8 — Missing / archived equipment.** Given an equipment id that does not exist OR is archived, when a logged-in user GETs `/equipment/<id>/qr` or `/equipment/<id>/qr/preview`, then the response is 404.
-- [ ] **AC 9 — Preset-size image output.** Given a configured `ESB_BASE_URL` and an existing equipment item, when a user POSTs `/equipment/<id>/qr` with `size=avery_5160`, then the response is a PNG attachment whose `Image.open(...).size == (round(2.625*300), round(1.0*300)) == (788, 300)`.
-- [ ] **AC 10 — All presets produce correct dimensions.** For every preset `p` in `QR_SIZE_PRESETS`, when `render_qr_png(eq, p, base_url='http://x:5000')` is called, then the resulting `Image.size == (round(p.width_in*300), round(p.height_in*300))`.
-- [ ] **AC 11 — QR payload correctness.** Given `ESB_BASE_URL='http://esb.example.com:8080'` and equipment id `42`, when a QR is generated, then decoding the QR matrix from the rendered PNG yields exactly `http://esb.example.com:8080/public/equipment/42`.
-- [ ] **AC 12 — QR resize preserves hard edges.** Given a rendered QR PNG, when scanning all pixels in the QR region, then every pixel is either fully black `(0,0,0)` or fully white `(255,255,255)` — no anti-aliasing intermediates (confirms `Image.NEAREST`).
-- [ ] **AC 13 — Text omitted by default.** Given `include_name=False` and `include_url=False`, when a QR is generated, then the top 15% and bottom 15% rows of the canvas contain only white pixels (no text).
-- [ ] **AC 14 — Text included on demand.** Given `include_name=True`, when a QR is generated for equipment "Table Saw", then the top 15% of the canvas contains non-white pixels forming rasterized text.
-- [ ] **AC 15 — Text width cap (≤ 120% of QR width).** Given an equipment name long enough that at maximum font size the text would exceed 120% of the QR pixel width, when `render_qr_png(..., include_name=True)` is called, then the rendered text's bounding-box width is ≤ 120% of the QR pixel width.
-- [ ] **AC 16 — Minimum font floor + ellipsis truncation.** Given an equipment name whose text width at the 12-pt minimum font still exceeds 120% of QR width, when a QR is generated with `include_name=True`, then the rendered text ends with `…` and its bounding-box width is ≤ 120% of QR width.
-- [ ] **AC 17 — Preview endpoint returns inline PNG.** Given a logged-in user, when they GET `/equipment/<id>/qr/preview?size=sticker_2&include_name=1&include_url=1`, then the response is 200 with `Content-Type: image/png` and no `Content-Disposition: attachment` header.
-- [ ] **AC 18 — Preview endpoint validates size key.** Given a logged-in user, when they GET `/equipment/<id>/qr/preview?size=nonsense`, then the response is 400.
-- [ ] **AC 19 — Download attachment naming.** Given equipment id `42` with name "Table Saw #1!", when a user submits the QR form, then the response's `Content-Disposition` filename is `qr-42-Table-Saw-1.png` (matches `slugify_filename`).
-- [ ] **AC 20 — slugify_filename fallback.** Given an equipment name consisting only of punctuation (e.g. `"!!!"`), when `slugify_filename` is called, then the result is `'equipment'`.
-- [ ] **AC 21 — Detail-page link (configured).** Given `ESB_BASE_URL` set and a non-archived equipment item, when a logged-in user views `/equipment/<id>`, then the page contains an `<a>` with `href="/equipment/<id>/qr"` and text "Generate QR Code".
-- [ ] **AC 22 — Detail-page control hidden for archived.** Given an archived equipment item, when a logged-in user views `/equipment/<id>`, then no "Generate QR Code" control is rendered (disabled button or link).
-- [ ] **AC 23 — Old service functions removed.** After implementation, grepping the codebase for `generate_qr_code`, `get_qr_code_path`, or `generate_all_qr_codes` yields only references in `_bmad-output/` (historical artifacts), not in `esb/` or `tests/`.
-- [ ] **AC 24 — On-disk cache directory removed.** After implementation, `esb/static/qrcodes/` does not exist and `.gitignore` no longer contains the `esb/static/qrcodes/*.png` line.
-- [ ] **AC 25 — Font vendored.** After implementation, `esb/static/fonts/DejaVuSans-Bold.ttf` exists in the repo, and `qr_service` loads it via `current_app.static_folder` (not an OS path).
-- [ ] **AC 26 — Docs complete.** `docs/administrators.md` contains a row for `ESB_BASE_URL` in the "Environment Variable Reference" table; `docs/staff.md` contains a `## QR Code Labels` section referencing `images/qr-generation.png`; the screenshot file exists.
-- [ ] **AC 27 — Lint + tests pass.** `make lint` exits 0; `make test` exits 0 with all new tests passing and zero regressions.
+- [ ] **AC 2 — Normalization (trailing slash and whitespace).** Given `ESB_BASE_URL='  http://esb.example.com:8080///  '`, when `get_normalized_base_url(...)` is called, then the result is `'http://esb.example.com:8080'` (whitespace and all trailing slashes removed).
+- [ ] **AC 3 — Empty-config UI (disabled button).** Given `app.config['ESB_BASE_URL']=''`, when a logged-in user views `/equipment/<id>`, then the "Generate QR Code" control is rendered as a disabled `<button>` with tooltip "ESB_BASE_URL not configured".
+- [ ] **AC 4 — Empty-config view redirect with flash.** Given `app.config['ESB_BASE_URL']=''`, when a logged-in user GETs `/equipment/<id>/qr`, then the response is a 302 to `/equipment/<id>` and following it renders a flash with category `danger` containing "ESB_BASE_URL is not configured".
+- [ ] **AC 5 — Invalid-scheme config redirect with flash.** Given `app.config['ESB_BASE_URL']='javascript:alert(1)'`, when a logged-in user GETs `/equipment/<id>/qr`, then the response is 302 to `/equipment/<id>` with a `danger` flash containing "http(s) URL".
+- [ ] **AC 6 — `get_normalized_base_url` rejects non-HTTP(S) schemes.** When called with `'ftp://host'`, `'file:///tmp/x'`, `'javascript:alert(1)'`, or `'data:text/plain,x'`, then each raises `ValueError` with a message containing "http(s) URL".
+- [ ] **AC 7 — `get_normalized_base_url` rejects missing host.** When called with `'http://'` or `'http:///path'`, then raises `ValueError` with a message containing "host".
+- [ ] **AC 8 — Staff access.** Given a staff user is logged in, when they GET `/equipment/<id>/qr`, then the response is 200 and contains a size `<select>`, an "Include equipment name" checkbox, an "Include URL" checkbox, and an `<img id="qr-preview">`.
+- [ ] **AC 9 — Technician access.** Given a technician user is logged in, when they GET `/equipment/<id>/qr`, then the response is 200 (proves no role gate; covers both currently-defined real roles).
+- [ ] **AC 10 — Anonymous denied.** Given no user is logged in, when a client GETs `/equipment/<id>/qr` or `/equipment/<id>/qr/preview`, then the response is a 302 to `/auth/login`.
+- [ ] **AC 11 — Missing / archived equipment on both routes.** Given an equipment id that does not exist OR is archived, when a logged-in user GETs `/equipment/<id>/qr` or `/equipment/<id>/qr/preview`, then the response is 404.
+- [ ] **AC 12 — Preset-size image output (named preset).** Given a configured `ESB_BASE_URL` and an existing equipment item, when a user POSTs `/equipment/<id>/qr` with `size=avery_5160`, then the response is a PNG attachment whose `Image.open(...).size == (int(2.625*300+0.5), int(1.0*300+0.5)) == (788, 300)`.
+- [ ] **AC 13 — All presets produce correct dimensions.** For every preset `p` in `QR_SIZE_PRESETS`, when `render_qr_png(eq, p, base_url='http://x:5000')` is called, then the resulting `Image.size == (int(p.width_in*300+0.5), int(p.height_in*300+0.5))`.
+- [ ] **AC 14 — QR payload correctness via pyzbar decode.** Given `ESB_BASE_URL='http://esb.test:5000'` and equipment id 42, when a QR is generated, then `pyzbar.pyzbar.decode(Image.open(BytesIO(result)))[0].data.decode('utf-8') == 'http://esb.test:5000/public/equipment/42'`.
+- [ ] **AC 15 — QR resize preserves hard edges (NEAREST).** Given a rendered QR region, when scanning all pixels in that region, then every pixel RGB is either `(0,0,0)` or `(255,255,255)` — no anti-aliasing intermediates.
+- [ ] **AC 16 — Module-aligned pixel widths.** Given a rendered QR region, when scanning a horizontal line through it, then every run-length of same-color pixels (excluding centering offsets outside the QR square) is equal — all modules render at the same pixel width.
+- [ ] **AC 17 — Marginal-module warning.** Given a preset + URL combination that produces `module_px < 5`, when `render_qr_png` is called, then a warning is emitted on `logging.getLogger('esb.qr')` containing "scannability may be marginal".
+- [ ] **AC 18 — Text omitted by default.** Given `include_name=False` and `include_url=False`, when a QR is generated, then the top 15% and bottom 15% rows of the canvas contain only white pixels.
+- [ ] **AC 19 — Text included on demand.** Given `include_name=True` with a short name and `sticker_4` preset, when a QR is generated, then the top 15% row contains non-white pixels AND `pyzbar.decode(...)` still returns the expected URL (text doesn't overlap QR region).
+- [ ] **AC 20 — Text width cap ≤ 120% of QR width.** Given an extremely long equipment name, when `render_qr_png(..., include_name=True)` is called, then the rendered text's bounding-box width computed as `right - left` from `ImageDraw.textbbox` ≤ `int(qr_px * 1.2)`.
+- [ ] **AC 21 — Minimum-font (8 pt) floor + ellipsis truncation.** Given a name whose width at 8 pt minimum still exceeds `int(qr_px * 1.2)`, when `_fit_text` is called, then the returned text ends with `'…'` and its width ≤ `int(qr_px * 1.2)`.
+- [ ] **AC 22 — Ellipsis-alone too-long returns empty string.** Given a hypothetical `max_width_px` smaller than the ellipsis glyph width at 8 pt, when `_fit_text` is called, then it returns `(font, '')` (cannot fit anything, draw nothing).
+- [ ] **AC 23 — Preview endpoint returns inline PNG with Cache-Control.** Given a logged-in user, when they GET `/equipment/<id>/qr/preview?size=sticker_2&include_name=1&include_url=1`, then the response is 200 with `Content-Type: image/png`, no `Content-Disposition: attachment` header, and `Cache-Control` header containing `max-age=300`.
+- [ ] **AC 24 — Preview endpoint validates size key.** Given a logged-in user, when they GET `/equipment/<id>/qr/preview?size=nonsense`, then the response is 400.
+- [ ] **AC 25 — Download attachment naming (Content-Disposition substring).** Given equipment id `42` with name `"Table Saw #1!"`, when a user submits the QR form, then the response's `Content-Disposition` header contains the substring `filename="qr-42-Table-Saw-1.png"` (exact substring match; the RFC 6266 `filename*=` field is accepted if also present).
+- [ ] **AC 26 — `slugify_filename` fallback.** Given an equipment name consisting only of punctuation (e.g. `"!!!"`), when `slugify_filename` is called, then the result is `'equipment'`.
+- [ ] **AC 27 — Detail-page link (configured, non-archived).** Given `config['ESB_BASE_URL']` non-empty (after strip) and a non-archived equipment item, when a logged-in user views `/equipment/<id>`, then the page contains an `<a>` with `href="/equipment/<id>/qr"` and text "Generate QR Code".
+- [ ] **AC 28 — Detail-page control hidden for archived.** Given an archived equipment item, when a logged-in user views `/equipment/<id>`, then neither the link nor the disabled button is rendered.
+- [ ] **AC 29 — Old service functions removed.** After implementation, `grep -rn 'generate_qr_code\|get_qr_code_path\|generate_all_qr_codes' esb/ tests/ scripts/ docs/ .github/` returns only references in `_bmad-output/` (historical artifacts), not in `esb/` or `tests/`.
+- [ ] **AC 30 — On-disk cache directory removed.** After implementation, `esb/static/qrcodes/` does not exist and `.gitignore` no longer contains the `esb/static/qrcodes/*.png` line.
+- [ ] **AC 31 — Font + license vendored.** After implementation, both `esb/static/fonts/DejaVuSans-Bold.ttf` AND `esb/static/fonts/LICENSE` exist in the repo, and `qr_service` loads the font via `current_app.static_folder` (not an OS path).
+- [ ] **AC 32 — `qr_service` has no imports from `esb.forms`.** After implementation, `inspect.getsource(esb.services.qr_service)` contains neither `from esb.forms` nor `import esb.forms` (preserves the intended import graph).
+- [ ] **AC 33 — libzbar0 dependency added.** After implementation, `Dockerfile` apt-get install line includes `libzbar0`, and `.github/workflows/ci.yml` test job has a `sudo apt-get install -y libzbar0` step before `pip install`, and `requirements.txt` contains a `pyzbar` entry.
+- [ ] **AC 34 — Docs complete + cross-referenced.** `docs/administrators.md` contains a row for `ESB_BASE_URL` in the "Environment Variable Reference" table; `docs/staff.md` contains a `## QR Code Labels` section referencing `images/qr-generation.png` AND cross-referencing `images/qr-equipment-page-mobile.png` (what members see when scanning); the screenshot file `docs/images/qr-generation.png` exists.
+- [ ] **AC 35 — Lint + tests pass.** `make lint` exits 0; `make test` exits 0 with all new tests passing and zero regressions.
 
 ## Additional Context
 
 ### Dependencies
 
-- **External libraries:** `qrcode[pil]>=8.0` (already in `requirements.txt` — no new dependency). Pillow (`PIL`) is pulled in transitively.
+- **External libraries:**
+  - `qrcode[pil]>=8.0` — already in `requirements.txt`. Pillow pulled transitively.
+  - `pyzbar>=0.1.9` — **NEW**. Used only in tests for QR decode round-trip. Pure-Python wrapper that ctypes-loads the system `libzbar` library.
+- **System libraries:**
+  - `libzbar0` — **NEW**. Required by `pyzbar`. Added to `Dockerfile` (for runtime images, since tests run against the built image in CI via `docker-build`) and to `.github/workflows/ci.yml` `test` job (for the bare-ubuntu pytest run).
 - **No new DB migrations.** No new models, no schema changes.
 - **No new external services.** All generation is in-process.
-- **Font license:** Vendoring `DejaVuSans-Bold.ttf` requires redistributing the Bitstream Vera / DejaVu font under its permissive license. Add a brief LICENSE note in `esb/static/fonts/` (a `LICENSE` or `NOTICE` text file alongside the TTF) if the project doesn't already track per-asset licenses.
+- **Font license:** Vendoring `DejaVuSans-Bold.ttf` is lawful under the DejaVu + Bitstream Vera licenses, BUT those licenses require that the full license text accompany redistributed copies. `esb/static/fonts/LICENSE` is committed alongside the TTF to satisfy this obligation.
 
 ### Testing Strategy
 
-- **Unit tests (service):** `tests/test_services/test_qr_service.py` — presets, dimensions, QR payload correctness (matrix round-trip), text toggles, font auto-fit, NEAREST-preserves-edges. Tests use `tmp_path` or the in-memory `app` fixture; no on-disk state is needed because the service returns bytes.
-- **Unit tests (util):** `tests/test_utils/test_text.py` — `slugify_filename` edge cases.
-- **View / integration tests:** `tests/test_views/test_equipment_views.py::TestEquipmentQR` — form render, download response, preview response, auth, permission-by-role, empty-config behavior, archived behavior, detail-page button rendering in both states.
-- **Manual testing:** Start dev server, set `ESB_BASE_URL`, visit `/equipment/<id>/qr`, verify live preview updates as options change, download at each size, print a Letter-size page, scan with a phone. Repeat with `ESB_BASE_URL` unset to verify disabled button + redirect behavior.
-- **QR scannability (manual):** Print a 1"×1" sticker and scan from 3 inches — confirm the phone camera resolves the URL. (Per issue — correctness of QR generation is explicitly called out.)
+- **Unit tests (service):** `tests/test_services/test_qr_service.py` — presets, dimensions across all 8 presets, QR payload correctness via `pyzbar.decode` round-trip, text toggles, font auto-fit (`_fit_text` directly tested with 4 cases), NEAREST pixel property, module-width uniformity, marginal-module warning, no-forms-import regression guard. Tests use the in-memory `app` fixture; no disk state — service returns bytes.
+- **Unit tests (util):** `tests/test_utils/test_text.py` — `slugify_filename` edge cases and `get_normalized_base_url` validation cases (happy path, empty, whitespace, bad scheme, missing host, multiple trailing slashes).
+- **View / integration tests:** `tests/test_views/test_equipment_views.py::TestEquipmentQR` — form render, download response (including Content-Disposition filename substring check), preview response (including Cache-Control header), auth, permission across both real roles, empty-config behavior, invalid-scheme behavior, archived behavior, detail-page button rendering in both states. Uses the new `configured_base_url` fixture to prevent "forgot to set ESB_BASE_URL" flakes.
+- **Manual testing:** Start dev server, set `ESB_BASE_URL`, visit `/equipment/<id>/qr`, verify live preview updates as options change, download at each size, print a Letter-size page, scan with a phone. Repeat with `ESB_BASE_URL` unset to verify disabled button + redirect behavior, and with `ESB_BASE_URL='javascript:alert(1)'` to verify the validator catches it.
+- **QR scannability (manual):** Print a 1"×1" sticker and scan from 3 inches — confirm the phone camera resolves the URL. At long base URLs, the `module_px < 5` warning will have fired; confirm those still scan or observe where scannability breaks down and document the limitation.
+- **CI verification:** Confirm `libzbar0` is installed in the CI test job before `pip install -r requirements-dev.txt` and that test imports of `pyzbar` succeed (a simple canary test at module top).
 
 ### Notes
 
-- **Known limitations:** First release uses a simple stacked layout (name above / QR / URL below). Avery 5160 (wide, short) gets a small central QR with text above/below — legible but not optimal. A sidebar layout variant could come in a follow-up. PDF output is also a noted future enhancement.
-- **Pre-mortem risks not covered in-depth:** rate-limiting on QR generation (negligible — authenticated users only, image gen is cheap ~50 ms); potential memory pressure from 8.5"×11" 300-DPI renders under concurrent load (per-request ~8 MB, single-worker gunicorn with 2 threads in current Dockerfile — acceptable for an admin action).
-- **Security posture:** `download_name` passes through `slugify_filename` which strips all non-alnum-hyphen characters — no path traversal. `send_file(BytesIO, ...)` does not touch the filesystem; no directory traversal risk. CSRF enforced on the download POST by Flask-WTF. Preview endpoint is read-only GET; no sensitive data is leaked (the generated PNG only encodes a public URL).
+- **Known limitations:**
+  - First release uses a simple stacked layout (name above / QR / URL below). Avery 5160 (2.625"×1", wide+short) gets a small central QR with text above/below — legible but not optimal. A sidebar layout variant could come in a follow-up.
+  - PDF output is a noted future enhancement.
+  - On the smallest preset (`sticker_1`, 1"×1") with a very long base URL, QR modules may be under 5 px wide at 300 DPI — a warning is logged but generation proceeds. Operators with long URLs should prefer larger presets.
+- **Memory / performance (revised):** A render of the `letter` preset (8.5"×11" at 300 DPI) produces a 2550×3300 px RGB canvas — **~25 MB** of raw pixel data in memory during rendering (prior draft estimated ~8 MB, which was off-by-~3×). Output PNG compresses to a much smaller file. Single-worker gunicorn with 2 threads means up to 2 concurrent renders = ~50 MB peak — acceptable for an infrequently-used admin action. If this becomes a problem, route the letter preset through a dedicated worker process or cap concurrency.
+- **Security posture:**
+  - `ESB_BASE_URL` is validated via `get_normalized_base_url` to be a non-empty http/https URL with a host — rejects `javascript:`, `file:`, `data:`, scheme-less strings, and empty values. The validated value is the only thing baked into QR codes.
+  - `download_name` passes through `slugify_filename` which strips all non-alnum-hyphen characters — no path traversal or header-injection risk.
+  - `send_file(BytesIO, ...)` does not touch the filesystem; no directory traversal risk.
+  - CSRF enforced on the download POST by Flask-WTF. Preview endpoint is read-only GET (Flask-WTF CSRF doesn't apply to GETs by framework default).
+  - Preview endpoint is `@login_required`; no sensitive data is leaked — the PNG encodes a public URL that is already reachable without auth.
 - **Future: bulk generation.** If bulk "print all areas" sheets become a need, the `QRSizePreset` list is the right extension point (add sheet presets) and a dedicated view can call `render_qr_png` in a loop. Out of scope for this issue.
-- **Future: AppConfig override.** If makerspaces need to change the base URL without redeploying, promote `ESB_BASE_URL` from env-only to env-with-AppConfig-override. The view-side normalization helper would be the single place to extend. Out of scope for this issue.
+- **Future: AppConfig override.** If makerspaces need to change the base URL without redeploying, promote `ESB_BASE_URL` from env-only to env-with-AppConfig-override. `get_normalized_base_url` would remain the single validation point. Out of scope for this issue.
+- **Future: `member` role.** If a `member` role is added to `VALID_ROLES`, the QR feature works unchanged (no role gate). Consider an explicit `make_member_client` fixture at that point.
