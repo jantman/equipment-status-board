@@ -165,7 +165,7 @@ Eleven scenarios for manual verification of the Equipment Status Board's core us
 7. Archive the equipment created in step 1. Verify it no longer appears on the public dashboard.
 8. Navigate to `/equipment/` (the equipment registry). Click the "Export CSV" button.
 9. Apply an area filter from the registry filter controls, then click "Export CSV" again.
-10. Append `?include_archived=1` to the export URL (or use the provided control) and download once more.
+10. Append `?include_archived=1` to the export URL and download once more.
 
 **Expected Results:**
 
