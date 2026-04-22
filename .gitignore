@@ -190,7 +190,6 @@ cython_debug/
 
 # ESB application
 uploads/
-esb/static/qrcodes/*.png
 
 # Ruff stuff:
 .ruff_cache/

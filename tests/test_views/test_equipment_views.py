@@ -1458,3 +1458,194 @@ class TestExportCsv:
         entry = entries[0]
         assert entry['user'] == 'staffuser'
         assert entry['data']['include_archived'] is True
+
+
+class TestEquipmentQR:
+    """Tests for /equipment/<id>/qr and /equipment/<id>/qr/preview."""
+
+    def test_get_qr_form_staff(self, staff_client, make_equipment, configured_base_url):
+        eq = make_equipment('Table Saw', 'SawStop', 'PCS')
+        resp = staff_client.get(f'/equipment/{eq.id}/qr')
+        assert resp.status_code == 200
+        assert b'name="size"' in resp.data
+        assert b'name="include_name"' in resp.data
+        assert b'name="include_url"' in resp.data
+        assert b'id="qr-preview"' in resp.data
+
+    def test_get_qr_form_tech(self, tech_client, make_equipment, configured_base_url):
+        eq = make_equipment('Drill', 'JET', 'JDP')
+        resp = tech_client.get(f'/equipment/{eq.id}/qr')
+        assert resp.status_code == 200
+
+    def test_get_qr_form_unauthenticated(self, client, make_equipment, configured_base_url):
+        eq = make_equipment('X', 'Y', 'Z')
+        resp = client.get(f'/equipment/{eq.id}/qr')
+        assert resp.status_code == 302
+        assert '/auth/login' in resp.headers['Location']
+
+    def test_get_qr_form_not_found(self, staff_client, configured_base_url):
+        resp = staff_client.get('/equipment/99999/qr')
+        assert resp.status_code == 404
+
+    def test_get_qr_form_archived_returns_404(self, staff_client, make_equipment, configured_base_url):
+        eq = make_equipment('Old', 'Co', 'M')
+        eq.is_archived = True
+        _db.session.commit()
+        resp = staff_client.get(f'/equipment/{eq.id}/qr')
+        assert resp.status_code == 404
+
+    def test_get_qr_form_empty_base_url_redirects(self, staff_client, make_equipment, app):
+        app.config['ESB_BASE_URL'] = ''
+        eq = make_equipment('X', 'Y', 'Z')
+        resp = staff_client.get(f'/equipment/{eq.id}/qr')
+        assert resp.status_code == 302
+        assert f'/equipment/{eq.id}' in resp.headers['Location']
+        # Follow to see the flash.
+        resp2 = staff_client.get(f'/equipment/{eq.id}')
+        assert b'ESB_BASE_URL is not configured' in resp2.data
+
+    def test_get_qr_form_invalid_scheme_redirects(self, staff_client, make_equipment, app):
+        app.config['ESB_BASE_URL'] = 'javascript:alert(1)'
+        eq = make_equipment('X', 'Y', 'Z')
+        resp = staff_client.get(f'/equipment/{eq.id}/qr')
+        assert resp.status_code == 302
+        resp2 = staff_client.get(f'/equipment/{eq.id}')
+        assert b'http(s) URL' in resp2.data
+
+    def test_post_qr_download_returns_png_attachment(
+        self, staff_client, make_equipment, configured_base_url,
+    ):
+        eq = make_equipment('Table Saw #1!', 'SawStop', 'PCS')
+        resp = staff_client.post(
+            f'/equipment/{eq.id}/qr',
+            data={'size': 'sticker_2', 'submit': 'Download QR Code'},
+        )
+        assert resp.status_code == 200
+        assert resp.content_type.startswith('image/png')
+        cd = resp.headers.get('Content-Disposition', '')
+        assert 'attachment' in cd
+        assert f'filename="qr-{eq.id}-Table-Saw-1.png"' in cd or \
+            f"filename=qr-{eq.id}-Table-Saw-1.png" in cd
+
+    def test_post_qr_download_unknown_size_rejected(
+        self, staff_client, make_equipment, configured_base_url,
+    ):
+        eq = make_equipment('X', 'Y', 'Z')
+        resp = staff_client.post(
+            f'/equipment/{eq.id}/qr',
+            data={'size': 'not_a_size', 'submit': 'Download QR Code'},
+        )
+        assert resp.status_code == 200
+        # Form is re-rendered (WTForms SelectField validates against choices).
+        assert b'name="size"' in resp.data
+
+    def test_post_qr_download_url_too_long_flashes_and_rerenders(
+        self, staff_client, make_equipment, configured_base_url, monkeypatch,
+    ):
+        eq = make_equipment('X', 'Y', 'Z')
+        from esb.services import qr_service
+
+        def raiser(*a, **kw):
+            raise ValueError(
+                'URL is too long for preset "1"×1" sticker" — '
+                'choose a larger preset or shorten ESB_BASE_URL.'
+            )
+
+        monkeypatch.setattr(qr_service, 'render_qr_png', raiser)
+        resp = staff_client.post(
+            f'/equipment/{eq.id}/qr',
+            data={'size': 'sticker_2', 'submit': 'Download QR Code'},
+        )
+        assert resp.status_code == 200
+        assert b'choose a larger preset' in resp.data
+        # Form re-rendered, not binary PNG.
+        assert b'name="size"' in resp.data
+
+    def test_get_qr_preview_url_too_long_400(
+        self, staff_client, make_equipment, configured_base_url, monkeypatch,
+    ):
+        eq = make_equipment('X', 'Y', 'Z')
+        from esb.services import qr_service
+
+        def raiser(*a, **kw):
+            raise ValueError('URL too long')
+
+        monkeypatch.setattr(qr_service, 'render_qr_png', raiser)
+        resp = staff_client.get(f'/equipment/{eq.id}/qr/preview?size=sticker_1')
+        assert resp.status_code == 400
+
+    def test_get_qr_preview_png_inline(self, staff_client, make_equipment, configured_base_url):
+        eq = make_equipment('X', 'Y', 'Z')
+        resp = staff_client.get(f'/equipment/{eq.id}/qr/preview?size=sticker_2')
+        assert resp.status_code == 200
+        assert resp.content_type.startswith('image/png')
+        assert 'attachment' not in resp.headers.get('Content-Disposition', '')
+        cache = resp.headers.get('Cache-Control', '')
+        assert 'private' in cache
+        assert 'max-age=300' in cache
+
+    def test_get_qr_preview_invalid_size_400(
+        self, staff_client, make_equipment, configured_base_url,
+    ):
+        eq = make_equipment('X', 'Y', 'Z')
+        resp = staff_client.get(f'/equipment/{eq.id}/qr/preview?size=bogus')
+        assert resp.status_code == 400
+
+    def test_get_qr_preview_empty_base_url_404(self, staff_client, make_equipment, app):
+        app.config['ESB_BASE_URL'] = ''
+        eq = make_equipment('X', 'Y', 'Z')
+        resp = staff_client.get(f'/equipment/{eq.id}/qr/preview?size=sticker_2')
+        assert resp.status_code == 404
+
+    def test_get_qr_preview_archived_404(self, staff_client, make_equipment, configured_base_url):
+        eq = make_equipment('X', 'Y', 'Z')
+        eq.is_archived = True
+        _db.session.commit()
+        resp = staff_client.get(f'/equipment/{eq.id}/qr/preview?size=sticker_2')
+        assert resp.status_code == 404
+
+    def test_detail_page_shows_generate_qr_button_when_configured(
+        self, staff_client, make_equipment, configured_base_url,
+    ):
+        eq = make_equipment('X', 'Y', 'Z')
+        resp = staff_client.get(f'/equipment/{eq.id}')
+        assert resp.status_code == 200
+        assert f'href="/equipment/{eq.id}/qr"'.encode() in resp.data
+        assert b'Generate QR Code' in resp.data
+
+    def test_detail_page_shows_disabled_generate_qr_button_when_unconfigured(
+        self, staff_client, make_equipment, app,
+    ):
+        app.config['ESB_BASE_URL'] = ''
+        eq = make_equipment('X', 'Y', 'Z')
+        resp = staff_client.get(f'/equipment/{eq.id}')
+        assert resp.status_code == 200
+        assert b'disabled' in resp.data
+        assert b'ESB_BASE_URL not configured' in resp.data
+
+    def test_detail_page_hides_qr_button_when_archived(
+        self, staff_client, make_equipment, configured_base_url,
+    ):
+        eq = make_equipment('X', 'Y', 'Z')
+        eq.is_archived = True
+        _db.session.commit()
+        resp = staff_client.get(f'/equipment/{eq.id}')
+        assert resp.status_code == 200
+        assert f'href="/equipment/{eq.id}/qr"'.encode() not in resp.data
+        # The disabled-button variant also should not render (button is inside not-archived block).
+        assert b'ESB_BASE_URL not configured' not in resp.data
+
+    # --- JS-preview contract (Task 16a) ---
+
+    def test_qr_form_template_has_preview_data_binding(
+        self, staff_client, make_equipment, configured_base_url,
+    ):
+        eq = make_equipment('X', 'Y', 'Z')
+        resp = staff_client.get(f'/equipment/{eq.id}/qr')
+        assert resp.status_code == 200
+        assert b'id="qr-form"' in resp.data
+        expected_base = f'data-preview-base="/equipment/{eq.id}/qr/preview"'.encode()
+        assert expected_base in resp.data
+        # qr-preview img points at the preview URL.
+        assert b'id="qr-preview"' in resp.data
+        assert f'/equipment/{eq.id}/qr/preview'.encode() in resp.data

@@ -8,6 +8,7 @@ class Config:
     """Base configuration."""
 
     SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-secret-change-me')
+    ESB_BASE_URL = os.environ.get('ESB_BASE_URL', '')
     SQLALCHEMY_DATABASE_URI = os.environ.get(
         'DATABASE_URL', 'mysql+pymysql://root:password@localhost/esb'
     )

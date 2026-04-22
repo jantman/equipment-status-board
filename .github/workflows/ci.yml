@@ -26,6 +26,7 @@ jobs:
         with:
           python-version: "3.14"
           allow-prereleases: true
+      - run: sudo apt-get update && sudo apt-get install -y libzbar0
       - run: pip install -r requirements-dev.txt
       - run: pytest tests/ -v
         env:
@@ -55,6 +56,7 @@ jobs:
             repair-record-detail.png
             kanban-board.png
             equipment-detail.png
+            qr-generation.png
             user-management.png
             app-configuration.png
           )

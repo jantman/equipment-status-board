@@ -117,3 +117,27 @@ document.addEventListener('DOMContentLoaded', function () {
     statusFilter.addEventListener('change', applyFilters);
   }
 });
+
+// --- QR code live preview (no-op on pages without #qr-form) ---
+(function () {
+  var form = document.getElementById('qr-form');
+  if (!form) return;
+  var img = document.getElementById('qr-preview');
+  var base = form.getAttribute('data-preview-base');
+  var timer = null;
+  function update() {
+    var size = form.querySelector('[name="size"]').value;
+    var incName = form.querySelector('[name="include_name"]').checked ? '1' : '';
+    var incUrl = form.querySelector('[name="include_url"]').checked ? '1' : '';
+    var params = new URLSearchParams({ size: size });
+    if (incName) params.set('include_name', '1');
+    if (incUrl) params.set('include_url', '1');
+    img.src = base + '?' + params.toString();
+  }
+  function schedule() {
+    // Debounce rapid toggles — letter-preset renders are expensive.
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(update, 150);
+  }
+  form.addEventListener('change', schedule);
+})();

@@ -1,5 +1,6 @@
 """Equipment registry routes."""
 
+import io
 import os
 
 from flask import (
@@ -11,6 +12,7 @@ from flask import (
     redirect,
     render_template,
     request,
+    send_file,
     send_from_directory,
     url_for,
 )
@@ -22,10 +24,12 @@ from esb.forms.equipment_forms import (
     EquipmentEditForm,
     ExternalLinkForm,
     PhotoUploadForm,
+    QRGenerateForm,
 )
-from esb.services import equipment_service, repair_service, upload_service
+from esb.services import equipment_service, qr_service, repair_service, upload_service
 from esb.utils.decorators import role_required
 from esb.utils.exceptions import ValidationError
+from esb.utils.text import get_normalized_base_url, slugify_filename
 
 equipment_bp = Blueprint('equipment', __name__, url_prefix='/equipment')
 
@@ -213,6 +217,94 @@ def archive(id):
     except ValidationError as e:
         flash(str(e), 'danger')
     return redirect(url_for('equipment.detail', id=id))
+
+
+def _get_active_equipment_or_404(id):
+    """Return a non-archived equipment or raise 404."""
+    try:
+        eq = equipment_service.get_equipment(id)
+    except ValidationError:
+        abort(404)
+    if eq.is_archived:
+        abort(404)
+    return eq
+
+
+@equipment_bp.route('/<int:id>/qr', methods=['GET', 'POST'])
+@login_required
+def qr(id):
+    """QR code generation page. Read-only — no mutation logging."""
+    eq = _get_active_equipment_or_404(id)
+    try:
+        base_url = get_normalized_base_url(current_app.config.get('ESB_BASE_URL', ''))
+    except ValueError as exc:
+        flash(str(exc), 'danger')
+        return redirect(url_for('equipment.detail', id=id))
+
+    form = QRGenerateForm()
+    if form.validate_on_submit():
+        preset = qr_service.QR_PRESETS_BY_KEY[form.size.data]
+        try:
+            png_bytes = qr_service.render_qr_png(
+                eq, preset,
+                include_name=form.include_name.data,
+                include_url=form.include_url.data,
+                base_url=base_url,
+            )
+        except ValueError as exc:
+            flash(str(exc), 'danger')
+            return render_template('equipment/qr.html', equipment=eq, form=form)
+        except (OSError, RuntimeError) as exc:
+            current_app.logger.error('QR render failed: %s', exc)
+            flash('QR code generation failed — contact an administrator.', 'danger')
+            return render_template('equipment/qr.html', equipment=eq, form=form)
+        current_app.logger.info(
+            'QR downloaded: user=%s equipment_id=%s preset=%s include_name=%s include_url=%s',
+            current_user.username, eq.id, preset.key,
+            form.include_name.data, form.include_url.data,
+        )
+        filename = f'qr-{eq.id}-{slugify_filename(eq.name)}.png'
+        return send_file(
+            io.BytesIO(png_bytes),
+            mimetype='image/png',
+            as_attachment=True,
+            download_name=filename,
+        )
+    return render_template('equipment/qr.html', equipment=eq, form=form)
+
+
+@equipment_bp.route('/<int:id>/qr/preview')
+@login_required
+def qr_preview(id):
+    """Inline PNG preview. Query params: size, include_name, include_url."""
+    eq = _get_active_equipment_or_404(id)
+    try:
+        base_url = get_normalized_base_url(current_app.config.get('ESB_BASE_URL', ''))
+    except ValueError:
+        abort(404)
+
+    size_key = request.args.get('size', 'sticker_2')
+    preset = qr_service.QR_PRESETS_BY_KEY.get(size_key)
+    if preset is None:
+        abort(400)
+    include_name = request.args.get('include_name') in ('1', 'true', 'on')
+    include_url = request.args.get('include_url') in ('1', 'true', 'on')
+
+    try:
+        png_bytes = qr_service.render_qr_png(
+            eq, preset,
+            include_name=include_name,
+            include_url=include_url,
+            base_url=base_url,
+        )
+    except ValueError:
+        abort(400)
+    except (OSError, RuntimeError) as exc:
+        current_app.logger.error('QR preview render failed: %s', exc)
+        abort(500)
+    response = send_file(io.BytesIO(png_bytes), mimetype='image/png')
+    response.headers['Cache-Control'] = 'private, max-age=300'
+    return response
 
 
 def _can_edit_docs() -> bool:

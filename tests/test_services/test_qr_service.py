@@ -1,103 +1,307 @@
 """Tests for QR code generation service."""
 
-import os
+import inspect
+import io
+import logging
 
 import pytest
+from PIL import Image, ImageDraw
+from pyzbar.pyzbar import decode
 
-from esb.services import qr_service
-
-
-class TestGenerateQrCode:
-    """Tests for generate_qr_code()."""
-
-    def test_raises_for_nonexistent_equipment(self, app):
-        """Raises ValueError when equipment_id does not exist."""
-        with pytest.raises(ValueError, match='not found'):
-            qr_service.generate_qr_code(99999, 'http://192.168.1.50:5000')
-
-    def test_creates_png_file(self, app, make_area, make_equipment):
-        """QR code generation creates a PNG file at the correct path."""
-        area = make_area(name='Shop')
-        equip = make_equipment(name='Lathe', area=area)
-
-        result = qr_service.generate_qr_code(equip.id, 'http://192.168.1.50:5000')
-
-        assert result == f'qrcodes/{equip.id}.png'
-        filepath = os.path.join(app.static_folder, 'qrcodes', f'{equip.id}.png')
-        assert os.path.isfile(filepath)
-
-    def test_qr_code_is_valid_png(self, app, make_area, make_equipment):
-        """QR code file is a valid PNG image."""
-        from PIL import Image
-
-        area = make_area(name='Shop')
-        equip = make_equipment(name='Drill', area=area)
-
-        qr_service.generate_qr_code(equip.id, 'http://192.168.1.50:5000')
-        filepath = os.path.join(app.static_folder, 'qrcodes', f'{equip.id}.png')
-
-        img = Image.open(filepath)
-        assert img.format == 'PNG'
-
-    def test_overwrites_existing_qr_code(self, app, make_area, make_equipment):
-        """Generating a QR code for an existing equipment overwrites the file."""
-        area = make_area(name='Shop')
-        equip = make_equipment(name='Mill', area=area)
-
-        qr_service.generate_qr_code(equip.id, 'http://old-url:5000')
-        qr_service.generate_qr_code(equip.id, 'http://new-url:5000')
-
-        filepath = os.path.join(app.static_folder, 'qrcodes', f'{equip.id}.png')
-        assert os.path.isfile(filepath)
+from esb.services.qr_service import (
+    QR_PRESETS_BY_KEY,
+    QR_SIZE_PRESETS,
+    QRSizePreset,
+    _fit_text,
+    render_qr_png,
+)
 
 
-class TestGetQrCodePath:
-    """Tests for get_qr_code_path()."""
-
-    def test_returns_path_for_existing_qr_code(self, app, make_area, make_equipment):
-        """Returns relative path when QR code exists."""
-        area = make_area(name='Shop')
-        equip = make_equipment(name='Lathe', area=area)
-
-        qr_service.generate_qr_code(equip.id, 'http://192.168.1.50:5000')
-        result = qr_service.get_qr_code_path(equip.id)
-
-        assert result == f'qrcodes/{equip.id}.png'
-
-    def test_returns_none_for_missing_qr_code(self, app):
-        """Returns None when no QR code exists for the equipment ID."""
-        result = qr_service.get_qr_code_path(99999)
-        assert result is None
+BASE_URL = 'http://esb.test:5000'
 
 
-class TestGenerateAllQrCodes:
-    """Tests for generate_all_qr_codes()."""
+class TestQRSizePresets:
+    def test_has_eight_entries(self):
+        assert len(QR_SIZE_PRESETS) == 8
 
-    def test_generates_for_all_non_archived(self, app, make_area, make_equipment):
-        """Generates QR codes for all non-archived equipment."""
-        area = make_area(name='Shop')
-        e1 = make_equipment(name='Lathe', area=area)
-        e2 = make_equipment(name='Mill', area=area)
-        e3 = make_equipment(name='Drill', area=area)
+    def test_keys_unique(self):
+        keys = [p.key for p in QR_SIZE_PRESETS]
+        assert len(keys) == len(set(keys))
 
-        count = qr_service.generate_all_qr_codes('http://192.168.1.50:5000')
+    def test_by_key_roundtrip(self):
+        for p in QR_SIZE_PRESETS:
+            assert QR_PRESETS_BY_KEY[p.key].key == p.key
 
-        assert count == 3
-        for equip in [e1, e2, e3]:
-            filepath = os.path.join(app.static_folder, 'qrcodes', f'{equip.id}.png')
-            assert os.path.isfile(filepath)
+    def test_dimensions_positive(self):
+        for p in QR_SIZE_PRESETS:
+            assert p.width_in > 0
+            assert p.height_in > 0
 
-    def test_skips_archived_equipment(self, app, make_area, make_equipment):
-        """Archived equipment does not get QR codes generated."""
-        area = make_area(name='Shop')
-        make_equipment(name='Active Tool', area=area)
-        make_equipment(name='Retired Tool', area=area, is_archived=True)
 
-        count = qr_service.generate_all_qr_codes('http://192.168.1.50:5000')
+class TestRenderQRPng:
+    def test_returns_png_bytes(self, app, make_equipment):
+        eq = make_equipment(name='TestEq')
+        result = render_qr_png(eq, QR_PRESETS_BY_KEY['sticker_2'], base_url=BASE_URL)
+        assert isinstance(result, bytes)
+        assert Image.open(io.BytesIO(result)).format == 'PNG'
 
-        assert count == 1
+    @pytest.mark.parametrize('preset', list(QR_SIZE_PRESETS), ids=[p.key for p in QR_SIZE_PRESETS])
+    def test_dimensions_match_preset_at_300_dpi(self, app, make_equipment, preset):
+        eq = make_equipment(name='TestEq')
+        result = render_qr_png(eq, preset, base_url=BASE_URL)
+        img = Image.open(io.BytesIO(result))
+        expected = (int(preset.width_in * 300 + 0.5), int(preset.height_in * 300 + 0.5))
+        assert img.size == expected
 
-    def test_returns_zero_for_no_equipment(self, app):
-        """Returns 0 when no equipment exists."""
-        count = qr_service.generate_all_qr_codes('http://192.168.1.50:5000')
-        assert count == 0
+    def test_payload_decodes_to_expected_url(self, app, make_equipment):
+        eq = make_equipment(name='TestEq')
+        # Force id 42 for stable assertion
+        eq.id = 42
+        result = render_qr_png(eq, QR_PRESETS_BY_KEY['sticker_3'], base_url=BASE_URL)
+        decoded = decode(Image.open(io.BytesIO(result)))
+        assert len(decoded) >= 1
+        assert decoded[0].data.decode('utf-8') == f'{BASE_URL}/public/equipment/42'
+
+    def test_name_text_renders(self, app, make_equipment):
+        eq = make_equipment(name='Widget')
+        result = render_qr_png(
+            eq, QR_PRESETS_BY_KEY['sticker_4'],
+            include_name=True, base_url=BASE_URL,
+        )
+        img = Image.open(io.BytesIO(result))
+        # Top 15% row has non-white pixels (text drawn).
+        top_row_height = int(img.height * 0.15)
+        top = img.crop((0, 0, img.width, top_row_height)).convert('RGB')
+        colors = {c for _, c in top.getcolors(maxcolors=256 * 256) or []}
+        assert any(c != (255, 255, 255) for c in colors)
+        # QR still decodes — text did not overlap QR region.
+        decoded = decode(img)
+        assert len(decoded) >= 1
+
+    def test_name_omitted_by_default(self, app, make_equipment):
+        """When include_name is False, no anti-aliased (gray) pixels appear anywhere.
+
+        TrueType text rendering produces anti-aliased glyph edges (grays). The QR
+        itself is pure black/white after NEAREST resize. If any gray pixel exists
+        in the whole canvas, some text was drawn; if none exists, no text was drawn.
+        """
+        eq = make_equipment(name='Widget')
+        result = render_qr_png(
+            eq, QR_PRESETS_BY_KEY['sticker_3'], base_url=BASE_URL,
+        )
+        img = Image.open(io.BytesIO(result)).convert('RGB')
+        colors = img.getcolors(maxcolors=256 * 256 * 256) or []
+        non_binary = [c for _, c in colors if c not in ((0, 0, 0), (255, 255, 255))]
+        assert non_binary == [], (
+            f'found non-binary pixels {non_binary[:5]} — text was drawn despite include_name=False'
+        )
+
+    def test_name_drawn_produces_grays(self, app, make_equipment):
+        """Sanity check: when include_name=True, anti-aliased grays do appear."""
+        eq = make_equipment(name='Widget')
+        result = render_qr_png(
+            eq, QR_PRESETS_BY_KEY['sticker_4'],
+            include_name=True, base_url=BASE_URL,
+        )
+        img = Image.open(io.BytesIO(result)).convert('RGB')
+        colors = img.getcolors(maxcolors=256 * 256 * 256) or []
+        non_binary = [c for _, c in colors if c not in ((0, 0, 0), (255, 255, 255))]
+        assert non_binary, 'expected some anti-aliased text pixels when include_name=True'
+
+    def test_url_text_toggle(self, app, make_equipment):
+        eq = make_equipment(name='Widget')
+        # With URL included, bottom 15% should contain non-white.
+        result = render_qr_png(
+            eq, QR_PRESETS_BY_KEY['sticker_4'],
+            include_url=True, base_url=BASE_URL,
+        )
+        img = Image.open(io.BytesIO(result)).convert('RGB')
+        bot_row_height = int(img.height * 0.15)
+        bottom = img.crop((0, img.height - bot_row_height, img.width, img.height))
+        colors = bottom.getcolors(maxcolors=256 * 256) or []
+        assert any(c != (255, 255, 255) for _, c in colors)
+
+    def test_text_width_cap(self, app, make_equipment):
+        """Rendered text width ≤ 120% of QR width for extremely long name."""
+        long_name = 'X' * 100
+        eq = make_equipment(name=long_name)
+        result = render_qr_png(
+            eq, QR_PRESETS_BY_KEY['sticker_3'],
+            include_name=True, base_url=BASE_URL,
+        )
+        img = Image.open(io.BytesIO(result)).convert('RGB')
+        # Locate the non-white region in the top 15% band and measure its width.
+        top_row_height = int(img.height * 0.15)
+        top = img.crop((0, 0, img.width, top_row_height))
+        width, height = top.size
+        pixels = top.load()
+        min_x, max_x = width, -1
+        for y in range(height):
+            for x in range(width):
+                if pixels[x, y] != (255, 255, 255):
+                    if x < min_x:
+                        min_x = x
+                    if x > max_x:
+                        max_x = x
+        assert max_x >= 0, 'expected some text pixels'
+        measured_width = max_x - min_x + 1
+        # QR is sized such that text_max = int(qr_px * 1.2). Compute qr_px from the canvas:
+        canvas_w = img.width
+        canvas_h = img.height
+        reserved_top = int(canvas_h * 0.15)  # include_name=True
+        reserved_bottom = 0
+        margin = max(4, int(canvas_w * 0.02))
+        avail = min(canvas_w, canvas_h - reserved_top - reserved_bottom) - margin
+        # Native matrix size determined by qrcode — compute via same logic:
+        import qrcode
+        q = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_M, box_size=1, border=4)
+        q.add_data(f'{BASE_URL}/public/equipment/{eq.id}')
+        q.make(fit=True)
+        native = len(q.get_matrix())
+        module_px = avail // native
+        qr_px = module_px * native
+        assert measured_width <= int(qr_px * 1.2) + 2, (
+            f'text width {measured_width} exceeds cap {int(qr_px * 1.2)}'
+        )
+
+    def test_qr_uses_nearest_resize(self, app, make_equipment):
+        """Every pixel in the QR region is pure black or pure white (NEAREST, not LANCZOS)."""
+        eq = make_equipment(name='TestEq')
+        result = render_qr_png(
+            eq, QR_PRESETS_BY_KEY['sticker_3'], base_url=BASE_URL,
+        )
+        img = Image.open(io.BytesIO(result)).convert('RGB')
+        # Compute QR region:
+        canvas_w, canvas_h = img.size
+        margin = max(4, int(canvas_w * 0.02))
+        avail = min(canvas_w, canvas_h) - margin
+        import qrcode
+        q = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_M, box_size=1, border=4)
+        q.add_data(f'{BASE_URL}/public/equipment/{eq.id}')
+        q.make(fit=True)
+        native = len(q.get_matrix())
+        module_px = avail // native
+        qr_px = module_px * native
+        x0 = (canvas_w - qr_px) // 2
+        y0 = ((canvas_h) - qr_px) // 2
+        qr_region = img.crop((x0, y0, x0 + qr_px, y0 + qr_px))
+        colors = qr_region.getcolors(maxcolors=256 * 256) or []
+        for _, c in colors:
+            assert c in ((0, 0, 0), (255, 255, 255)), f'non-binary pixel {c} — anti-aliased?'
+
+    def test_modules_have_uniform_pixel_width(self, app, make_equipment):
+        """QR square width = native * module_px; runs within are multiples of module_px."""
+        eq = make_equipment(name='TestEq')
+        preset = QR_PRESETS_BY_KEY['sticker_4']
+        result = render_qr_png(eq, preset, base_url=BASE_URL)
+        img = Image.open(io.BytesIO(result)).convert('RGB')
+        canvas_w, canvas_h = img.size
+        margin = max(4, int(canvas_w * 0.02))
+        avail = min(canvas_w, canvas_h) - margin
+        import qrcode
+        q = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_M, box_size=1, border=4)
+        q.add_data(f'{BASE_URL}/public/equipment/{eq.id}')
+        q.make(fit=True)
+        native = len(q.get_matrix())
+        module_px = avail // native
+        qr_px = module_px * native
+        assert module_px >= 1
+        assert qr_px == native * module_px
+        assert qr_px <= avail
+        if module_px > 1:
+            # Scan a horizontal row across the QR and verify runs are multiples of module_px.
+            x0 = (canvas_w - qr_px) // 2
+            y0 = ((canvas_h) - qr_px) // 2
+            mid_y = y0 + qr_px // 2
+            row = [img.getpixel((x, mid_y)) for x in range(x0, x0 + qr_px)]
+            run_color = row[0]
+            run_len = 1
+            for px in row[1:]:
+                if px == run_color:
+                    run_len += 1
+                else:
+                    assert run_len % module_px == 0, (
+                        f'run length {run_len} not a multiple of module_px {module_px}'
+                    )
+                    run_color = px
+                    run_len = 1
+            assert run_len % module_px == 0
+
+    def test_raises_valueerror_on_overflow(self, app, make_equipment):
+        """When native QR matrix > avail square, raise ValueError."""
+        eq = make_equipment(name='TestEq')
+        # Inject a contrived tiny preset smaller than any QR native matrix.
+        tiny = QRSizePreset('tiny', '0.1"×0.1" tiny', 0.1, 0.1)
+        with pytest.raises(ValueError, match='choose a larger preset'):
+            render_qr_png(eq, tiny, base_url=BASE_URL)
+
+    def test_marginal_module_size_logs_warning(self, app, make_equipment, caplog):
+        """module_px < 5 logs a warning."""
+        eq = make_equipment(name='TestEq')
+        # sticker_1 + long URL → small modules
+        long_base = 'http://' + ('example' * 20) + '.com:5000'
+        logger_name = app.logger.name
+        original_propagate = app.logger.propagate
+        app.logger.propagate = True
+        try:
+            with caplog.at_level(logging.WARNING, logger=logger_name):
+                render_qr_png(
+                    eq, QR_PRESETS_BY_KEY['sticker_1'],
+                    base_url=long_base,
+                )
+            messages = ' '.join(r.getMessage() for r in caplog.records)
+            assert 'scannability may be marginal' in messages
+        finally:
+            app.logger.propagate = original_propagate
+
+
+class TestFitText:
+    def _font_path(self, app):
+        import os
+        return os.path.join(app.static_folder, 'fonts', 'DejaVuSans-Bold.ttf')
+
+    def test_fits_as_is_when_short(self, app):
+        font, rendered = _fit_text(
+            'Hi', max_width_px=500, max_height_px=100,
+            font_path=self._font_path(app),
+        )
+        assert rendered == 'Hi'
+        # Font returned at starting size (max_height_px).
+        assert font.size == 100
+
+    def test_shrinks_when_long_but_fits_at_min(self, app):
+        # A string that won't fit at max_height_px but fits at a smaller size above the floor.
+        # max_width=120 at max_height=66 leaves room for shrinking to ~42px where 'abcd' fits.
+        font, rendered = _fit_text(
+            'abcd', max_width_px=120, max_height_px=66,
+            font_path=self._font_path(app),
+        )
+        assert rendered == 'abcd'
+        assert font.size < 66
+
+    def test_truncates_with_ellipsis_when_too_long_at_min(self, app):
+        font, rendered = _fit_text(
+            'X' * 100, max_width_px=80, max_height_px=50,
+            font_path=self._font_path(app),
+        )
+        assert rendered.endswith('…')
+        # Measure rendered width ≤ cap.
+        draw = ImageDraw.Draw(Image.new('RGB', (1, 1)))
+        (left, _, right, _) = draw.textbbox((0, 0), rendered, font=font)
+        assert right - left <= 80
+
+    def test_returns_empty_when_ellipsis_alone_too_long(self, app):
+        # max_width_px smaller than any ellipsis glyph at 8pt.
+        font, rendered = _fit_text(
+            'anything', max_width_px=1, max_height_px=50,
+            font_path=self._font_path(app),
+        )
+        assert rendered == ''
+
+
+class TestNoFormImport:
+    def test_qr_service_does_not_import_forms(self):
+        import esb.services.qr_service as svc
+        source = inspect.getsource(svc)
+        assert 'from esb.forms' not in source
+        assert 'import esb.forms' not in source

@@ -2,8 +2,8 @@
 title: 'QR Code Generation for Equipment'
 slug: 'qr-code-generation'
 created: '2026-04-20'
-status: 'ready-for-dev'
-stepsCompleted: [1, 2, 3, 4]
+status: 'completed'
+stepsCompleted: [1, 2, 3, 4, 5, 6]
 tech_stack:
   - 'Python 3.14'
   - 'Flask 3.1'
@@ -68,6 +68,15 @@ issue: 14
 
 **Created:** 2026-04-20
 **GitHub Issue:** #14
+
+## Review Notes
+
+- Adversarial review completed 2026-04-21 (quick-dev step 5)
+- Findings: 23 total, 10 real / 13 noise or as-specced
+- Resolution approach: auto-fix
+- Fixes applied: F1 (name-omitted test rewritten to global-gray check + converse test added), F2 (port-range validation added to `get_normalized_base_url` + tests), F3 (`slugify_filename` re-strips hyphens after truncation + test), F5 (tightened `test_https_no_host_with_path_raises` assertion), F6 (views catch `OSError`/`RuntimeError` from font-missing, service pre-checks font presence), F7 (150 ms debounce on QR preview IIFE), F8 (`app.logger.propagate` restored in `try/finally`), F9 (`@lru_cache` font loader), F10 (`_fit_text` binary-search truncation).
+- F4 (real-URL integration test for overflow) skipped: every preset accommodates every valid QR version — overflow cannot be triggered without a synthetic preset. Service layer already covers that path; view layer retains mock-based coverage.
+- Noise/as-specced skipped: F11, F12, F13, F14, F15, F16, F17, F18, F19, F20, F21, F22, F23.
 
 ## Overview
 
@@ -247,12 +256,12 @@ Makers need printable QR code labels/stickers to attach to physical equipment so
 
 Ordered by dependency — earlier tasks are prerequisites of later ones.
 
-- [ ] **Task 1: Add `ESB_BASE_URL` to Flask `Config`.**
+- [x] **Task 1: Add `ESB_BASE_URL` to Flask `Config`.**
   - File: `esb/config.py`
   - Action: Add `ESB_BASE_URL = os.environ.get('ESB_BASE_URL', '')` to the `Config` class after `SECRET_KEY`.
   - Notes: Inherited automatically by `DevelopmentConfig`, `TestingConfig`, `ProductionConfig`, etc. No per-env override needed.
 
-- [ ] **Task 2: Document `ESB_BASE_URL` in `.env.example`.**
+- [x] **Task 2: Document `ESB_BASE_URL` in `.env.example`.**
   - File: `.env.example`
   - Action: After the `SECRET_KEY` block, add:
     ```
@@ -263,7 +272,7 @@ Ordered by dependency — earlier tasks are prerequisites of later ones.
     ```
   - Notes: The default `http://localhost:5000` lets local dev work out-of-the-box; production must set a real URL.
 
-- [ ] **Task 3: Create `slugify_filename` and `get_normalized_base_url` helpers.**
+- [x] **Task 3: Create `slugify_filename` and `get_normalized_base_url` helpers.**
   - File: `esb/utils/text.py` (NEW)
   - Action: Create module with both helpers:
     ```python
@@ -329,7 +338,7 @@ Ordered by dependency — earlier tasks are prerequisites of later ones.
         return f'{parts.scheme}://{parts.netloc}'
     ```
 
-- [ ] **Task 4: Create `tests/test_utils/test_text.py`.**
+- [x] **Task 4: Create `tests/test_utils/test_text.py`.**
   - File: `tests/test_utils/test_text.py` (NEW)
   - Action: Two test classes:
     - `TestSlugifyFilename`: normal alnum name; spaces → hyphens; **`'Café'` → `'Cafe'`** (NFKD transliteration); multi-run punctuation collapsed; empty string → `'equipment'`; name longer than 50 chars truncated; leading/trailing punctuation stripped; names consisting only of punctuation → `'equipment'`; CJK-only name (e.g., `'機械'`) → `'equipment'` (NFKD strips fully; fallback fires).
@@ -344,14 +353,14 @@ Ordered by dependency — earlier tasks are prerequisites of later ones.
       - Path/query/fragment: `'http://host/api'`, `'http://host?a=1'`, `'http://host#f'` each raise with "path, query, or fragment".
       - Malformed URL passing through urlsplit's own error: `'https://[invalid'` raises with "malformed".
 
-- [ ] **Task 5: Vendor the DejaVu Sans Bold font + its license.**
+- [x] **Task 5: Vendor the DejaVu Sans Bold font + its license.**
   - Files:
     - `esb/static/fonts/DejaVuSans-Bold.ttf` (NEW — binary)
     - `esb/static/fonts/LICENSE` (NEW — plain text)
   - Action: Create directory `esb/static/fonts/`. Copy `DejaVuSans-Bold.ttf` into it (from `/usr/share/fonts/TTF/DejaVuSans-Bold.ttf` on the dev host or the upstream DejaVu release at https://dejavu-fonts.github.io/ ). **Also copy the full DejaVu + Bitstream Vera license text** (the upstream `LICENSE` file from the DejaVu fonts distribution) into `esb/static/fonts/LICENSE`. Both are required for lawful redistribution.
   - Notes: Required because the `python:3.14-slim` container does not ship DejaVu fonts. Deterministic rendering across OS images.
 
-- [ ] **Task 5a: Add `libzbar0` system dependency to the Dockerfile.**
+- [x] **Task 5a: Add `libzbar0` system dependency to the Dockerfile.**
   - File: `Dockerfile`
   - Action: Extend the existing `apt-get install -y --no-install-recommends gcc` line to include `libzbar0`:
     ```dockerfile
@@ -362,7 +371,7 @@ Ordered by dependency — earlier tasks are prerequisites of later ones.
     ```
   - Notes: The `pyzbar` Python package is a test-only dependency (production code does not decode QRs); `libzbar0` is strictly needed by the CI `test` job (Task 5b), not by the runtime image. The Dockerfile addition is for parity with `requirements.txt` + future-proofing so that anyone running tests inside the production image (e.g., during local debugging) has the library available. Keeps the image slim (`libzbar0` is ~100 KB). Alternative: move `pyzbar` to a separate `requirements-dev.txt` and omit `libzbar0` from the Dockerfile — but the repo has no such split today, so the parity approach is consistent.
 
-- [ ] **Task 5b: Add `libzbar0` to the CI test job AND add `qr-generation.png` to the screenshots-check expected list.**
+- [x] **Task 5b: Add `libzbar0` to the CI test job AND add `qr-generation.png` to the screenshots-check expected list.**
   - File: `.github/workflows/ci.yml`
   - Action 1: In the `test` job, before the `pip install -r requirements-dev.txt` step, add:
     ```yaml
@@ -371,12 +380,12 @@ Ordered by dependency — earlier tasks are prerequisites of later ones.
   - Action 2: In the `screenshots-check` job, add `qr-generation.png` to the `expected=(...)` array (alphabetical or grouped — match existing conventions).
   - Notes: The `docker-build` job doesn't need libzbar0 (covered by Dockerfile changes in Task 5a). The screenshots job doesn't need libzbar0 (no pyzbar import there) but DOES need the new screenshot in the expected list per F3.
 
-- [ ] **Task 5c: Add `pyzbar` to `requirements.txt`.**
+- [x] **Task 5c: Add `pyzbar` to `requirements.txt`.**
   - File: `requirements.txt`
   - Action: Append `pyzbar>=0.1.9` after the existing `qrcode[pil]>=8.0` line.
   - Notes: Used for QR decode round-trip in tests. Imported only from `tests/test_services/test_qr_service.py` (production code does not decode QRs).
 
-- [ ] **Task 6: Rewrite `esb/services/qr_service.py`.**
+- [x] **Task 6: Rewrite `esb/services/qr_service.py`.**
   - File: `esb/services/qr_service.py`
   - Action: Replace the entire file with:
     - Imports: `io`, `os`, `from dataclasses import dataclass`, `qrcode`, `from PIL import Image, ImageDraw, ImageFont`, `from flask import current_app`. Do **not** import from `esb.forms` or `esb.views` (preserves the import graph; enforced by AC/test). No module-level logger — use `current_app.logger` so warnings flow through Flask's configured handlers.
@@ -416,7 +425,7 @@ Ordered by dependency — earlier tasks are prerequisites of later ones.
     - **Delete** all prior functions (`generate_qr_code`, `get_qr_code_path`, `generate_all_qr_codes`).
   - Notes: Use `Image.NEAREST` (critical — AC 15). Module-aligned `qr_px` guarantees uniform module pixel width (AC 16). Font path via `current_app.static_folder`. No `log_mutation()` call — QR generation is read-only.
 
-- [ ] **Task 7: Add `QRGenerateForm` to `equipment_forms.py`.**
+- [x] **Task 7: Add `QRGenerateForm` to `equipment_forms.py`.**
   - File: `esb/forms/equipment_forms.py`
   - Action: Append at end:
     ```python
@@ -436,7 +445,7 @@ Ordered by dependency — earlier tasks are prerequisites of later ones.
     ```
   - Notes: Also add `BooleanField` to the existing `from wtforms import …` import.
 
-- [ ] **Task 8: Add `_get_active_equipment_or_404`, `qr`, and `qr_preview` to `esb/views/equipment.py`.**
+- [x] **Task 8: Add `_get_active_equipment_or_404`, `qr`, and `qr_preview` to `esb/views/equipment.py`.**
   - File: `esb/views/equipment.py`
   - Action: Add one private helper and two routes:
     ```python
@@ -525,7 +534,7 @@ Ordered by dependency — earlier tasks are prerequisites of later ones.
     ```
   - Notes: Add required imports at top of file: `import io`, `from flask import send_file`, `from esb.forms.equipment_forms import QRGenerateForm`, `from esb.services import qr_service`, `from esb.utils.text import get_normalized_base_url, slugify_filename`. The `request` import already exists.
 
-- [ ] **Task 9: Create `esb/templates/equipment/qr.html`.**
+- [x] **Task 9: Create `esb/templates/equipment/qr.html`.**
   - File: `esb/templates/equipment/qr.html` (NEW)
   - Action: Template extending `base.html`:
     - Breadcrumb: Registry → equipment detail → QR Code.
@@ -535,7 +544,7 @@ Ordered by dependency — earlier tasks are prerequisites of later ones.
     - Data attribute on the `<form>` like `data-preview-base="{{ url_for('equipment.qr_preview', id=equipment.id) }}"` for JS.
   - Notes: Form should have `id="qr-form"` so the JS in `app.js` can select it.
 
-- [ ] **Task 10: Add "Generate QR Code" control to `equipment/detail.html`.**
+- [x] **Task 10: Add "Generate QR Code" control to `equipment/detail.html`.**
   - File: `esb/templates/equipment/detail.html`
   - Action: Inside the `<div class="d-flex gap-2">` block (within `{% if not equipment.is_archived %}`), insert *before* the "Report Issue" / "Edit" buttons:
     ```jinja2
@@ -547,7 +556,7 @@ Ordered by dependency — earlier tasks are prerequisites of later ones.
     ```
   - Notes: Control visible to any logged-in user (no role gate), hidden when equipment is archived (enclosing `if`), shown disabled if config empty-or-whitespace. Full scheme validation happens at the route level — a misconfigured non-empty value yields a normal-looking link that, when clicked, flashes the specific `get_normalized_base_url` error.
 
-- [ ] **Task 11: Append live-preview JS to `esb/static/js/app.js`.**
+- [x] **Task 11: Append live-preview JS to `esb/static/js/app.js`.**
   - File: `esb/static/js/app.js`
   - Action: Append a small IIFE:
     ```javascript
@@ -570,12 +579,12 @@ Ordered by dependency — earlier tasks are prerequisites of later ones.
     ```
   - Notes: Vanilla JS, no build step. Gracefully no-ops on other pages.
 
-- [ ] **Task 12: Remove the old on-disk cache directory and its gitignore entry.**
+- [x] **Task 12: Remove the old on-disk cache directory and its gitignore entry.**
   - Files: `esb/static/qrcodes/` (DELETE directory and all contents), `.gitignore` (remove line `esb/static/qrcodes/*.png`).
   - Action: Before deleting, run `grep -rn 'esb/static/qrcodes\|qrcodes/' esb/ tests/ scripts/ docs/ .github/` to confirm no remaining references. Then `git rm -r esb/static/qrcodes/`. Edit `.gitignore` with the Edit tool to remove the line.
   - Notes: Only stray PNGs and (possibly) a `.gitkeep` live in this directory; the grep confirms no code references it.
 
-- [ ] **Task 13: Replace service tests.**
+- [x] **Task 13: Replace service tests.**
   - File: `tests/test_services/test_qr_service.py`
   - Action: Replace contents with a test module covering:
     - `TestQRSizePresets`: `QR_SIZE_PRESETS` has 8 entries; `QR_PRESETS_BY_KEY[k].key == k` for all; all keys unique; all dimensions positive.
@@ -604,7 +613,7 @@ Ordered by dependency — earlier tasks are prerequisites of later ones.
     - `TestNoFormImport::test_qr_service_does_not_import_forms`: `import esb.services.qr_service` then `assert 'esb.forms' not in sys.modules` (OR: introspect `inspect.getsource(qr_service)` and assert no `from esb.forms` / `import esb.forms` lines). Guards against circular-import regressions.
   - Notes: Delete all prior tests (those reference removed functions). Module top: `from pyzbar.pyzbar import decode`; CI has `libzbar0` installed per Task 5b.
 
-- [ ] **Task 14: Add `configured_base_url` fixture; append view tests to `tests/test_views/test_equipment_views.py`.**
+- [x] **Task 14: Add `configured_base_url` fixture; append view tests to `tests/test_views/test_equipment_views.py`.**
   - Files:
     - `tests/conftest.py` — add fixture:
       ```python
@@ -640,7 +649,7 @@ Ordered by dependency — earlier tasks are prerequisites of later ones.
       - `test_detail_page_hides_qr_button_when_archived(staff_client, make_equipment, configured_base_url)`: archived equipment → neither the link nor the disabled button is rendered.
   - Notes: The `configured_base_url` fixture works because `app.config` is mutable during the test's app context. Teardown restores the original value so tests don't bleed state. Tests that intentionally check empty/invalid config explicitly set it themselves and do NOT pull in `configured_base_url`.
 
-- [ ] **Task 15: Document `ESB_BASE_URL` in `docs/administrators.md`.**
+- [x] **Task 15: Document `ESB_BASE_URL` in `docs/administrators.md`.**
   - File: `docs/administrators.md`
   - Action: Add a row to the "Environment Variable Reference" table near the top (after `SECRET_KEY` / `DATABASE_URL`):
     ```
@@ -648,7 +657,7 @@ Ordered by dependency — earlier tasks are prerequisites of later ones.
     ```
   - Notes: Also consider adding a short paragraph below the table noting that this cannot be determined inside a container and must be set explicitly.
 
-- [ ] **Task 16: Add `## QR Code Labels` section to `docs/staff.md`.**
+- [x] **Task 16: Add `## QR Code Labels` section to `docs/staff.md`.**
   - File: `docs/staff.md`
   - Action: Add a new section (anywhere after the "Using the Kanban Board" section — pick logical placement, e.g. under an "Equipment" heading) with:
     - Purpose of QR labels.
@@ -660,7 +669,7 @@ Ordered by dependency — earlier tasks are prerequisites of later ones.
     - Cross-reference: "When someone scans a printed QR label, they see the public equipment status page — see `![Scanned equipment page (mobile)](images/qr-equipment-page-mobile.png)` for the member-side view."
     - **Tip box:** "URL text below the QR is most useful at label/page sizes (Avery 5163, US Letter). On small stickers (≤ 2") the URL is truncated and adds little value — the live preview shows the result; uncheck 'Include URL below QR' if it's not legible."
 
-- [ ] **Task 16a: Assert JS-preview contract via HTML + app.js inspection (no Playwright).**
+- [x] **Task 16a: Assert JS-preview contract via HTML + app.js inspection (no Playwright).**
   - Files:
     - Add assertions inside the existing `TestEquipmentQR` class in `tests/test_views/test_equipment_views.py`:
       - `test_qr_form_template_has_preview_data_binding(staff_client, make_equipment, configured_base_url)`: GET `/equipment/<id>/qr`; assert the response HTML contains (a) `id="qr-form"`, (b) the exact substring `data-preview-base="/equipment/{eq.id}/qr/preview"` (with the real equipment id interpolated), and (c) `<img ... id="qr-preview"` with a `src` substring of `/equipment/{eq.id}/qr/preview`. This pins both the structural JS contract AND that the correct equipment id is wired into the template — guards against a template refactor that drops the `id=` parameter from `url_for`.
@@ -668,7 +677,7 @@ Ordered by dependency — earlier tasks are prerequisites of later ones.
       - `test_app_js_includes_qr_preview_updater()`: read `esb/static/js/app.js`; assert it contains the strings `'qr-form'`, `'qr-preview'`, and `'data-preview-base'` (guards against accidental deletion of the IIFE).
   - Notes: The full browser-exercised integration test was considered but requires e2e infrastructure (Playwright fixtures, browser install in the CI `test` job) that does not currently exist in this repo — `tests/e2e/conftest.py` is a stub, and the CI `test` job does not install Chromium. Standing up that infrastructure is out of scope for Issue #14. The two asserts above confirm the HTML↔JS contract is intact; actual browser behavior is covered by **manual testing** (documented in Testing Strategy) and by the automated screenshot capture (Task 17), which exercises the page end-to-end and will fail if the form breaks.
 
-- [ ] **Task 17: Add `qr-generation.png` to the automated screenshot pipeline.**
+- [x] **Task 17: Add `qr-generation.png` to the automated screenshot pipeline.**
   - Files:
     - `scripts/generate_screenshots.py` — two edits:
       1. **Set `ESB_BASE_URL` in the process env EARLY.** In `seed_database()`, alongside the existing `os.environ['DATABASE_URL'] = ...` lines (near line 80 of the current file), add:
@@ -691,11 +700,11 @@ Ordered by dependency — earlier tasks are prerequisites of later ones.
   - Notes: This keeps the screenshot in lock-step with the UI (regenerated on every CI run) and prevents manual-screenshot drift. The real `login` helper is `login(page, username)` (defined at `scripts/generate_screenshots.py:~428`); the script PASSWORD constant is `'screenshot123'`. There is no `login_as_staff(context)` — use the existing pattern of `login(page, 'admin')` before the screenshot.
   - File: `docs/images/qr-generation.png` is produced by running `python scripts/generate_screenshots.py` after Tasks 6/8/9/10 are in place.
 
-- [ ] **Task 18: Run `make lint` and `make test`; fix any regressions.**
+- [x] **Task 18: Run `make lint` and `make test`; fix any regressions.**
   - Files: N/A (verification only).
   - Action: Zero lint errors; all tests pass (existing + new). No regressions in unrelated tests.
 
-- [ ] **Task 19: Commit and push in focused commits; open PR.**
+- [x] **Task 19: Commit and push in focused commits; open PR.**
   - Files: N/A
   - Action: Follow project commit conventions: prefix all commit subjects with `Issue #14: …`. Suggested split:
     1. `Issue #14: add ESB_BASE_URL config, .env.example entry, and normalization helper`

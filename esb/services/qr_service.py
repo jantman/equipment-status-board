@@ -1,71 +1,193 @@
-"""QR code generation service for equipment pages."""
+"""QR code generation service for equipment pages.
 
+Renders QR codes as in-memory PNG bytes with optional equipment-name text
+above and URL text below. No disk caching — generated on demand per request.
+"""
+
+import io
 import os
+from dataclasses import dataclass
+from functools import lru_cache
 
 import qrcode
 from flask import current_app
+from PIL import Image, ImageDraw, ImageFont
 
-from esb.extensions import db
-from esb.models.equipment import Equipment
+_DPI = 300
+_MIN_FONT_PT = 8
 
 
-def generate_qr_code(equipment_id: int, base_url: str) -> str:
-    """Generate a QR code PNG for an equipment item.
+@lru_cache(maxsize=64)
+def _load_font(font_path: str, size_px: int) -> ImageFont.FreeTypeFont:
+    """Cache truetype font loads — preview hot path hits this per render."""
+    return ImageFont.truetype(font_path, size_px)
 
-    Args:
-        equipment_id: The equipment ID to generate QR for.
-        base_url: The base URL of the application (e.g., 'http://192.168.1.50:5000').
 
-    Returns:
-        Relative path to the generated QR code image (e.g., 'qrcodes/42.png').
+@dataclass(frozen=True)
+class QRSizePreset:
+    key: str
+    label: str
+    width_in: float
+    height_in: float
 
-    Raises:
-        ValueError: if equipment_id does not exist in the database.
+
+QR_SIZE_PRESETS: tuple[QRSizePreset, ...] = (
+    QRSizePreset('sticker_1', '1"×1" sticker', 1.0, 1.0),
+    QRSizePreset('sticker_1_5', '1.5"×1.5" sticker', 1.5, 1.5),
+    QRSizePreset('sticker_2', '2"×2" sticker', 2.0, 2.0),
+    QRSizePreset('sticker_3', '3"×3" sticker', 3.0, 3.0),
+    QRSizePreset('sticker_4', '4"×4" sticker', 4.0, 4.0),
+    QRSizePreset('avery_5160', 'Avery 5160 label (2.625"×1")', 2.625, 1.0),
+    QRSizePreset('avery_5163', 'Avery 5163 label (4"×2")', 4.0, 2.0),
+    QRSizePreset('letter', 'US Letter page (8.5"×11")', 8.5, 11.0),
+)
+
+QR_PRESETS_BY_KEY: dict[str, QRSizePreset] = {p.key: p for p in QR_SIZE_PRESETS}
+
+
+def _px(inches: float) -> int:
+    return int(inches * _DPI + 0.5)
+
+
+def _pt_to_px(pt: int) -> int:
+    return int(pt * _DPI / 72 + 0.5)
+
+
+def render_qr_png(
+    equipment,
+    preset: QRSizePreset,
+    *,
+    include_name: bool = False,
+    include_url: bool = False,
+    base_url: str,
+) -> bytes:
+    """Render a QR code PNG for an equipment item and return the bytes.
+
+    The service trusts `base_url` — it must be validated upstream via
+    `esb.utils.text.get_normalized_base_url`.
     """
-    equipment = db.session.get(Equipment, equipment_id)
-    if equipment is None:
-        raise ValueError(f'Equipment with id {equipment_id} not found')
+    canvas_w_px = _px(preset.width_in)
+    canvas_h_px = _px(preset.height_in)
+    reserved_top = int(canvas_h_px * 0.15) if include_name else 0
+    reserved_bottom = int(canvas_h_px * 0.15) if include_url else 0
+    margin = max(4, int(canvas_w_px * 0.02))
+    avail = min(canvas_w_px, canvas_h_px - reserved_top - reserved_bottom) - margin
 
-    url = f"{base_url}/public/equipment/{equipment_id}"
-    qr = qrcode.make(url)
+    qr_url = f'{base_url}/public/equipment/{equipment.id}'
+    qr = qrcode.QRCode(
+        error_correction=qrcode.constants.ERROR_CORRECT_M,
+        box_size=1,
+        border=4,
+    )
+    qr.add_data(qr_url)
+    qr.make(fit=True)
+    # qr.get_matrix() already includes the border on each side, so this
+    # equals modules_count + 2 * border — do NOT add border again.
+    native = len(qr.get_matrix())
+    if avail < native:
+        raise ValueError(
+            f'URL is too long for preset {preset.label!r} — '
+            'choose a larger preset or shorten ESB_BASE_URL.'
+        )
+    module_px = avail // native
+    qr_px = module_px * native
 
-    qr_dir = os.path.join(current_app.static_folder, 'qrcodes')
-    os.makedirs(qr_dir, exist_ok=True)
+    if module_px < 5:
+        current_app.logger.warning(
+            'QR for equipment %s at preset %s has %d px modules (<5); '
+            'scannability may be marginal',
+            equipment.id, preset.key, module_px,
+        )
 
-    filename = f"{equipment_id}.png"
-    filepath = os.path.join(qr_dir, filename)
-    qr.save(filepath)
+    qr_img = (
+        qr.make_image(fill_color='black', back_color='white')
+        .convert('RGB')
+        .resize((qr_px, qr_px), Image.NEAREST)
+    )
 
-    return f"qrcodes/{filename}"
+    canvas = Image.new('RGB', (canvas_w_px, canvas_h_px), 'white')
+    paste_x = (canvas_w_px - qr_px) // 2
+    paste_y = reserved_top + ((canvas_h_px - reserved_top - reserved_bottom) - qr_px) // 2
+    canvas.paste(qr_img, (paste_x, paste_y))
+
+    max_text_width = int(qr_px * 1.2)
+    if include_name:
+        _draw_text_row(
+            canvas, equipment.name,
+            row_top=0, row_height=reserved_top, max_width_px=max_text_width,
+        )
+    if include_url:
+        _draw_text_row(
+            canvas, qr_url,
+            row_top=canvas_h_px - reserved_bottom,
+            row_height=reserved_bottom,
+            max_width_px=max_text_width,
+        )
+
+    buf = io.BytesIO()
+    canvas.save(buf, format='PNG')
+    return buf.getvalue()
 
 
-def get_qr_code_path(equipment_id: int) -> str | None:
-    """Return the relative path to an equipment's QR code if it exists.
+def _draw_text_row(canvas, text, *, row_top, row_height, max_width_px):
+    """Draw centered text in a horizontal row region of the canvas."""
+    font_path = os.path.join(current_app.static_folder, 'fonts', 'DejaVuSans-Bold.ttf')  # noqa: PTH118
+    if not os.path.isfile(font_path):
+        raise RuntimeError(
+            f'QR label font missing at {font_path}. '
+            'Ensure DejaVuSans-Bold.ttf is vendored in esb/static/fonts/.'
+        )
+    font, rendered = _fit_text(
+        text,
+        max_width_px=max_width_px,
+        max_height_px=row_height,
+        font_path=font_path,
+    )
+    if rendered == '':
+        return
+    draw = ImageDraw.Draw(canvas)
+    (left, top, right, bottom) = draw.textbbox((0, 0), rendered, font=font)
+    width = right - left
+    height = bottom - top
+    x = (canvas.width - width) // 2 - left
+    y = row_top + (row_height - height) // 2 - top
+    draw.text((x, y), rendered, fill='black', font=font)
 
-    Returns:
-        Relative path string (e.g., 'qrcodes/42.png') or None if not found.
+
+def _fit_text(text, *, max_width_px, max_height_px, font_path):
+    """Return (font, rendered_text) fitting within max_width_px at ≤ max_height_px.
+
+    Shrinks font toward the 8 pt floor; if still too wide at the floor,
+    truncates with an ellipsis (binary-search); if even ellipsis alone
+    doesn't fit, returns the min-size font and an empty string.
     """
-    qr_dir = os.path.join(current_app.static_folder, 'qrcodes')
-    filepath = os.path.join(qr_dir, f"{equipment_id}.png")
-    if os.path.isfile(filepath):
-        return f"qrcodes/{equipment_id}.png"
-    return None
+    min_px = _pt_to_px(_MIN_FONT_PT)
+    size_px = max_height_px
+    step = max(1, int(max_height_px * 0.05))
+    scratch = ImageDraw.Draw(Image.new('RGB', (1, 1)))
 
+    def width_at(t, font):
+        left, _, right, _ = scratch.textbbox((0, 0), t, font=font)
+        return right - left
 
-def generate_all_qr_codes(base_url: str) -> int:
-    """Generate QR codes for all non-archived equipment.
+    while size_px >= min_px:
+        font = _load_font(font_path, size_px)
+        if width_at(text, font) <= max_width_px:
+            return font, text
+        size_px -= step
 
-    Args:
-        base_url: The base URL of the application.
+    font = _load_font(font_path, min_px)
+    if width_at('…', font) > max_width_px:
+        return font, ''
+    if width_at(text + '…', font) <= max_width_px:
+        return font, text + '…'
 
-    Returns:
-        Number of QR codes generated.
-    """
-    equipment_list = db.session.execute(
-        db.select(Equipment).filter_by(is_archived=False)
-    ).scalars().all()
-
-    for equip in equipment_list:
-        generate_qr_code(equip.id, base_url)
-
-    return len(equipment_list)
+    # Binary search: find the largest prefix length whose candidate fits.
+    lo, hi = 0, len(text)
+    while lo < hi:
+        mid = (lo + hi + 1) // 2
+        if width_at(text[:mid] + '…', font) <= max_width_px:
+            lo = mid
+        else:
+            hi = mid - 1
+    return font, text[:lo] + '…' if lo > 0 else '…'
