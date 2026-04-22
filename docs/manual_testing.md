@@ -1,6 +1,6 @@
 # Manual Testing Scenarios
 
-Ten scenarios for manual verification of the Equipment Status Board's core user flows. Each scenario lists preconditions, steps, and expected results.
+Eleven scenarios for manual verification of the Equipment Status Board's core user flows. Each scenario lists preconditions, steps, and expected results.
 
 ## Prerequisites
 
@@ -10,6 +10,7 @@ Ten scenarios for manual verification of the Equipment Status Board's core user 
 - User accounts: one Staff, one Technician
 - Slack workspace connected with the app installed
 - Background worker running (`make worker`)
+- `ESB_BASE_URL` configured in the environment (required for QR label generation)
 
 ---
 
@@ -116,6 +117,7 @@ Ten scenarios for manual verification of the Equipment Status Board's core user 
 4. Save. Then reopen and change status to "Parts Received."
 5. Save. Then reopen and change status to "Resolved," add a closing note.
 6. Verify the complete timeline shows all transitions.
+7. Navigate to the repair's equipment detail page (`/equipment/<id>`) and scroll to the "Repair History" card.
 
 **Expected Results:**
 
@@ -123,6 +125,7 @@ Ten scenarios for manual verification of the Equipment Status Board's core user 
 - ETA appears on the public equipment page while the repair is open.
 - After resolving, the equipment's derived status returns to green (assuming no other open repairs).
 - Slack notifications fire for configured events (severity change, ETA update, resolution).
+- The Repair History card on the equipment detail page lists this repair (newest first) with a green "Resolved" badge; clicking the row navigates to `/repairs/<id>`. Closed-without-resolution records (e.g., "Closed - No Issue Found", "Closed - Duplicate") render with a gray badge.
 
 ---
 
@@ -160,6 +163,9 @@ Ten scenarios for manual verification of the Equipment Status Board's core user 
 5. Navigate to `/admin/users` and create a new Technician user with a username, email, and Slack handle.
 6. Verify the temporary password is delivered via Slack DM.
 7. Archive the equipment created in step 1. Verify it no longer appears on the public dashboard.
+8. Navigate to `/equipment/` (the equipment registry). Click the "Export CSV" button.
+9. Apply an area filter from the registry filter controls, then click "Export CSV" again.
+10. Append `?include_archived=1` to the export URL (or use the provided control) and download once more.
 
 **Expected Results:**
 
@@ -167,6 +173,9 @@ Ten scenarios for manual verification of the Equipment Status Board's core user 
 - New area appears in area filter dropdowns and equipment forms.
 - New user can log in with the temporary password and sees the Technician experience.
 - Archived equipment is hidden from active views but its repair history is preserved.
+- CSV download opens cleanly in Excel/LibreOffice with a UTF-8 BOM, includes columns for id, name, manufacturer, model, serial_number, area, acquisition_date/source/cost, warranty_expiration, description, is_archived, created_at, and updated_at.
+- Filtered export contains only equipment from the selected area; default export omits archived items, while `include_archived=1` includes them.
+- Cells whose text begins with `=`, `+`, `-`, or `@` are defused (leading apostrophe) to prevent spreadsheet formula injection.
 
 ---
 
@@ -233,3 +242,32 @@ Ten scenarios for manual verification of the Equipment Status Board's core user 
 - Technicians are restricted from admin functions but have full repair and equipment view access.
 - Staff have unrestricted access to all application features.
 - Notification configuration changes take effect immediately.
+
+---
+
+## 11. QR Code Label Generation
+
+**Role:** Technician or Staff (authenticated)
+
+**Steps:**
+
+1. Confirm `ESB_BASE_URL` is set in the server environment (e.g., `http://esb.example.com:8080`).
+2. Log in and navigate to any non-archived equipment's detail page (`/equipment/<id>`).
+3. Verify the "Generate QR Code" button is enabled (not greyed out).
+4. Click the button to open `/equipment/<id>/qr`.
+5. Select each size preset in turn (1"–4" stickers, Avery 5160, Avery 5163, US Letter) and verify the live preview updates to match.
+6. Toggle the "Include equipment name" and "Include target URL" checkboxes and verify the preview updates accordingly.
+7. Download the label at the 2" sticker preset; open the PNG and verify it is 300 DPI.
+8. Print (or view at actual size) the downloaded label and scan it with a phone camera.
+9. Download the US Letter preset and verify the PNG is 2550×3300 px.
+10. Stop the server, unset `ESB_BASE_URL`, restart, and reload the equipment detail page.
+11. On an archived equipment item, confirm the QR button does not render and that `GET /equipment/<id>/qr` returns 404.
+
+**Expected Results:**
+
+- The live preview on `/equipment/<id>/qr` reflects size and label-content options in real time.
+- Scanning the downloaded/printed QR code resolves to `${ESB_BASE_URL}/public/equipment/<id>`.
+- Rendered PNG dimensions match the selected preset (e.g., letter → 2550×3300 px at 300 DPI).
+- When `ESB_BASE_URL` is unset, the "Generate QR Code" button renders as disabled with tooltip "ESB_BASE_URL not configured"; hitting the route directly redirects to the equipment detail page with a danger flash describing the validation failure.
+- Invalid `ESB_BASE_URL` values (non-http(s) schemes, embedded credentials, whitespace, paths/queries/fragments) are rejected with a specific flashed error instead of being rendered into the QR payload.
+- Archived equipment hides the QR button and the QR route returns 404.
