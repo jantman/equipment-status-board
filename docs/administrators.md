@@ -75,6 +75,7 @@ Open `http://localhost:5000` in a browser (or the server's IP/hostname on port 5
 |----------|-------------|----------|---------|---------|
 | `SECRET_KEY` | Flask secret key for session signing. Must be random in production. | Yes | `dev-secret-change-me` | `a1b2c3d4e5f6...` (use `python3 -c "import secrets; print(secrets.token_hex(32))"`) |
 | `DATABASE_URL` | SQLAlchemy database connection URL. In Docker, the hostname is `db`. | Yes | `mysql+pymysql://root:esb_dev_password@localhost/esb` | `mysql+pymysql://root:yourpassword@db/esb` |
+| `ESB_BASE_URL` | Externally-reachable base URL of this ESB instance. Used as the prefix for QR code target URLs (the URL members' phones open when they scan a printed QR label). Must be set to enable QR code generation; otherwise the "Generate QR Code" button on each equipment detail page is disabled. Inside a container the request host is unreliable, so this must be set explicitly. Trailing slashes are stripped; must be an `http(s)://host[:port]` URL with no path, query, fragment, or credentials. | Yes | _(empty)_ | `http://esb.example.com:8080` |
 | `MARIADB_ROOT_PASSWORD` | Root password for the MariaDB container. Must match the password in `DATABASE_URL`. | Yes | `esb_dev_password` | `strong-random-password` |
 | `UPLOAD_PATH` | Directory for uploaded files (photos, documents). Relative to app root or absolute path. | No | `uploads` | `/app/uploads` |
 | `UPLOAD_MAX_SIZE_MB` | Maximum upload file size in megabytes. | No | `500` | `100` |

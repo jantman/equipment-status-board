@@ -3,6 +3,7 @@
 from flask_wtf import FlaskForm
 from flask_wtf.file import FileAllowed, FileField, FileRequired
 from wtforms import (
+    BooleanField,
     DateField,
     DecimalField,
     SelectField,
@@ -13,6 +14,7 @@ from wtforms import (
 from wtforms.validators import URL, DataRequired, Length, Optional
 
 from esb.models.document import DOCUMENT_CATEGORIES
+from esb.services.qr_service import QR_SIZE_PRESETS
 
 FORM_DOCUMENT_CATEGORIES = [('', '-- Select Category --')] + DOCUMENT_CATEGORIES
 
@@ -98,3 +100,17 @@ class ExternalLinkForm(FlaskForm):
     title = StringField('Title', validators=[DataRequired(), Length(max=200)])
     url = StringField('URL', validators=[DataRequired(), Length(max=2000), URL()])
     submit = SubmitField('Add Link')
+
+
+class QRGenerateForm(FlaskForm):
+    """Form for QR code generation options."""
+
+    size = SelectField(
+        'Size',
+        choices=[(p.key, p.label) for p in QR_SIZE_PRESETS],
+        validators=[DataRequired()],
+        default='sticker_2',
+    )
+    include_name = BooleanField('Include equipment name above QR', default=False)
+    include_url = BooleanField('Include URL below QR', default=False)
+    submit = SubmitField('Download QR Code')

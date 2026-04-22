@@ -8,6 +8,7 @@ WORKDIR /app
 # Install system dependencies for MariaDB client
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
+    libzbar0 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies

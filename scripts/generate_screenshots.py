@@ -70,6 +70,7 @@ def seed_database():
     os.environ['DATABASE_URL'] = f'sqlite:///{DB_PATH}'
     os.environ['SECRET_KEY'] = SECRET
     os.environ['UPLOAD_PATH'] = str(UPLOADS_PATH)
+    os.environ['ESB_BASE_URL'] = BASE_URL
 
     from esb import create_app
     from esb.extensions import db
@@ -522,6 +523,13 @@ def capture_screenshots(ids):
         page.goto(f'{BASE_URL}/equipment/{ids["detail_equipment_id"]}')
         page.wait_for_load_state('networkidle')
         page.screenshot(path=str(IMAGES_DIR / 'equipment-detail.png'), full_page=True)
+
+        # -- 9b. Equipment QR generator (staff, desktop) --
+        print('  Capturing: qr-generation.png')
+        page.goto(f'{BASE_URL}/equipment/{ids["detail_equipment_id"]}/qr')
+        page.wait_for_load_state('networkidle')
+        page.wait_for_selector('#qr-preview', state='visible')
+        page.screenshot(path=str(IMAGES_DIR / 'qr-generation.png'))
 
         # -- 10. User management (staff, desktop) --
         print('  Capturing: user-management.png')

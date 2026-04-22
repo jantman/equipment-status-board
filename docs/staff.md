@@ -129,6 +129,34 @@ The export includes one row per equipment item with these columns: `id`, `name`,
 
 ![Equipment Detail Page](images/equipment-detail.png)
 
+## QR Code Labels
+
+Each piece of equipment can have a printable QR code label attached to it. When a member scans the label with their phone, they land on the public equipment page, where they can see current status and report problems without needing to log in.
+
+### Who can generate QR codes
+
+Any logged-in user (Staff or Technician) can generate QR codes from the equipment detail page. The feature is only available when an administrator has set the `ESB_BASE_URL` environment variable — see the [Administrators Guide](administrators.md) for details. If the button is disabled with the tooltip "ESB_BASE_URL not configured", contact an administrator.
+
+### Generating a QR code label
+
+1. Open the equipment detail page for the item you want to label.
+2. Click **Generate QR Code**.
+3. Pick a size from the dropdown. Choices include square stickers (1", 1.5", 2", 3", 4"), Avery label sizes (5160 and 5163), and a US Letter full-page option.
+4. Optionally enable **Include equipment name above QR** to print the equipment's name at the top of the label.
+5. Optionally enable **Include URL below QR** to print the scan target URL at the bottom of the label.
+6. Watch the live preview update as you change options.
+7. Click **Download QR Code** to download a PNG file ready to print.
+
+All output is rendered at 300 DPI so labels print sharply at any of the listed sizes.
+
+> **Tip:** URL text below the QR is most useful at label/page sizes (Avery 5163, US Letter). On small stickers (≤ 2") the URL is usually truncated and adds little value — the live preview shows the result; uncheck **Include URL below QR** if it isn't legible.
+
+![QR Code Generation](images/qr-generation.png)
+
+When someone scans a printed QR label, they see the public equipment status page — see the example below for the member-side view.
+
+![Scanned equipment page (mobile)](images/qr-equipment-page-mobile.png)
+
 ## Managing Areas
 
 Navigate to **Admin > Areas** to manage the areas (rooms/zones) of the makerspace.

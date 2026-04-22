@@ -20,6 +20,11 @@
     <h1>{{ equipment.name }}</h1>
     {% if not equipment.is_archived %}
     <div class="d-flex gap-2">
+        {% if config['ESB_BASE_URL']|trim %}
+        <a href="{{ url_for('equipment.qr', id=equipment.id) }}" class="btn btn-outline-secondary btn-sm">Generate QR Code</a>
+        {% else %}
+        <button type="button" class="btn btn-outline-secondary btn-sm" disabled title="ESB_BASE_URL not configured">Generate QR Code</button>
+        {% endif %}
         <a href="{{ url_for('repairs.create', equipment_id=equipment.id) }}" class="btn btn-outline-primary btn-sm">Report Issue</a>
         {% if current_user.role == 'staff' %}
         <a href="{{ url_for('equipment.edit', id=equipment.id) }}" class="btn btn-outline-secondary">Edit</a>

@@ -156,3 +156,15 @@ def tech_client(client, tech_user):
         'password': 'testpass',
     })
     return client
+
+
+@pytest.fixture
+def configured_base_url(app):
+    """Set ESB_BASE_URL for tests that need the QR feature enabled.
+
+    Yields the configured value so tests can assert against it.
+    """
+    original = app.config.get('ESB_BASE_URL', '')
+    app.config['ESB_BASE_URL'] = 'http://esb.test:5000'
+    yield app.config['ESB_BASE_URL']
+    app.config['ESB_BASE_URL'] = original
