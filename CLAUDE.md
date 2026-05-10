@@ -74,3 +74,15 @@ Ruff with 120-char line length, target Python 3.13 (configured in `pyproject.tom
 ## Docker Deployment
 
 `docker-compose.yml` defines three services: `app` (gunicorn on port 5000), `db` (MariaDB 12.2.2), `worker` (notification processor). DB data persists in a Docker volume.
+
+## Releases
+
+Releases are fully automated by `.github/workflows/release.yml`, which runs on every push to `main`. The workflow reads the `version` field from `pyproject.toml`, compares it against the most recent GitHub release tag, and if the `pyproject.toml` version is strictly greater:
+
+1. Builds and pushes the Docker image to `ghcr.io/jantman/equipment-status-board` with both `:<version>` and `:latest` tags
+2. Creates the git tag `v<version>` and pushes it
+3. Creates a GitHub Release with auto-generated notes (from PR titles via `gh api releases/generate-notes`) and a Docker pull snippet
+
+If the `pyproject.toml` version is not higher than the latest tag, the workflow no-ops.
+
+**To cut a release: bump `version` in `pyproject.toml` (semver — patch for fixes, minor for new features, major for breaking changes) and push to `main`.** That is the entire procedure. Do not create tags manually — the workflow does it. Do not maintain a separate `CHANGELOG.md` — release notes are auto-generated from merged PR titles.
