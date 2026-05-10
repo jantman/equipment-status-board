@@ -155,6 +155,30 @@ def register_handlers(bolt_app, app):
                 )
                 return
 
+            text_arg = body.get('text', '').strip()
+
+            # No-args path: open the dispatcher modal listing open repair records.
+            if not text_arg:
+                from esb.services import repair_service
+                from esb.slack.forms import build_repair_dispatcher_modal
+
+                open_records = repair_service.get_repair_queue()
+                if not open_records:
+                    client.chat_postEphemeral(
+                        channel=body['channel_id'],
+                        user=body['user_id'],
+                        text=':wrench: No open repairs.',
+                    )
+                    return
+                client.views_open(
+                    trigger_id=body['trigger_id'],
+                    view=build_repair_dispatcher_modal(open_records),
+                )
+                return
+
+            # With-args path: open the create-record modal, pre-selecting the
+            # equipment when the arg matches exactly one piece of equipment.
+            from esb.services import equipment_service
             from esb.slack.forms import build_equipment_options, build_repair_create_modal, build_user_options
 
             equipment_options = build_equipment_options()
@@ -166,10 +190,18 @@ def register_handlers(bolt_app, app):
                 )
                 return
 
+            preselected_id = None
+            matches = equipment_service.search_equipment_by_name(text_arg)
+            if len(matches) == 1:
+                preselected_id = matches[0].id
+
             user_options = build_user_options()
             client.views_open(
                 trigger_id=body['trigger_id'],
-                view=build_repair_create_modal(equipment_options, user_options),
+                view=build_repair_create_modal(
+                    equipment_options, user_options,
+                    preselected_equipment_id=preselected_id,
+                ),
             )
 
     @bolt_app.view('repair_create_submission')
@@ -256,20 +288,29 @@ def register_handlers(bolt_app, app):
                     text = format_status_summary(dashboard)
                 else:
                     from esb.services import equipment_service, status_service
-                    matches = equipment_service.search_equipment_by_name(search_term)
-                    if len(matches) == 0:
-                        text = (
-                            f':mag: Equipment not found: "{search_term}"\n'
-                            'Check the spelling or use the full equipment name. '
-                            'Try `/esb-status` with no arguments to see all equipment.'
-                        )
-                    elif len(matches) == 1:
-                        detail = status_service.get_equipment_status_detail(matches[0].id)
-                        from esb.slack.forms import format_equipment_status_detail
-                        text = format_equipment_status_detail(matches[0], detail)
+
+                    # Resolution order: case-insensitive exact area-name match
+                    # first; on miss, fall back to existing equipment search.
+                    area = equipment_service.get_area_by_name(search_term)
+                    if area is not None:
+                        from esb.slack.forms import format_area_status_detail
+                        area_data = status_service.get_single_area_status_dashboard(area.id)
+                        text = format_area_status_detail(area_data)
                     else:
-                        from esb.slack.forms import format_equipment_list
-                        text = format_equipment_list(matches, search_term)
+                        matches = equipment_service.search_equipment_by_name(search_term)
+                        if len(matches) == 0:
+                            text = (
+                                f':mag: Equipment not found: "{search_term}"\n'
+                                'Check the spelling or use the full equipment name. '
+                                'Try `/esb-status` with no arguments to see all equipment.'
+                            )
+                        elif len(matches) == 1:
+                            detail = status_service.get_equipment_status_detail(matches[0].id)
+                            from esb.slack.forms import format_equipment_status_detail
+                            text = format_equipment_status_detail(matches[0], detail)
+                        else:
+                            from esb.slack.forms import format_equipment_list
+                            text = format_equipment_list(matches, search_term)
             except Exception:
                 logger.warning('Error processing /esb-status command', exc_info=True)
                 text = ':x: An error occurred while checking equipment status. Please try again.'
@@ -412,4 +453,183 @@ def register_handlers(bolt_app, app):
                 channel=body['user']['id'],
                 user=body['user']['id'],
                 text=f':white_check_mark: Repair record #{repair_record_id} updated',
+            )
+
+    # Dispatch path verified in Task 0: push_via_ack (slack-bolt 1.27.0
+    # accepts ack(response_action='push', view=...) for view submissions).
+    @bolt_app.view('repair_dispatcher_submission')
+    def handle_repair_dispatcher_submission(ack, body, client, view):
+        with _ensure_app_context(app):
+            from esb.services import repair_service
+            from esb.slack.forms import build_repair_action_modal
+            from esb.utils.exceptions import ValidationError
+
+            # Defense-in-depth auth re-check (F14): the dispatcher modal can
+            # have been opened before a role downgrade.
+            esb_user = _resolve_esb_user(client, body['user']['id'])
+            if esb_user is None or esb_user.role not in ('technician', 'staff'):
+                ack(response_action='errors', errors={
+                    'repair_select_block': 'You must have a Technician or Staff account linked.',
+                })
+                return
+
+            selected = (
+                view['state']['values']
+                .get('repair_select_block', {})
+                .get('repair_select', {})
+                .get('selected_option')
+            )
+            if not selected:
+                ack(response_action='errors', errors={
+                    'repair_select_block': 'Please select a repair.',
+                })
+                return
+
+            try:
+                record = repair_service.get_repair_record(int(selected['value']))
+            except ValidationError:
+                ack(response_action='errors', errors={
+                    'repair_select_block': 'Repair record no longer exists.',
+                })
+                return
+
+            # Closed-record race guard (F10): record may have been closed
+            # between modal-open and modal-submit.
+            if record.status in repair_service.CLOSED_STATUSES:
+                ack(response_action='errors', errors={
+                    'repair_select_block': (
+                        'This repair was closed by someone else. '
+                        'Refresh by re-running /esb-repair.'
+                    ),
+                })
+                return
+
+            ack(response_action='push', view=build_repair_action_modal(record))
+
+    @bolt_app.view('repair_action_submission')
+    def handle_repair_action_submission(ack, body, client, view):
+        with _ensure_app_context(app):
+            from datetime import datetime
+
+            from esb.services import repair_service
+            from esb.utils.exceptions import ValidationError
+
+            repair_record_id = int(view['private_metadata'])
+
+            esb_user = _resolve_esb_user(client, body['user']['id'])
+            if esb_user is None or esb_user.role not in ('technician', 'staff'):
+                ack(response_action='errors', errors={
+                    'action_block': 'You must have a Technician or Staff account linked.',
+                })
+                return
+
+            values = view['state']['values']
+            action_opt = values.get('action_block', {}).get('action', {}).get('selected_option')
+            if not action_opt:
+                ack(response_action='errors', errors={
+                    'action_block': 'Please choose an action.',
+                })
+                return
+            action = action_opt['value']
+
+            try:
+                record = repair_service.get_repair_record(repair_record_id)
+            except ValidationError:
+                ack(response_action='errors', errors={
+                    'action_block': 'Repair record no longer exists.',
+                })
+                return
+
+            if record.status in repair_service.CLOSED_STATUSES:
+                ack(response_action='errors', errors={
+                    'action_block': 'This repair has already been closed.',
+                })
+                return
+
+            changes: dict = {}
+            if action == 'claim':
+                changes['assignee_id'] = esb_user.id
+                # F11: Only promote status to 'Assigned' when the record is still 'New'.
+                # For any later open status (Assigned, In Progress, Parts*, Needs Specialist),
+                # leave the status untouched -- claim is purely an assignee swap.
+                if record.status == 'New':
+                    changes['status'] = 'Assigned'
+            elif action == 'set_eta':
+                eta_str = values.get('eta_block', {}).get('eta', {}).get('selected_date')
+                if not eta_str:
+                    ack(response_action='errors', errors={
+                        'eta_block': 'ETA is required when "Set ETA" is chosen.',
+                    })
+                    return
+                try:
+                    changes['eta'] = datetime.strptime(eta_str, '%Y-%m-%d').date()
+                except ValueError:
+                    ack(response_action='errors', errors={
+                        'eta_block': 'Invalid date format.',
+                    })
+                    return
+            elif action == 'set_status':
+                status_opt = values.get('status_block', {}).get('status', {}).get('selected_option')
+                if not status_opt:
+                    ack(response_action='errors', errors={
+                        'status_block': 'Status is required when "Set Status" is chosen.',
+                    })
+                    return
+                changes['status'] = status_opt['value']
+            elif action == 'resolve_with_note':
+                note_val = values.get('note_block', {}).get('note', {}).get('value')
+                if not note_val or not note_val.strip():
+                    ack(response_action='errors', errors={
+                        'note_block': 'Note is required when resolving.',
+                    })
+                    return
+                changes['status'] = 'Resolved'
+                changes['note'] = note_val.strip()
+            else:
+                ack(response_action='errors', errors={
+                    'action_block': f'Unknown action: {action}',
+                })
+                return
+
+            try:
+                repair_service.update_repair_record(
+                    repair_record_id=repair_record_id,
+                    updated_by=esb_user.username,
+                    author_id=esb_user.id,
+                    **changes,
+                )
+            except ValidationError as e:
+                ack(response_action='errors', errors={'action_block': str(e)})
+                return
+            except Exception:
+                logger.exception('Unexpected error in repair action submission')
+                ack(response_action='errors', errors={
+                    'action_block': 'An unexpected error occurred. Please try again.',
+                })
+                return
+
+            ack()
+
+            # Declarative wording (F28): the message describes post-state, so it
+            # is accurate even when the value matched current state and no DB
+            # change occurred (no-op guard in update_repair_record).
+            if action == 'claim':
+                msg = f':arrows_counterclockwise: Repair #{repair_record_id} claimed by {esb_user.username}'
+            elif action == 'set_eta':
+                eta_date = changes['eta'].strftime('%b %d, %Y')
+                msg = f':calendar: Repair #{repair_record_id}: ETA is {eta_date}'
+            elif action == 'set_status':
+                new_status = changes['status']
+                if new_status in repair_service.CLOSED_STATUSES:
+                    # F35: closure uses the resolved/success emoji.
+                    msg = f':white_check_mark: Repair #{repair_record_id} closed: {new_status}'
+                else:
+                    msg = f':arrows_counterclockwise: Repair #{repair_record_id}: status is {new_status}'
+            else:  # resolve_with_note
+                msg = f':white_check_mark: Repair #{repair_record_id} resolved'
+
+            client.chat_postEphemeral(
+                channel=body['user']['id'],
+                user=body['user']['id'],
+                text=msg,
             )

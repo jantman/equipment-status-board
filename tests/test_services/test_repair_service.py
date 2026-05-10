@@ -499,7 +499,12 @@ class TestUpdateRepairRecordSlackNotification:
         assert len(notifications) == 2
 
     def test_non_resolved_status_does_not_queue_resolved(self, app, make_area, make_equipment, staff_user, capture):
-        """Status change to non-resolved status does NOT queue resolved notification."""
+        """Status change to non-resolved status does NOT queue resolved notification.
+
+        It DOES queue a status_changed notification (covered in
+        test_open_status_change_queues_status_changed below); this test
+        asserts only that the 'resolved' branch is not taken.
+        """
         from esb.models.pending_notification import PendingNotification
 
         area = make_area(name='Woodshop', slack_channel='#woodshop')
@@ -515,7 +520,113 @@ class TestUpdateRepairRecordSlackNotification:
         notifications = _db.session.execute(
             _db.select(PendingNotification).filter_by(notification_type='slack_message')
         ).scalars().all()
+        # Exactly one queued, and it's a status_changed -- never 'resolved'.
+        event_types = [n.payload['event_type'] for n in notifications]
+        assert 'resolved' not in event_types
+
+    def test_open_status_change_queues_status_changed(self, app, make_area, make_equipment, staff_user, capture):
+        """Status change between open statuses queues a status_changed notification."""
+        from esb.models.pending_notification import PendingNotification
+
+        area = make_area(name='Woodshop', slack_channel='#woodshop')
+        equip = make_equipment(name='SawStop', area=area)
+        record = RepairRecord(equipment_id=equip.id, description='Test', status='New')
+        _db.session.add(record)
+        _db.session.commit()
+
+        repair_service.update_repair_record(
+            record.id, 'staffuser', author_id=staff_user.id, status='In Progress',
+        )
+
+        notifications = _db.session.execute(
+            _db.select(PendingNotification).filter_by(notification_type='slack_message')
+        ).scalars().all()
+        assert len(notifications) == 1
+        assert notifications[0].payload['event_type'] == 'status_changed'
+        assert notifications[0].payload['old_status'] == 'New'
+        assert notifications[0].payload['new_status'] == 'In Progress'
+
+    def test_closed_status_change_does_not_double_queue(self, app, make_area, make_equipment, staff_user, capture):
+        """Transition to a CLOSED_STATUSES value queues 'resolved', NOT 'status_changed'."""
+        from esb.models.pending_notification import PendingNotification
+
+        area = make_area(name='Woodshop', slack_channel='#woodshop')
+        equip = make_equipment(name='SawStop', area=area)
+        record = RepairRecord(equipment_id=equip.id, description='Test', status='In Progress')
+        _db.session.add(record)
+        _db.session.commit()
+
+        repair_service.update_repair_record(
+            record.id, 'staffuser', author_id=staff_user.id, status='Resolved',
+        )
+
+        notifications = _db.session.execute(
+            _db.select(PendingNotification).filter_by(notification_type='slack_message')
+        ).scalars().all()
+        event_types = [n.payload['event_type'] for n in notifications]
+        assert event_types == ['resolved']
+
+    def test_open_status_change_no_notification_when_disabled(self, app, make_area, make_equipment, staff_user, capture):
+        """notify_status_changed='false' suppresses the open-transition queue."""
+        from esb.models.pending_notification import PendingNotification
+        from esb.services import config_service
+
+        config_service.set_config('notify_status_changed', 'false', changed_by='test')
+
+        area = make_area(name='Woodshop', slack_channel='#woodshop')
+        equip = make_equipment(name='SawStop', area=area)
+        record = RepairRecord(equipment_id=equip.id, description='Test', status='New')
+        _db.session.add(record)
+        _db.session.commit()
+
+        repair_service.update_repair_record(
+            record.id, 'staffuser', author_id=staff_user.id, status='In Progress',
+        )
+
+        notifications = _db.session.execute(
+            _db.select(PendingNotification).filter_by(notification_type='slack_message')
+        ).scalars().all()
         assert len(notifications) == 0
+
+    def test_notify_resolved_false_plus_closed_transition_no_notification(self, app, make_area, make_equipment, staff_user, capture):
+        """AC 39: notify_resolved=false + CLOSED transition queues NEITHER 'resolved' nor 'status_changed'.
+
+        The elif must NOT fall through when the transition is to a CLOSED status.
+        """
+        from esb.models.pending_notification import PendingNotification
+        from esb.services import config_service
+
+        config_service.set_config('notify_resolved', 'false', changed_by='test')
+
+        area = make_area(name='Woodshop', slack_channel='#woodshop')
+        equip = make_equipment(name='SawStop', area=area)
+        record = RepairRecord(equipment_id=equip.id, description='Test', status='In Progress')
+        _db.session.add(record)
+        _db.session.commit()
+
+        repair_service.update_repair_record(
+            record.id, 'staffuser', author_id=staff_user.id, status='Resolved',
+        )
+
+        notifications = _db.session.execute(
+            _db.select(PendingNotification).filter_by(notification_type='slack_message')
+        ).scalars().all()
+        assert len(notifications) == 0
+
+    def test_status_changed_logs_notification_queued_mutation(self, app, make_area, make_equipment, staff_user, capture):
+        """AC 37: status_changed event flows through queue_notification's existing log_mutation path."""
+        area = make_area(name='Woodshop', slack_channel='#woodshop')
+        equip = make_equipment(name='SawStop', area=area)
+        record = RepairRecord(equipment_id=equip.id, description='Test', status='New')
+        _db.session.add(record)
+        _db.session.commit()
+
+        repair_service.update_repair_record(
+            record.id, 'staffuser', author_id=staff_user.id, status='In Progress',
+        )
+
+        messages = [r.getMessage() for r in capture.records]
+        assert any('notification.queued' in m and 'slack_message' in m for m in messages)
 
     def test_closed_no_issue_queues_resolved(self, app, make_area, make_equipment, staff_user, capture):
         """Status change to 'Closed - No Issue Found' queues resolved notification."""
