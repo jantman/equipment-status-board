@@ -914,8 +914,27 @@ class TestEsbRepairDispatcher:
         assert 'initial_option' in eq_block['element']
         assert eq_block['element']['initial_option']['value'] == str(self.equipment.id)
 
-    def test_with_args_no_prefill_on_multiple_matches(self):
-        """AC 40: multi-match → no initial_option."""
+    def test_with_args_no_prefill_on_partial_only_match(self):
+        """AC 40: partial-only match (no exact match) → no initial_option.
+
+        Under the spec, preselection happens only on case-insensitive *exact*
+        name match; a substring match that doesn't hit any equipment exactly
+        must NOT preselect (Copilot review on PR #42).
+        """
+        # 'saw' partially matches 'SawStop' but does not exactly match any
+        # equipment name -- preselection must be skipped.
+        ack = MagicMock()
+        client = MagicMock()
+        client.users_info.return_value = {'user': {'profile': {'email': self.staff_user.email}}}
+        body = {'trigger_id': 'T', 'user_id': 'U', 'channel_id': 'C', 'text': 'saw'}
+
+        self.handlers['command:/esb-repair'](ack=ack, body=body, client=client)
+        modal = client.views_open.call_args.kwargs['view']
+        eq_block = next(b for b in modal['blocks'] if b['block_id'] == 'equipment_block')
+        assert 'initial_option' not in eq_block['element']
+
+    def test_with_args_exact_match_wins_over_partial_siblings(self):
+        """AC 40: when an exact match exists alongside other partial matches, the exact match preselects."""
         _create_equipment(name='SawStop Mini', area=self.area)
 
         ack = MagicMock()
@@ -926,7 +945,7 @@ class TestEsbRepairDispatcher:
         self.handlers['command:/esb-repair'](ack=ack, body=body, client=client)
         modal = client.views_open.call_args.kwargs['view']
         eq_block = next(b for b in modal['blocks'] if b['block_id'] == 'equipment_block')
-        assert 'initial_option' not in eq_block['element']
+        assert eq_block['element']['initial_option']['value'] == str(self.equipment.id)
 
     def test_rejects_unauthorized_user(self):
         """AC 15: non-tech/staff user → ephemeral error, no modal."""

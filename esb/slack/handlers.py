@@ -190,10 +190,15 @@ def register_handlers(bolt_app, app):
                 )
                 return
 
+            # Preselect equipment only on a case-insensitive exact name match.
+            # search_equipment_by_name() uses an ilike '%term%' partial match,
+            # so "saw" would otherwise preselect "SawStop" -- post-filter to
+            # the exact-name case so the prefill matches the spec/docs.
             preselected_id = None
             matches = equipment_service.search_equipment_by_name(text_arg)
-            if len(matches) == 1:
-                preselected_id = matches[0].id
+            exact_matches = [m for m in matches if m.name.lower() == text_arg.lower()]
+            if len(exact_matches) == 1:
+                preselected_id = exact_matches[0].id
 
             user_options = build_user_options()
             client.views_open(
@@ -514,7 +519,17 @@ def register_handlers(bolt_app, app):
             from esb.services import repair_service
             from esb.utils.exceptions import ValidationError
 
-            repair_record_id = int(view['private_metadata'])
+            # private_metadata is set by us when pushing the action modal
+            # (str(record.id)). Catch corruption defensively -- a malformed
+            # value here would otherwise bubble up as an unhandled exception
+            # and the user would see a generic Slack failure.
+            try:
+                repair_record_id = int(view['private_metadata'])
+            except (KeyError, TypeError, ValueError):
+                ack(response_action='errors', errors={
+                    'action_block': 'Internal error: repair id missing. Please re-run /esb-repair.',
+                })
+                return
 
             esb_user = _resolve_esb_user(client, body['user']['id'])
             if esb_user is None or esb_user.role not in ('technician', 'staff'):
@@ -546,14 +561,14 @@ def register_handlers(bolt_app, app):
                 })
                 return
 
+            # Collect inputs for non-claim actions. The 'claim' branch is
+            # dispatched separately at submission time -- the New→Assigned
+            # promotion is a domain rule that lives in
+            # repair_service.claim_repair_record() so other call paths
+            # (REST, web UI, CLI) can reuse it.
             changes: dict = {}
             if action == 'claim':
-                changes['assignee_id'] = esb_user.id
-                # F11: Only promote status to 'Assigned' when the record is still 'New'.
-                # For any later open status (Assigned, In Progress, Parts*, Needs Specialist),
-                # leave the status untouched -- claim is purely an assignee swap.
-                if record.status == 'New':
-                    changes['status'] = 'Assigned'
+                pass  # handled below
             elif action == 'set_eta':
                 eta_str = values.get('eta_block', {}).get('eta', {}).get('selected_date')
                 if not eta_str:
@@ -592,12 +607,19 @@ def register_handlers(bolt_app, app):
                 return
 
             try:
-                repair_service.update_repair_record(
-                    repair_record_id=repair_record_id,
-                    updated_by=esb_user.username,
-                    author_id=esb_user.id,
-                    **changes,
-                )
+                if action == 'claim':
+                    repair_service.claim_repair_record(
+                        repair_record_id=repair_record_id,
+                        claimed_by_user_id=esb_user.id,
+                        claimed_by_username=esb_user.username,
+                    )
+                else:
+                    repair_service.update_repair_record(
+                        repair_record_id=repair_record_id,
+                        updated_by=esb_user.username,
+                        author_id=esb_user.id,
+                        **changes,
+                    )
             except ValidationError as e:
                 ack(response_action='errors', errors={'action_block': str(e)})
                 return

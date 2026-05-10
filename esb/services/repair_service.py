@@ -222,6 +222,51 @@ CLOSED_STATUSES = ['Resolved', 'Closed - No Issue Found', 'Closed - Duplicate']
 KANBAN_COLUMNS = [s for s in REPAIR_STATUSES if s not in CLOSED_STATUSES]
 
 
+def claim_repair_record(
+    repair_record_id: int,
+    claimed_by_user_id: int,
+    claimed_by_username: str,
+) -> RepairRecord:
+    """Claim a repair record for the given user.
+
+    Sets ``assignee_id`` to ``claimed_by_user_id`` always. As a status
+    transition rule (issue #34), if the record's current status is
+    ``'New'``, the claim also promotes status to ``'Assigned'``; on any
+    later open status (``'Assigned'``, ``'In Progress'``, ``'Parts Needed'``,
+    ``'Parts Ordered'``, ``'Parts Received'``, ``'Needs Specialist'``),
+    the status is left untouched -- claim is purely an assignee swap.
+
+    Closed records cannot be claimed; callers should guard against that
+    before calling (this function does not re-check it because
+    ``update_repair_record`` will accept the assignee change anyway, but
+    a closed record being "claimed" is almost certainly a logic bug in
+    the caller).
+
+    Args:
+        repair_record_id: ID of the RepairRecord to claim.
+        claimed_by_user_id: ESB user id of the claiming user.
+        claimed_by_username: Username of the claiming user (for timeline
+            entry attribution).
+
+    Returns:
+        The updated RepairRecord.
+
+    Raises:
+        ValidationError: from ``update_repair_record`` if the record or
+            user doesn't exist.
+    """
+    record = get_repair_record(repair_record_id)
+    changes: dict = {'assignee_id': claimed_by_user_id}
+    if record.status == 'New':
+        changes['status'] = 'Assigned'
+    return update_repair_record(
+        repair_record_id=repair_record_id,
+        updated_by=claimed_by_username,
+        author_id=claimed_by_user_id,
+        **changes,
+    )
+
+
 def get_kanban_data() -> dict[str, list[RepairRecord]]:
     """Get open repair records grouped by status for the Kanban board.
 

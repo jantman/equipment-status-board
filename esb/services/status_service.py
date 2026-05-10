@@ -83,10 +83,12 @@ def _derive_status_from_records(records: list) -> dict:
             and the dashboard prefetch queries already do this.
 
     Returns:
-        dict with keys: color, label, issue_description, severity, eta.
-        ``eta`` is the highest-severity open record's ETA (or ``None`` if
-        empty or unset). When multiple records share the highest severity,
-        the oldest record (earliest ``created_at``) wins.
+        dict with keys: color, label, issue_description, severity, eta,
+        assignee_name. ``eta`` is the highest-severity open record's ETA
+        (or ``None`` if empty or unset). ``assignee_name`` is the same
+        record's ``assignee.username`` (or ``None`` if unassigned).
+        When multiple records share the highest severity, the oldest
+        record (earliest ``created_at``) wins.
     """
     if not records:
         return {
@@ -132,6 +134,7 @@ def compute_equipment_status(equipment_id: int) -> dict:
         - issue_description: str | None (brief description from highest severity record)
         - severity: str | None (raw severity value from highest severity record)
         - eta: date | None (from highest severity record; oldest wins on ties)
+        - assignee_name: str | None (from highest-severity open record's assignee)
 
     Raises:
         EquipmentNotFound: if equipment_id doesn't exist
@@ -174,7 +177,7 @@ def get_area_status_dashboard() -> list[dict]:
                 'equipment': [
                     {
                         'equipment': Equipment instance,
-                        'status': {color, label, issue_description, severity, eta}
+                        'status': {color, label, issue_description, severity, eta, assignee_name}
                     },
                     ...
                 ]
@@ -257,7 +260,7 @@ def get_single_area_status_dashboard(area_id: int) -> dict:
         {
             'area': Area instance,
             'equipment': [
-                {'equipment': Equipment, 'status': {color, label, issue_description, severity, eta}},
+                {'equipment': Equipment, 'status': {color, label, issue_description, severity, eta, assignee_name}},
                 ...
             ],
         }

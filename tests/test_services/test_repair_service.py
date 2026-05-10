@@ -1354,6 +1354,75 @@ class TestGetKanbanData:
         assert rec.assignee.username == 'techuser'
 
 
+class TestClaimRepairRecord:
+    """Tests for the claim_repair_record() service function."""
+
+    def test_claim_new_record_assigns_and_promotes_status(self, app, make_area, make_equipment):
+        """Claim on a 'New' record: assignee set + status moves to 'Assigned'."""
+        from tests.conftest import _create_user
+        tech = _create_user('technician', username='alice')
+        area = make_area('Shop', '#shop')
+        eq = make_equipment(name='Tool', area=area)
+        record = RepairRecord(equipment_id=eq.id, description='Broken', status='New')
+        _db.session.add(record)
+        _db.session.commit()
+
+        updated = repair_service.claim_repair_record(
+            repair_record_id=record.id,
+            claimed_by_user_id=tech.id,
+            claimed_by_username=tech.username,
+        )
+        assert updated.assignee_id == tech.id
+        assert updated.status == 'Assigned'
+
+    def test_claim_assigned_record_leaves_status(self, app, make_area, make_equipment):
+        """Claim on an 'Assigned' record: assignee changes, status stays."""
+        from tests.conftest import _create_user
+        original = _create_user('technician', username='original')
+        claimer = _create_user('technician', username='claimer')
+        area = make_area('Shop', '#shop')
+        eq = make_equipment(name='Tool', area=area)
+        record = RepairRecord(
+            equipment_id=eq.id, description='Broken', status='Assigned', assignee_id=original.id,
+        )
+        _db.session.add(record)
+        _db.session.commit()
+
+        updated = repair_service.claim_repair_record(
+            repair_record_id=record.id,
+            claimed_by_user_id=claimer.id,
+            claimed_by_username=claimer.username,
+        )
+        assert updated.assignee_id == claimer.id
+        assert updated.status == 'Assigned'
+
+    def test_claim_in_progress_record_leaves_status(self, app, make_area, make_equipment):
+        """Claim on an 'In Progress' record: assignee changes, status stays."""
+        from tests.conftest import _create_user
+        claimer = _create_user('technician', username='claimer')
+        area = make_area('Shop', '#shop')
+        eq = make_equipment(name='Tool', area=area)
+        record = RepairRecord(equipment_id=eq.id, description='Broken', status='In Progress')
+        _db.session.add(record)
+        _db.session.commit()
+
+        updated = repair_service.claim_repair_record(
+            repair_record_id=record.id,
+            claimed_by_user_id=claimer.id,
+            claimed_by_username=claimer.username,
+        )
+        assert updated.assignee_id == claimer.id
+        assert updated.status == 'In Progress'
+
+    def test_claim_nonexistent_record_raises(self, app):
+        """Claim on a missing record raises ValidationError (from get_repair_record)."""
+        from esb.utils.exceptions import ValidationError
+        with pytest.raises(ValidationError, match='not found'):
+            repair_service.claim_repair_record(
+                repair_record_id=99999, claimed_by_user_id=1, claimed_by_username='x',
+            )
+
+
 class TestGetRepairQueue:
     """Tests for get_repair_queue()."""
 
