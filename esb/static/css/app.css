@@ -1,8 +1,15 @@
 /* ESB custom styles */
 
-/* Kiosk layout: larger font for readability on wall-mounted displays */
+/* Kiosk layout. Class is only applied to <body> in base_kiosk.html, so
+   this rule is effectively body-scoped. overflow:hidden prevents any
+   pre-JS scrollbars or post-JS clipping artifacts.
+
+   Constraint: any future Bootstrap modal/dropdown/popover added to a
+   kiosk page would be silently clipped if it overflows the viewport.
+   See Tech Decision #3. */
 .kiosk-body {
     font-size: 1.25rem;
+    overflow: hidden;
 }
 
 /* Queue table sortable headers */
@@ -63,6 +70,17 @@ th.sortable:hover {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     gap: 1rem;
+}
+
+/* Scaling wrapper for kiosk shrink-to-fit. JS measures scrollWidth/Height
+   and applies a transform: scale(s<=1) to fit the wrapper inside the viewport.
+   transform-origin pins the scaled content to the top-left of the viewport.
+   IMPORTANT: do NOT add non-transform styles that affect layout (font-size,
+   width, padding, etc.) to this class -- the JS measurement assumes only
+   transforms are applied. See Tech Decision #17.
+   Note: LTR-only -- for RTL support switch to `top right`. */
+.kiosk-scale-wrapper {
+    transform-origin: top left;
 }
 
 /* QR code equipment page */

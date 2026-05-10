@@ -3,7 +3,7 @@
 import pytest
 
 from esb.services import status_service
-from esb.utils.exceptions import EquipmentNotFound
+from esb.utils.exceptions import AreaArchived, AreaNotFound, EquipmentNotFound
 
 
 class TestComputeEquipmentStatus:
@@ -265,3 +265,85 @@ class TestGetEquipmentStatusDetail:
         assert result['issue_description'] == 'Critical failure'
         assert result['eta'] == date(2026, 2, 20)
         assert result['assignee_name'] == 'techuser'
+
+
+class TestGetSingleAreaStatusDashboard:
+    """Tests for get_single_area_status_dashboard()."""
+
+    def test_returns_area_with_equipment_and_statuses(
+        self, app, make_area, make_equipment, make_repair_record,
+    ):
+        """Returns the single area with equipment and computed statuses."""
+        area = make_area(name='Wood Shop')
+        equip = make_equipment(name='Lathe', area=area)
+        make_repair_record(
+            equipment=equip, status='New', severity='Down',
+            description='Spindle broken',
+        )
+
+        result = status_service.get_single_area_status_dashboard(area.id)
+        assert result['area'].id == area.id
+        assert result['area'].name == 'Wood Shop'
+        assert len(result['equipment']) == 1
+        assert result['equipment'][0]['equipment'].name == 'Lathe'
+        assert result['equipment'][0]['status']['color'] == 'red'
+        assert result['equipment'][0]['status']['label'] == 'Down'
+        assert result['equipment'][0]['status']['issue_description'] == 'Spindle broken'
+
+    def test_raises_area_not_found_for_missing_id(self, app):
+        """Raises AreaNotFound (not AreaArchived) for nonexistent area id."""
+        with pytest.raises(AreaNotFound) as exc_info:
+            status_service.get_single_area_status_dashboard(999999)
+        assert type(exc_info.value) is AreaNotFound
+
+    def test_raises_area_archived_for_archived_area(self, app, make_area):
+        """Raises AreaArchived (subclass of AreaNotFound) for archived area."""
+        from esb.extensions import db
+        area = make_area(name='Old Wing')
+        area.is_archived = True
+        db.session.commit()
+
+        with pytest.raises(AreaArchived) as exc_info:
+            status_service.get_single_area_status_dashboard(area.id)
+        assert type(exc_info.value) is AreaArchived
+
+        # Subclass relationship: also catchable as AreaNotFound
+        with pytest.raises(AreaNotFound):
+            status_service.get_single_area_status_dashboard(area.id)
+
+    def test_excludes_archived_equipment_in_area(
+        self, app, make_area, make_equipment,
+    ):
+        """Archived equipment is not included in the per-area result."""
+        area = make_area(name='Shop')
+        make_equipment(name='Active Tool', area=area)
+        make_equipment(name='Old Tool', area=area, is_archived=True)
+
+        result = status_service.get_single_area_status_dashboard(area.id)
+        names = [e['equipment'].name for e in result['equipment']]
+        assert 'Active Tool' in names
+        assert 'Old Tool' not in names
+
+    def test_returns_empty_equipment_list_when_no_equipment(self, app, make_area):
+        """Area with no equipment returns an empty equipment list."""
+        area = make_area(name='Empty Room')
+        result = status_service.get_single_area_status_dashboard(area.id)
+        assert result['area'].id == area.id
+        assert result['equipment'] == []
+
+    def test_status_derivation_matches_repair_records(
+        self, app, make_area, make_equipment, make_repair_record,
+    ):
+        """Status colors derive correctly: green / yellow / red."""
+        area = make_area(name='Shop')
+        green_eq = make_equipment(name='Good Tool', area=area)
+        yellow_eq = make_equipment(name='Iffy Tool', area=area)
+        red_eq = make_equipment(name='Broken Tool', area=area)
+        make_repair_record(equipment=yellow_eq, status='New', severity='Degraded')
+        make_repair_record(equipment=red_eq, status='New', severity='Down')
+
+        result = status_service.get_single_area_status_dashboard(area.id)
+        by_id = {e['equipment'].id: e['status']['color'] for e in result['equipment']}
+        assert by_id[green_eq.id] == 'green'
+        assert by_id[yellow_eq.id] == 'yellow'
+        assert by_id[red_eq.id] == 'red'

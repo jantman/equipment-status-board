@@ -10,11 +10,13 @@
     {% block extra_css %}{% endblock %}
 </head>
 <body class="bg-light kiosk-body">
-    <main class="container-fluid p-3">
+    <main class="container-fluid p-0">
         {% block content %}{% endblock %}
     </main>
 
-    <script src="{{ url_for('static', filename='js/bootstrap.bundle.min.js') }}"></script>
+    {# Bootstrap JS intentionally omitted: kiosk pages are non-interactive
+       read-only displays, and `.kiosk-body` sets overflow:hidden which
+       silently clips any modal/dropdown/popover. Keep them off-page. #}
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
     {% block extra_js %}{% endblock %}
 </body>

@@ -9,7 +9,7 @@ from esb.models.area import Area
 from esb.models.equipment import Equipment
 from esb.models.repair_record import RepairRecord
 from esb.services.repair_service import CLOSED_STATUSES
-from esb.utils.exceptions import EquipmentNotFound
+from esb.utils.exceptions import AreaArchived, AreaNotFound, EquipmentNotFound
 
 # Severity to status mapping: priority order (lower = higher priority)
 _SEVERITY_STATUS = {
@@ -231,3 +231,68 @@ def get_area_status_dashboard() -> list[dict]:
         })
 
     return result
+
+
+def get_single_area_status_dashboard(area_id: int) -> dict:
+    """Get a single non-archived area's equipment with computed statuses.
+
+    Returns the same shape as one entry from get_area_status_dashboard():
+        {
+            'area': Area instance,
+            'equipment': [
+                {'equipment': Equipment, 'status': {color, label, issue_description, severity}},
+                ...
+            ],
+        }
+
+    Raises:
+        AreaNotFound: if the area does not exist.
+        AreaArchived: if the area exists but is archived.
+                      (Subclass of AreaNotFound -- catch the parent if the
+                       caller treats both cases identically, e.g. a 404 view.)
+    """
+    area = db.session.get(Area, area_id)
+    if area is None:
+        raise AreaNotFound(f'Area with id {area_id} not found')
+    if area.is_archived:
+        raise AreaArchived(f'Area with id {area_id} is archived')
+
+    equipment_list = (
+        db.session.execute(
+            db.select(Equipment)
+            .filter(Equipment.area_id == area_id, Equipment.is_archived.is_(False))
+            .order_by(Equipment.name)
+        )
+        .scalars()
+        .all()
+    )
+
+    equip_ids = [e.id for e in equipment_list]
+    records_by_equipment: dict[int, list[RepairRecord]] = {}
+    if equip_ids:
+        # Skip the IN-clause query when there's no equipment, purely as
+        # a roundtrip-saving optimization. (SQLAlchemy 1.4+ handles
+        # empty IN clauses gracefully -- this is not a correctness guard.)
+        open_records = (
+            db.session.execute(
+                db.select(RepairRecord)
+                .filter(
+                    RepairRecord.equipment_id.in_(equip_ids),
+                    RepairRecord.status.notin_(CLOSED_STATUSES),
+                )
+            )
+            .scalars()
+            .all()
+        )
+        for record in open_records:
+            records_by_equipment.setdefault(record.equipment_id, []).append(record)
+
+    equip_statuses = []
+    for equip in equipment_list:
+        equip_records = records_by_equipment.get(equip.id, [])
+        equip_statuses.append({
+            'equipment': equip,
+            'status': _derive_status_from_records(equip_records),
+        })
+
+    return {'area': area, 'equipment': equip_statuses}

@@ -22,3 +22,15 @@ class UnauthorizedAction(ESBError):
 
 class ValidationError(ESBError):
     """Raised when input validation fails."""
+
+
+class AreaNotFound(ESBError):
+    """Raised when an area lookup fails (does not exist)."""
+
+
+class AreaArchived(AreaNotFound):
+    """Raised when an area exists but is archived.
+
+    Subclass of AreaNotFound so callers that don't need the distinction
+    can catch the parent and treat both as 'unavailable'.
+    """
