@@ -279,6 +279,127 @@ docker compose logs app | grep -i "new.relic\|newrelic"
 
 To disable New Relic, remove or comment out `NEW_RELIC_LICENSE_KEY` in your `.env` file and restart the services. When the license key is not set, no New Relic code is loaded and there is zero performance impact.
 
+## Monitoring and Alerting
+
+### Overview
+
+ESB exposes Prometheus metrics on `/metrics` (unauthenticated; trusted-network deployment). Both the `app` and `worker` containers run with `PYTHONUNBUFFERED=1` so log lines reach Loki/Promtail without buffering latency. The metrics are designed for direct Grafana panel use. This section is complementary to the optional New Relic integration above; it gives recommended *signals*, not a turnkey configuration.
+
+### Prometheus Metrics
+
+Example scrape config:
+
+```yaml
+scrape_configs:
+  - job_name: esb
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['esb.example.com:5000']
+```
+
+| Metric | Type | Description | Emission |
+|--------|------|-------------|----------|
+| `esb_pending_notifications_count` | gauge | Number of rows in `pending_notifications` with `status='pending'` | Always |
+| `esb_oldest_pending_notification_timestamp_seconds` | gauge | Unix epoch seconds of the oldest pending row's `created_at` | Omitted when queue empty (alert with `absent()`) |
+| `esb_worker_last_iteration_timestamp_seconds` | gauge | Unix epoch seconds of the worker's last successful poll cycle (read from `AppConfig.value`) | Omitted when worker has never run, or when the `AppConfig` query fails (alert with `absent()`, **`for: 5m` minimum**) |
+| `esb_socket_mode_enabled` | gauge | `1` if `init_slack` entered the Socket Mode setup block (tokens set, not `TESTING`, opt-in flag true); `0` otherwise | Always |
+| `esb_socket_mode_connected` | gauge | `1` if a Bolt SocketModeHandler is currently bound; `0` otherwise. Transitions 1→0 at process shutdown. | Always |
+
+Example alert rules:
+
+```yaml
+- alert: ESBNotificationQueueStuck
+  expr: time() - esb_oldest_pending_notification_timestamp_seconds > 300
+  for: 1m
+  annotations:
+    summary: "ESB notification worker is not draining the queue"
+```
+
+```yaml
+- alert: ESBWorkerStalled
+  expr: time() - esb_worker_last_iteration_timestamp_seconds > 120
+  for: 1m
+  annotations:
+    summary: "ESB notification worker has not iterated in 2+ minutes"
+```
+
+```yaml
+- alert: ESBWorkerNeverRan
+  expr: absent(esb_worker_last_iteration_timestamp_seconds)
+  for: 5m
+  annotations:
+    summary: "ESB worker has not produced a heartbeat row since deploy (or DB reset / transient query failure)"
+```
+
+```yaml
+- alert: ESBSocketModeFailedAtBoot
+  expr: (esb_socket_mode_enabled == 1 and esb_socket_mode_connected == 0) unless on(instance) up == 0
+  for: 5m
+  annotations:
+    summary: "ESB intended to run Slack Socket Mode but the handler failed at boot"
+```
+
+**`ESBWorkerStalled` and `ESBWorkerNeverRan` are complementary and should both be loaded.** `ESBWorkerStalled` detects "worker was alive recently but stopped iterating" — fires on a normal stall but doesn't fire when the metric is missing entirely. `ESBWorkerNeverRan` detects the metric-missing case — fires on cold-deploy time-to-first-poll AND on transient `AppConfig` query failures. Together they cover the full failure space.
+
+!!! note "Clock skew"
+    `time() - <gauge>` rules mix Prometheus's clock with the worker container's clock. Run NTP on every node and pick the threshold ≥ 4× `poll_interval` (so 120s for the default 30s). Note the failure asymmetry: if the worker's clock runs *behind* Prometheus's, the rule fires aggressively; if the worker's clock runs *ahead*, `time() - gauge` goes negative and the rule is **silent forever**. NTP is mandatory, not optional.
+
+!!! note "Single-worker assumption"
+    These metrics assume the current single-gunicorn-worker deployment (`--workers 1`). Scaling app-side gunicorn workers makes the Socket Mode metrics non-deterministic across scrapes.
+
+!!! note "Information disclosure"
+    The Socket Mode gauges let any unauthenticated reader of `/metrics` distinguish "Slack not configured" from "Slack configured but failed at boot" from "Slack working." Acceptable on a trusted network; something to be aware of if `/metrics` is ever exposed more broadly.
+
+!!! note "`ESBSocketModeFailedAtBoot` shutdown safety"
+    The rule includes `unless on(instance) up == 0` to suppress the alert during a full app outage (where `up == 0` is already the dominant signal) and uses `for: 5m` to absorb gunicorn worker reloads (`--max-requests` recycling) where `_shutdown_socket()` briefly leaves state at `(1, 0)`. The `on(instance)` clause assumes targets share an `instance` label; if your relabeling adds richer labels (e.g. `cluster`, `env`) you may need `unless on(job, instance) up == 0` to keep the join correct.
+
+!!! note "`/metrics` endpoint resilience"
+    The endpoint returns HTTP 200 even when the `app_config` table is missing (e.g., on a fresh deployment that hasn't yet run `flask db upgrade`). The worker-timestamp metric is simply omitted; alert via `ESBWorkerNeverRan`. The first per-process query failure logs a full stack trace; subsequent failures log a one-line warning to avoid log flooding.
+
+### Container and Process Liveness
+
+`up{job="esb"} == 0` for ≥ 1 minute indicates the app is not responding to scrapes — covers OOM kills, gunicorn wedges, and network partitions. cAdvisor's `container_last_seen` (or its restart-count rate) catches container restart loops where the app keeps crashing fast enough that `up{}` may briefly recover between scrapes.
+
+### Log-Based Alerting (Loki)
+
+ESB writes logs to stdout/stderr; both the `app` and `worker` containers run with `PYTHONUNBUFFERED=1` so lines reach Promtail/Loki without Python's default block-buffering latency.
+
+| What to detect | Source | Log substring |
+|----------------|--------|---------------|
+| Worker poll-cycle failure (any exception in the loop body) | `notification_service.py` (worker outer-try) | `Error in worker polling loop` |
+| Slack delivery exception (per notification, app-log line) | `notification_service.py` (per-notification failure log) | `delivery failed:` (trailing colon required — uniquely matches the failure-line format string `'Notification %d delivery failed: %s'`; does NOT match the success log or the `NotImplementedError` log even though all three share the `Notification %d ...` prefix; also does not match the JSON mutation log) |
+| Worker heartbeat write failure | `notification_service.py` (`_write_heartbeat`) | `Failed to update worker heartbeat at` |
+| Worker last-iteration write failure | `notification_service.py` (`_record_iteration_timestamp`) | `Failed to update worker last-iteration timestamp` |
+| Buggy iteration-timestamp helper | `notification_service.py` (worker-loop call site) | `BUG: _record_iteration_timestamp raised unexpectedly` |
+| Slack Socket Mode setup failure (import / instantiation / connect) | `esb/slack/__init__.py` (unified setup `try`) | `Failed to set up Slack Socket Mode` |
+| `/metrics` AppConfig query failure (first per process) | `esb/services/metrics_service.py` | `Failed to query worker_last_iteration_at from AppConfig` |
+| Generic ERROR-level traffic | any | `ERROR` (level) and/or `Traceback` |
+
+**Permanent-fail signal lives in the structured JSON mutation log.** When a notification is permanently failed after `MAX_RETRIES`, the mutation logger writes a single-line JSON record to logger `esb.mutations` containing `event: notification.permanently_failed`. Two equivalent alerting options:
+
+- **Substring match** on `notification.permanently_failed` — simplest; works regardless of JSON-whitespace variation.
+- **Promtail JSON-stage parsing** — extract `event` as a structured Loki label. Use a Promtail `match` stage to apply the JSON parser only to lines starting with `{`, since the regular Python logger and the mutation logger share the same stdout stream.
+
+Operators write their own LogQL queries and alert rules; this guide intentionally lists signals, not queries. Note that the substrings in the table above are stable today but unanchored — a future log message containing the same text would also match. For a future-resistant query, anchor with the `Notification N` prefix (regex `Notification \d+ delivery failed:` for the per-notification case), or filter by log level.
+
+### What to Alert On
+
+- **App down** — `up{job="esb"} == 0` for ≥ 1 m
+- **Worker stalled** — the `ESBWorkerStalled` rule
+- **Worker never ran since deploy / DB reset** — the `ESBWorkerNeverRan` rule
+- **Notification queue stuck** — the existing `ESBNotificationQueueStuck` rule
+- **Slack Socket Mode failed at boot** — the `ESBSocketModeFailedAtBoot` rule (covers import, instantiation, and connect failures; suppressed during full app outage)
+- **Elevated rate of Slack delivery failures** — Loki on `delivery failed:` substring exceeding a per-minute threshold
+- **Container flapping** — cAdvisor restart-count rate
+
+### Grafana Dashboards
+
+The ESB metrics are designed for direct panel use — gauge panels for the Socket Mode and worker-timestamp metrics, time-series panels for the queue gauges, and log panels backed by the Loki substrings above. ESB does not ship a dashboard JSON; operators build the panels they actually want to watch.
+
+### Relationship to New Relic
+
+New Relic (above) and the Prometheus/Loki/Grafana stack here observe different layers and are complementary. New Relic provides per-transaction APM and end-user browser monitoring; Prometheus provides system-health gauges and log-based alerting suitable for on-call paging. They can run together with no additional configuration.
+
 ## Ongoing Maintenance
 
 ### Viewing Logs
@@ -343,38 +464,7 @@ docker inspect --format '{{.State.Health.Status}}' equipment-status-board-worker
 
 If the worker is reported as `unhealthy`, the autoheal sidecar will restart it automatically (typically within a minute).
 
-### Prometheus Metrics
-
-The application exposes a Prometheus exposition endpoint at `/metrics` (unauthenticated). Two gauges are published from the `pending_notifications` table:
-
-| Metric | Description |
-|--------|-------------|
-| `esb_pending_notifications_count` | Number of rows with `status='pending'`. Always present. |
-| `esb_oldest_pending_notification_timestamp_seconds` | Unix epoch (seconds) of the oldest pending row's `created_at`. **Omitted entirely** when the queue is empty — alert rules should rely on `absent()` rather than checking for a sentinel value. |
-
-These two metrics together catch a stuck worker, a bad Slack token, and a Slack outage — the queue grows and the oldest pending row ages.
-
-Example Prometheus scrape config:
-
-```yaml
-scrape_configs:
-  - job_name: esb
-    metrics_path: /metrics
-    static_configs:
-      - targets: ['esb.example.com:5000']
-```
-
-Example alert rule (oldest pending row stuck for more than 5 minutes):
-
-```yaml
-- alert: ESBNotificationQueueStuck
-  expr: time() - esb_oldest_pending_notification_timestamp_seconds > 300
-  for: 1m
-  annotations:
-    summary: "ESB notification worker is not draining the queue"
-```
-
-The alert evaluates `time() - X` against a fresh timestamp on every scrape, which is more robust than a worker-computed "age" gauge that would be stale between scrapes.
+For metrics, log-based alerting, and recommended dashboards, see the [Monitoring and Alerting](#monitoring-and-alerting) section above. (External links to `#prometheus-metrics` continue to resolve — the new `### Prometheus Metrics` subsection auto-generates the same anchor.)
 
 ### Upload Storage
 

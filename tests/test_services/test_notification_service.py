@@ -1068,3 +1068,87 @@ class TestFormatSlackMessage:
 
         assert 'Unknown Equipment' in text
         assert 'Unknown Area' in text
+
+
+class TestRecordIterationTimestamp:
+    """Tests for _record_iteration_timestamp() and the worker-loop call site
+    that wraps it defensively."""
+
+    def test_record_iteration_timestamp_writes_appconfig_row(self, app):
+        """Helper upserts a single AppConfig row with a recent ISO-8601 value."""
+        from sqlalchemy import select
+
+        from esb.models.app_config import AppConfig
+
+        notification_service._record_iteration_timestamp()
+
+        rows = _db.session.execute(
+            select(AppConfig).where(AppConfig.key == 'worker_last_iteration_at')
+        ).scalars().all()
+        assert len(rows) == 1
+        parsed = datetime.fromisoformat(rows[0].value)
+        assert abs((parsed - datetime.now(UTC)).total_seconds()) <= 5.0
+
+    def test_record_iteration_timestamp_recovers_from_real_db_error(self, app, caplog):
+        """Helper swallows SQLAlchemyError and rolls back the session so
+        subsequent queries still work."""
+        from sqlalchemy import select
+
+        from esb.models.app_config import AppConfig
+
+        # Drop only the app_config table — pending_notifications is unaffected.
+        AppConfig.__table__.drop(_db.engine)
+        try:
+            with caplog.at_level('WARNING', logger='esb.services.notification_service'):
+                # Must not raise.
+                notification_service._record_iteration_timestamp()
+
+            assert any(
+                'Failed to update worker last-iteration timestamp' in r.getMessage()
+                for r in caplog.records
+            )
+
+            # The session must be usable for an unrelated query — proves the
+            # rollback was actually performed. Without rollback this would
+            # raise PendingRollbackError.
+            result = _db.session.execute(select(PendingNotification)).all()
+            assert result == []
+        finally:
+            AppConfig.__table__.create(_db.engine)
+
+    def test_worker_loop_survives_buggy_helper_continues_iterating(
+        self, app, tmp_path, caplog,
+    ):
+        """A non-SQLAlchemyError exception escaping _record_iteration_timestamp
+        must not abort the iteration's notification processing. The defensive
+        call-site wrapper logs ERROR and continues the loop."""
+        from unittest.mock import MagicMock
+
+        heartbeat = tmp_path / 'hb'
+        app.config['WORKER_HEARTBEAT_PATH'] = str(heartbeat)
+
+        # Counter on get_pending_notifications: terminate after two complete
+        # iterations have run past the failing helper.
+        call_count = {'n': 0}
+
+        def fake_poll(batch_size=100):
+            call_count['n'] += 1
+            if call_count['n'] >= 3:
+                raise KeyboardInterrupt
+            return []
+
+        with patch.object(notification_service, '_record_iteration_timestamp',
+                          side_effect=RuntimeError('boom')), \
+             patch.object(notification_service, 'get_pending_notifications',
+                          side_effect=fake_poll), \
+             patch('esb.services.notification_service.signal'), \
+             patch('esb.services.notification_service.time', MagicMock()):
+            with caplog.at_level('ERROR', logger='esb.services.notification_service'):
+                with pytest.raises(KeyboardInterrupt):
+                    run_worker_loop(poll_interval=0.01)
+
+        assert call_count['n'] == 3
+        assert any(
+            'BUG: _record_iteration_timestamp raised unexpectedly' in r.getMessage()
+            for r in caplog.records
+        )

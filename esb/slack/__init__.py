@@ -9,6 +9,7 @@ logger = logging.getLogger(__name__)
 # Module-level state (set during init_slack)
 _bolt_app = None
 _socket_handler = None
+_socket_mode_intended: bool = False
 
 
 def init_slack(app):
@@ -19,7 +20,23 @@ def init_slack(app):
     SLACK_SOCKET_MODE_CONNECT config is not 'true' (opt-in).
     Called from create_app() in esb/__init__.py.
     """
-    global _bolt_app, _socket_handler
+    global _bolt_app, _socket_handler, _socket_mode_intended
+    # Reset all module-level state up front so re-entry (test fixtures, or any
+    # caller that re-invokes init_slack with different config) cannot leave a
+    # stale (_bolt_app, _socket_handler, _socket_mode_intended) tuple from the
+    # previous call. Without this, an early-return path (no token / TESTING /
+    # opt-out) would leave a previously-bound _socket_handler dangling, which
+    # the metrics view would then report as connected=1, enabled=0 — an
+    # impossible state by design that the alert rule cannot match.
+    #
+    # Call _shutdown_socket() FIRST so we close any prior live WebSocket
+    # before dropping the reference. _shutdown_socket() is idempotent: if
+    # _socket_handler is already None it is a no-op. Without this, a previous
+    # successful init's WebSocket would leak — atexit/SIGTERM hooks no longer
+    # have a reference to close.
+    _shutdown_socket()
+    _bolt_app = None
+    _socket_mode_intended = False
 
     token = app.config.get('SLACK_BOT_TOKEN', '')
     app_token = app.config.get('SLACK_APP_TOKEN', '')
@@ -57,15 +74,22 @@ def init_slack(app):
         logger.info('SLACK_SOCKET_MODE_CONNECT is not true, skipping Socket Mode connection')
         return
 
-    from slack_bolt.adapter.socket_mode import SocketModeHandler
-
-    _socket_handler = SocketModeHandler(app=_bolt_app, app_token=app_token)
-
+    # Unified Socket Mode setup: import, instantiation, and connect all live
+    # inside the same try/except so the actionable failure mode
+    # (enabled=1, connected=0) covers ImportError, instantiation errors, AND
+    # connect errors with a single Failed-to-set-up warning.
     try:
+        _socket_mode_intended = True   # set FIRST — before handler binding —
+                                       # so there is no (False, True) window.
+        from slack_bolt.adapter.socket_mode import SocketModeHandler
+        _socket_handler = SocketModeHandler(app=_bolt_app, app_token=app_token)
         _socket_handler.connect()
         logger.info('Slack Socket Mode connected')
     except Exception:
-        logger.warning('Failed to connect Slack Socket Mode — app will run without Slack', exc_info=True)
+        logger.warning(
+            'Failed to set up Slack Socket Mode — app will run without Slack',
+            exc_info=True,
+        )
         _socket_handler = None
         return
 
@@ -103,3 +127,17 @@ def _shutdown_socket():
         except Exception:
             logger.warning('Error closing Socket Mode connection', exc_info=True)
         _socket_handler = None
+
+
+def is_socket_mode_enabled() -> bool:
+    """True iff the most recent init_slack() call entered the Socket Mode setup
+    block (tokens set, not TESTING, opt-in flag true). False on any of the four
+    early-return paths or if the setup block was never reached."""
+    return _socket_mode_intended
+
+
+def is_socket_mode_connected() -> bool:
+    """True iff a Bolt SocketModeHandler is currently bound. Transitions
+    True→False at process shutdown via _shutdown_socket(). Slack Bolt does
+    not expose mid-life WebSocket connection-state callbacks."""
+    return _socket_handler is not None

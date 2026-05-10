@@ -6,7 +6,11 @@ import time
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
+
 from esb.extensions import db
+from esb.models.app_config import AppConfig
 from esb.models.pending_notification import PendingNotification
 from esb.utils.exceptions import ValidationError
 from esb.utils.logging import log_mutation
@@ -35,6 +39,29 @@ def _write_heartbeat(path: Path) -> None:
         logger.warning(
             'Failed to update worker heartbeat at %s', path, exc_info=True,
         )
+
+
+def _record_iteration_timestamp() -> None:
+    """Upsert the worker's last-iteration timestamp into AppConfig.
+
+    Catches SQLAlchemyError (covers OperationalError from transient DB drops
+    and ProgrammingError from a missing app_config table on pre-migration
+    deployments — both subclasses of SQLAlchemyError). On error: rollback
+    the session and log a warning. Do not propagate.
+    """
+    now_iso = datetime.now(UTC).isoformat()
+    try:
+        row = db.session.execute(
+            select(AppConfig).where(AppConfig.key == 'worker_last_iteration_at')
+        ).scalar_one_or_none()
+        if row is None:
+            db.session.add(AppConfig(key='worker_last_iteration_at', value=now_iso))
+        else:
+            row.value = now_iso
+        db.session.commit()
+    except SQLAlchemyError:
+        db.session.rollback()
+        logger.warning('Failed to update worker last-iteration timestamp', exc_info=True)
 
 
 def queue_notification(
@@ -395,6 +422,46 @@ def run_worker_loop(poll_interval: int = 30) -> None:
                 # long but progressing batch of slow Slack calls must not be
                 # mistaken for a hang.
                 _write_heartbeat(heartbeat_path)
+
+            # Record the iteration timestamp AFTER the for-loop, not before.
+            # The helper's commit() with Flask-SQLAlchemy's default
+            # expire_on_commit=True would otherwise expire every loaded
+            # PendingNotification ORM instance, forcing a per-row refresh
+            # SELECT on the next attribute access inside the for-loop. Placing
+            # it post-loop also gives more meaningful "successful iteration"
+            # semantics: ESBWorkerStalled fires when an iteration didn't
+            # complete, not just when a poll succeeded but processing stalled.
+            #
+            # Defensive wrapper. The helper already catches SQLAlchemyError;
+            # the only thing it can raise is a programming bug. Don't let that
+            # abort the loop — log loudly and continue.
+            try:
+                _record_iteration_timestamp()
+            except Exception:
+                # CRITICAL: roll back the session before continuing. The
+                # helper does db.session.add(AppConfig(...)) BEFORE
+                # db.session.commit(). A non-SQLAlchemyError exception
+                # (programming bug) raised between those two lines leaves an
+                # unflushed AppConfig insert pending in the session. Without
+                # this rollback, a subsequent commit in the next iteration
+                # could commit that half-baked row as a side effect.
+                # The rollback itself is wrapped: if it raises, we do NOT
+                # want the exception to escalate into the outer poll-failure
+                # except-clause and trigger exponential backoff. The
+                # defensive wrapper's whole purpose is to absorb helper bugs.
+                try:
+                    db.session.rollback()
+                except Exception:
+                    logger.error(
+                        'BUG: rollback after _record_iteration_timestamp '
+                        'failure ALSO raised — session may be wedged',
+                        exc_info=True,
+                    )
+                logger.error(
+                    'BUG: _record_iteration_timestamp raised unexpectedly '
+                    '— iteration metric will be stale',
+                    exc_info=True,
+                )
 
         except Exception:
             consecutive_poll_failures += 1
