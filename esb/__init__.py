@@ -1,6 +1,7 @@
 """ESB application package."""
 
 import os
+from datetime import datetime, timezone
 
 from flask import Flask, flash, redirect, render_template, request, session, url_for
 
@@ -68,6 +69,10 @@ def create_app(config_name='default'):
 
     # Register custom Jinja2 filters
     register_filters(app)
+
+    @app.context_processor
+    def inject_current_year():
+        return {'current_year': datetime.now(timezone.utc).year}
 
     # New Relic browser monitoring context processor
     if nr_license:

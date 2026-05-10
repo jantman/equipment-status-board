@@ -14,6 +14,8 @@
         {% block content %}{% endblock %}
     </main>
 
+    {% include 'components/_footer.html' %}
+
     {# Bootstrap JS intentionally omitted: kiosk pages are non-interactive
        read-only displays, and `.kiosk-body` sets overflow:hidden which
        silently clips any modal/dropdown/popover. Keep them off-page. #}

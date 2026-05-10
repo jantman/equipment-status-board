@@ -67,9 +67,7 @@
         {% block content %}{% endblock %}
     </main>
 
-    <footer class="container mt-5 mb-3 text-center text-muted">
-        <small>Equipment Status Board &copy; Decatur Makers</small>
-    </footer>
+    {% include 'components/_footer.html' %}
 
     <script src="{{ url_for('static', filename='js/bootstrap.bundle.min.js') }}"></script>
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>

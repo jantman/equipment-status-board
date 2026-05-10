@@ -169,7 +169,25 @@ class TestStatusDashboardView:
         response = staff_client.get('/public/')
         assert response.status_code == 200
         assert b'navbar' in response.data
-        assert b'Decatur Makers' in response.data
+        self._assert_copyright_footer(response.data)
+
+    def test_dashboard_unauthenticated_has_footer(self, client, make_area, make_equipment):
+        """Unauthenticated dashboard (extends base_public.html) also shows the copyright footer."""
+        area = make_area(name='Workshop')
+        make_equipment(name='Saw', area=area)
+
+        response = client.get('/public/')
+        assert response.status_code == 200
+        self._assert_copyright_footer(response.data)
+
+    @staticmethod
+    def _assert_copyright_footer(body):
+        """Verify the new copyright footer text, both links, and absence of the old text."""
+        assert b'Jason Antman' in body
+        assert b'href="https://github.com/jantman/equipment-status-board"' in body
+        assert b'href="https://opensource.org/license/mit"' in body
+        assert b'MIT licensed' in body
+        assert b'Decatur Makers' not in body
 
     def test_area_headings_displayed(self, staff_client, make_area, make_equipment):
         """Area names are displayed as section headings."""
