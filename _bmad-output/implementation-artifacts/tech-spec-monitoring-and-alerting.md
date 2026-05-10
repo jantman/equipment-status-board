@@ -2,10 +2,10 @@
 title: 'Monitoring and Alerting Guide + System-Health Metrics'
 slug: 'monitoring-and-alerting'
 created: '2026-05-10'
-status: 'ready-for-dev'
-stepsCompleted: [1, 2, 3, 4]
-revision: 5
-revision_notes: 'Fourth adversarial-review pass applied — 5 findings addressed (revision 4 introduced regressions: invalid Flask-SQLAlchemy `drop_all(tables=...)` API which does not exist, missing rollback in collector after SQLAlchemyError, Loki substring `Notification ` colliding with success/NotImplementedError logs, missing rollback in defensive call-site wrapper, and "five vs four early-return paths" doc inconsistency).'
+status: 'completed'
+stepsCompleted: [1, 2, 3, 4, 5, 6]
+revision: 6
+revision_notes: 'Implementation complete (quick-dev workflow). Adversarial review pass produced 15 findings; 9 auto-fixed (F1, F2, F3, F4, F5, F7, F10, F11, F12), 6 skipped as noise/wording-only. Final: 1184 tests passing, lint clean.'
 tech_stack:
   - 'Python 3.14'
   - 'Flask'
@@ -204,7 +204,7 @@ Three-part change:
 
 ### Tasks
 
-- [ ] **Task 1: Worker writes `worker_last_iteration_at` to `AppConfig` once per poll cycle, with a defensive call-site wrapper**
+- [x] **Task 1: Worker writes `worker_last_iteration_at` to `AppConfig` once per poll cycle, with a defensive call-site wrapper**
   - File: `esb/services/notification_service.py`
   - Action (helper definition): Add a private helper `_record_iteration_timestamp() -> None`:
     ```python
@@ -256,7 +256,7 @@ Three-part change:
     ```
   - Notes: This two-block design closes adversarial-review F5 (a buggy helper would otherwise skip notification processing for the iteration). The defensive rollback closes pass-4 F4 (a non-SQLAlchemy exception escaping the helper between `add()` and `commit()` would otherwise leak the pending row into the next unrelated commit). Do not call the helper at the startup-heartbeat site (line 355) or the per-notification site (line 397).
 
-- [ ] **Task 2: Unified Socket Mode setup `try` block; expose two accessors**
+- [x] **Task 2: Unified Socket Mode setup `try` block; expose two accessors**
   - File: `esb/slack/__init__.py`
   - Action: Add module-level `_socket_mode_intended: bool = False` near existing globals at lines 9-11.
   - Action: At the **top** of `init_slack(app)` (immediately after the docstring), add: `global _socket_mode_intended; _socket_mode_intended = False`. This resets the flag on every fixture-driven re-init.
@@ -295,7 +295,7 @@ Three-part change:
     ```
   - Notes: The Loki substring `Failed to set up Slack Socket Mode` (note the change from "Failed to connect Slack Socket Mode" — broader scope) covers all setup failure paths. Update the doc Loki table accordingly.
 
-- [ ] **Task 3: `_WorkerStatusCollector` with worker-timestamp gauge and rate-limited DB-error logging**
+- [x] **Task 3: `_WorkerStatusCollector` with worker-timestamp gauge and rate-limited DB-error logging**
   - File: `esb/services/metrics_service.py`
   - Action: Add a module-level boolean: `_app_config_query_failed_once: bool = False`.
   - Action: Add a new collector class `_WorkerStatusCollector` next to `_PendingNotificationsCollector`. In `collect()`:
@@ -350,7 +350,7 @@ Three-part change:
   - Imports to add: `import logging`, `logger = logging.getLogger(__name__)` (if not present), `from sqlalchemy.exc import SQLAlchemyError`, `from sqlalchemy import select`, `from esb.models.app_config import AppConfig`.
   - Notes: `_app_config_query_failed_once` is a deliberate per-process latch (closes F10). Tests that need to trigger the "first failure" path again can reset it via `monkeypatch.setattr('esb.services.metrics_service._app_config_query_failed_once', False)`.
 
-- [ ] **Task 4: `esb_socket_mode_enabled` and `esb_socket_mode_connected` gauges**
+- [x] **Task 4: `esb_socket_mode_enabled` and `esb_socket_mode_connected` gauges**
   - File: `esb/services/metrics_service.py`
   - Action: Inside `_WorkerStatusCollector.collect()` (after the worker-timestamp logic), use the lazy + dotted import idiom:
     ```python
@@ -382,7 +382,7 @@ Three-part change:
     ```
   - Notes: The inline comment about *why* the import is lazy + dotted is mandatory — closes F12 of pass 2 and F16 of pass 3.
 
-- [ ] **Task 5: Worker-loop tests — three tests with sleep-mocking and real DB-error simulation**
+- [x] **Task 5: Worker-loop tests — three tests with sleep-mocking and real DB-error simulation**
   - File: `tests/test_services/test_notification_service.py`
   - Action: Add three tests using existing `app`, `db`, `monkeypatch`, `caplog`, `tmp_path` fixtures.
     1. **`test_record_iteration_timestamp_writes_appconfig_row`**:
@@ -403,7 +403,7 @@ Three-part change:
        - Assert `caplog` records contain `'BUG: _record_iteration_timestamp raised unexpectedly'` (proves the inner-try caught the buggy helper).
        - Notes: This design avoids the contradictory "second-call flag on the helper" approach. Loop-continuation is verified by counting `get_pending_notifications` calls — which must run before the helper. The `time` mock prevents real sleeps.
 
-- [ ] **Task 6: Service-layer metrics tests — eight tests including DB-error degradation and the latch-reset case**
+- [x] **Task 6: Service-layer metrics tests — eight tests including DB-error degradation and the latch-reset case**
   - File: `tests/test_services/test_metrics_service.py`
   - Action: Add an `autouse=True` function-scoped fixture that, before each test:
     - Resets `esb.slack._bolt_app = None; esb.slack._socket_handler = None`. (`_socket_mode_intended` is reset by `init_slack(app)` itself; not in this fixture's reset list.)
@@ -419,7 +419,7 @@ Three-part change:
     7. `test_socket_mode_connected_emits_one_when_handler_bound`: `monkeypatch.setattr('esb.slack.is_socket_mode_connected', lambda: True)`; assert body contains `esb_socket_mode_connected 1.0`.
     8. `test_socket_mode_connected_emits_zero_when_handler_unbound`: same with `False`; assert `esb_socket_mode_connected 0.0`.
 
-- [ ] **Task 7: Route-level metrics tests — six tests with all reachable Socket Mode combinations**
+- [x] **Task 7: Route-level metrics tests — six tests with all reachable Socket Mode combinations**
   - File: `tests/test_views/test_metrics_view.py`
   - Action: Add the same autouse fixture as Task 6 (reset `_bolt_app`, `_socket_handler`, `_app_config_query_failed_once`).
   - Action: Add six tests using the existing `client` fixture:
@@ -431,7 +431,7 @@ Three-part change:
     6. `test_metrics_endpoint_socket_mode_state_neither`: patch both → `False`; GET `/metrics`; assert body contains `'esb_socket_mode_enabled 0.0'` AND `'esb_socket_mode_connected 0.0'`.
   - Notes: The fourth reachable combination `(False, True)` is unreachable in the new unified-setup design (Task 2 sets `_socket_mode_intended = True` before binding `_socket_handler`); not tested. Documented in AC8.
 
-- [ ] **Task 8: Reorganize the existing "Prometheus Metrics" subsection out of "Ongoing Maintenance" with anchor preservation**
+- [x] **Task 8: Reorganize the existing "Prometheus Metrics" subsection out of "Ongoing Maintenance" with anchor preservation**
   - File: `docs/administrators.md`
   - Action: Delete the `### Prometheus Metrics` subsection currently at lines 346-377. In its place insert exactly:
     ```markdown
@@ -441,7 +441,7 @@ Three-part change:
     ```
   - Notes: Verified safe under `mkdocs.yml`'s `attr_list` + `md_in_html` extensions. Task 12 enforces this config invariant via test.
 
-- [ ] **Task 9: Add new top-level "Monitoring and Alerting" section**
+- [x] **Task 9: Add new top-level "Monitoring and Alerting" section**
   - File: `docs/administrators.md`
   - Action: Insert a new top-level `## Monitoring and Alerting` section immediately after `## New Relic Monitoring (Optional)` and before `## Ongoing Maintenance`. Subsections in order:
     1. **`### Overview`** — One paragraph: ESB exposes Prometheus metrics on `/metrics` (unauthenticated; trusted-network deployment); both `app` and `worker` containers run with `PYTHONUNBUFFERED=1` so logs reach Loki/Promtail without buffering latency; metrics are designed for direct Grafana panel use. Complementary to the optional New Relic integration. This guide gives recommended *signals*, not a turnkey configuration.
@@ -524,16 +524,16 @@ Three-part change:
     7. **`### Relationship to New Relic`** — 2-3 sentences. Different observation layers; complementary; can run together.
   - Notes: Match existing heading levels, table formatting, fenced code blocks, and `!!!` admonition syntax.
 
-- [ ] **Task 10: Add `PYTHONUNBUFFERED=1` to the `app` service in `docker-compose.yml`**
+- [x] **Task 10: Add `PYTHONUNBUFFERED=1` to the `app` service in `docker-compose.yml`**
   - File: `docker-compose.yml`
   - Action: In the `app` service's `environment:` block, add `- PYTHONUNBUFFERED=1`.
 
-- [ ] **Task 11: Declare `PyYAML` explicitly in `requirements-dev.txt`**
+- [x] **Task 11: Declare `PyYAML` explicitly in `requirements-dev.txt`**
   - File: `requirements-dev.txt`
   - Action: Add a line `PyYAML>=6.0` (or match the version pin style used by the rest of the file).
   - Notes: PyYAML is currently only available transitively via `mkdocs`; making it an explicit dev dep prevents `tests/test_compose.py` from breaking when transitive resolution changes (closes F8).
 
-- [ ] **Task 12: New `tests/test_compose.py` with two CWD-independent YAML-load assertions**
+- [x] **Task 12: New `tests/test_compose.py` with two CWD-independent YAML-load assertions**
   - File: `tests/test_compose.py` (new)
   - Action:
     ```python
@@ -573,47 +573,47 @@ Three-part change:
 
 ### Acceptance Criteria
 
-- [ ] **AC 1 — Worker liveness gauge, happy path:** Given an `AppConfig` row with key `worker_last_iteration_at` and a valid ISO-8601 `value`, when `/metrics` is scraped, the body contains a value line `esb_worker_last_iteration_timestamp_seconds <float>` matching the parsed timestamp's epoch seconds.
+- [x] **AC 1 — Worker liveness gauge, happy path:** Given an `AppConfig` row with key `worker_last_iteration_at` and a valid ISO-8601 `value`, when `/metrics` is scraped, the body contains a value line `esb_worker_last_iteration_timestamp_seconds <float>` matching the parsed timestamp's epoch seconds.
 
-- [ ] **AC 2 — Worker liveness gauge, never-run:** Given no `AppConfig` row with that key, when `/metrics` is scraped, `esb_worker_last_iteration_timestamp_seconds` does not appear in the body.
+- [x] **AC 2 — Worker liveness gauge, never-run:** Given no `AppConfig` row with that key, when `/metrics` is scraped, `esb_worker_last_iteration_timestamp_seconds` does not appear in the body.
 
-- [ ] **AC 3 — Worker writes timestamp once per poll cycle:** Given `_record_iteration_timestamp()` is invoked, when it returns, exactly one `AppConfig` row with key `worker_last_iteration_at` exists; `value` parses as ISO-8601 within ±5 s of `datetime.now(UTC)`.
+- [x] **AC 3 — Worker writes timestamp once per poll cycle:** Given `_record_iteration_timestamp()` is invoked, when it returns, exactly one `AppConfig` row with key `worker_last_iteration_at` exists; `value` parses as ISO-8601 within ±5 s of `datetime.now(UTC)`.
 
-- [ ] **AC 4a — Helper internal rollback path verified by real DB error:** Given `AppConfig.__table__.drop(db.engine)` is executed, when `_record_iteration_timestamp()` is invoked, then no exception escapes; `caplog` contains `'Failed to update worker last-iteration timestamp'`; AND a subsequent `db.session.execute(select(PendingNotification)).all()` (against the still-existing `pending_notifications` table) succeeds without raising `PendingRollbackError`. **Removing `db.session.rollback()` from the helper would cause the follow-up query to raise `PendingRollbackError`** — so this AC genuinely verifies the rollback is necessary.
+- [x] **AC 4a — Helper internal rollback path verified by real DB error:** Given `AppConfig.__table__.drop(db.engine)` is executed, when `_record_iteration_timestamp()` is invoked, then no exception escapes; `caplog` contains `'Failed to update worker last-iteration timestamp'`; AND a subsequent `db.session.execute(select(PendingNotification)).all()` (against the still-existing `pending_notifications` table) succeeds without raising `PendingRollbackError`. **Removing `db.session.rollback()` from the helper would cause the follow-up query to raise `PendingRollbackError`** — so this AC genuinely verifies the rollback is necessary.
 
-- [ ] **AC 4b — Worker loop survives a buggy helper raising arbitrary `Exception`:** Given `_record_iteration_timestamp` is patched to raise `RuntimeError('boom')` on every call, AND `get_pending_notifications` is patched to return `[]` for the first two calls and raise `KeyboardInterrupt` on the third, AND `notification_service.time` is mocked, when `run_worker_loop()` is invoked, then `get_pending_notifications` is called exactly 3 times (proving the loop ran two iterations past the first helper failure), `caplog` contains `'BUG: _record_iteration_timestamp raised unexpectedly'`, and the loop exits via `KeyboardInterrupt` (not via the `RuntimeError`).
+- [x] **AC 4b — Worker loop survives a buggy helper raising arbitrary `Exception`:** Given `_record_iteration_timestamp` is patched to raise `RuntimeError('boom')` on every call, AND `get_pending_notifications` is patched to return `[]` for the first two calls and raise `KeyboardInterrupt` on the third, AND `notification_service.time` is mocked, when `run_worker_loop()` is invoked, then `get_pending_notifications` is called exactly 3 times (proving the loop ran two iterations past the first helper failure), `caplog` contains `'BUG: _record_iteration_timestamp raised unexpectedly'`, and the loop exits via `KeyboardInterrupt` (not via the `RuntimeError`).
 
-- [ ] **AC 5 — `/metrics` graceful degradation on real AppConfig table absence:** Given `AppConfig.__table__.drop(db.engine)`, when `/metrics` is scraped, then HTTP `200` (not `500`); body does NOT contain `esb_worker_last_iteration_timestamp_seconds`; body DOES contain both Socket Mode gauges AND `esb_pending_notifications_count` (the existing collector is unaffected since `pending_notifications` is a different table). A warning is logged with substring `Failed to query worker_last_iteration_at from AppConfig`.
+- [x] **AC 5 — `/metrics` graceful degradation on real AppConfig table absence:** Given `AppConfig.__table__.drop(db.engine)`, when `/metrics` is scraped, then HTTP `200` (not `500`); body does NOT contain `esb_worker_last_iteration_timestamp_seconds`; body DOES contain both Socket Mode gauges AND `esb_pending_notifications_count` (the existing collector is unaffected since `pending_notifications` is a different table). A warning is logged with substring `Failed to query worker_last_iteration_at from AppConfig`.
 
-- [ ] **AC 5b — DB-error log rate-limiting:** Given the `app_config` table is missing, when `/metrics` is scraped twice, then the first scrape logs a warning with `exc_info` (full traceback); the second scrape logs a warning whose message contains the exception class+text but does NOT include `exc_info`/traceback.
+- [x] **AC 5b — DB-error log rate-limiting:** Given the `app_config` table is missing, when `/metrics` is scraped twice, then the first scrape logs a warning with `exc_info` (full traceback); the second scrape logs a warning whose message contains the exception class+text but does NOT include `exc_info`/traceback.
 
-- [ ] **AC 6 — `esb_socket_mode_enabled` reflects whether `init_slack` entered the setup block:** Given `init_slack(app)` enters the Socket Mode setup block (no early return), then `esb_socket_mode_enabled 1.0` appears in `/metrics`. Given any of the four early-return paths fired, then `esb_socket_mode_enabled 0.0` appears.
+- [x] **AC 6 — `esb_socket_mode_enabled` reflects whether `init_slack` entered the setup block:** Given `init_slack(app)` enters the Socket Mode setup block (no early return), then `esb_socket_mode_enabled 1.0` appears in `/metrics`. Given any of the four early-return paths fired, then `esb_socket_mode_enabled 0.0` appears.
 
-- [ ] **AC 7 — `esb_socket_mode_connected` reflects handler-binding state:** Given `_socket_handler is not None`, then `esb_socket_mode_connected 1.0` appears in `/metrics`. Given `_socket_handler is None` (whether never bound, released by `_shutdown_socket()`, or any setup-block exception), then `esb_socket_mode_connected 0.0` appears.
+- [x] **AC 7 — `esb_socket_mode_connected` reflects handler-binding state:** Given `_socket_handler is not None`, then `esb_socket_mode_connected 1.0` appears in `/metrics`. Given `_socket_handler is None` (whether never bound, released by `_shutdown_socket()`, or any setup-block exception), then `esb_socket_mode_connected 0.0` appears.
 
-- [ ] **AC 8 — Three reachable Socket Mode states are explicitly tested at the route level:** The reachable matrix is `(enabled=True, connected=True)`, `(enabled=True, connected=False)`, `(enabled=False, connected=False)`. The fourth combination `(enabled=False, connected=True)` is unreachable in the new unified-setup design (Task 2 sets `_socket_mode_intended = True` before binding `_socket_handler`, so any state with `connected=True` must have `enabled=True`). Tasks 7.4-7.6 explicitly cover the three reachable states.
+- [x] **AC 8 — Three reachable Socket Mode states are explicitly tested at the route level:** The reachable matrix is `(enabled=True, connected=True)`, `(enabled=True, connected=False)`, `(enabled=False, connected=False)`. The fourth combination `(enabled=False, connected=True)` is unreachable in the new unified-setup design (Task 2 sets `_socket_mode_intended = True` before binding `_socket_handler`, so any state with `connected=True` must have `enabled=True`). Tasks 7.4-7.6 explicitly cover the three reachable states.
 
-- [ ] **AC 9 — Existing metrics unchanged:** `esb_pending_notifications_count` and `esb_oldest_pending_notification_timestamp_seconds` retain their names, types, labels, and emission semantics from #32.
+- [x] **AC 9 — Existing metrics unchanged:** `esb_pending_notifications_count` and `esb_oldest_pending_notification_timestamp_seconds` retain their names, types, labels, and emission semantics from #32.
 
-- [ ] **AC 10 — `/metrics` endpoint stability:** GET `/metrics` returns HTTP `200`, `Content-Type` includes `text/plain` and `version=`, body parses as valid Prometheus exposition format, no auth required.
+- [x] **AC 10 — `/metrics` endpoint stability:** GET `/metrics` returns HTTP `200`, `Content-Type` includes `text/plain` and `version=`, body parses as valid Prometheus exposition format, no auth required.
 
-- [ ] **AC 11 — `PYTHONUNBUFFERED=1` enforced by automated test:** `tests/test_compose.py::test_compose_pythonunbuffered_set_on_app_and_worker` passes by loading `docker-compose.yml` with PyYAML (explicit dev dep) and asserting the var on both services. Path resolution is CWD-independent.
+- [x] **AC 11 — `PYTHONUNBUFFERED=1` enforced by automated test:** `tests/test_compose.py::test_compose_pythonunbuffered_set_on_app_and_worker` passes by loading `docker-compose.yml` with PyYAML (explicit dev dep) and asserting the var on both services. Path resolution is CWD-independent.
 
-- [ ] **AC 12 — `mkdocs.yml` HTML pass-through enforced by test:** `tests/test_compose.py::test_mkdocs_enables_html_passthrough_for_anchor_preservation` passes by asserting `attr_list` and `md_in_html` are listed under `markdown_extensions`. Path resolution is CWD-independent.
+- [x] **AC 12 — `mkdocs.yml` HTML pass-through enforced by test:** `tests/test_compose.py::test_mkdocs_enables_html_passthrough_for_anchor_preservation` passes by asserting `attr_list` and `md_in_html` are listed under `markdown_extensions`. Path resolution is CWD-independent.
 
-- [ ] **AC 13 — Documentation, new section exists** with seven subsections in order: Overview; Prometheus Metrics; Container and Process Liveness; Log-Based Alerting (Loki); What to Alert On; Grafana Dashboards; Relationship to New Relic.
+- [x] **AC 13 — Documentation, new section exists** with seven subsections in order: Overview; Prometheus Metrics; Container and Process Liveness; Log-Based Alerting (Loki); What to Alert On; Grafana Dashboards; Relationship to New Relic.
 
-- [ ] **AC 14 — Documentation, old subsection migrated with anchor preservation:** Under `## Ongoing Maintenance`, the previous `### Prometheus Metrics` subsection is gone; a forward-pointer line including a literal `<a id="prometheus-metrics"></a>` HTML anchor and a Markdown link to the new section replaces it.
+- [x] **AC 14 — Documentation, old subsection migrated with anchor preservation:** Under `## Ongoing Maintenance`, the previous `### Prometheus Metrics` subsection is gone; a forward-pointer line including a literal `<a id="prometheus-metrics"></a>` HTML anchor and a Markdown link to the new section replaces it.
 
-- [ ] **AC 15 — Documentation, metric and alert tables updated:** Five-row metrics table; example alert rules include the existing `ESBNotificationQueueStuck` (verbatim), `ESBWorkerStalled` (`for: 1m`), `ESBWorkerNeverRan` (`for: 5m`, `absent()`), `ESBSocketModeFailedAtBoot` (`for: 5m`, with `unless on(instance) up == 0`).
+- [x] **AC 15 — Documentation, metric and alert tables updated:** Five-row metrics table; example alert rules include the existing `ESBNotificationQueueStuck` (verbatim), `ESBWorkerStalled` (`for: 1m`), `ESBWorkerNeverRan` (`for: 5m`, `absent()`), `ESBSocketModeFailedAtBoot` (`for: 5m`, with `unless on(instance) up == 0`).
 
-- [ ] **AC 16 — Documentation, complementary-rules note present:** The "Prometheus Metrics" subsection includes an explicit note that `ESBWorkerStalled` and `ESBWorkerNeverRan` are complementary and should both be loaded — covering "worker was alive but stopped" and "metric is missing entirely" respectively.
+- [x] **AC 16 — Documentation, complementary-rules note present:** The "Prometheus Metrics" subsection includes an explicit note that `ESBWorkerStalled` and `ESBWorkerNeverRan` are complementary and should both be loaded — covering "worker was alive but stopped" and "metric is missing entirely" respectively.
 
-- [ ] **AC 17 — Documentation, Loki substrings are verified and stream-disambiguated:** The "What to detect / Log substring" table contains substrings that appear verbatim at the cited source line ranges. The per-notification delivery-failure substring is `delivery failed:` (with trailing colon) — it uniquely matches the failure-line format string at `notification_service.py:391` and does NOT match the success log (line 384), the NotImplementedError-skip log (line 387), or the JSON mutation log (which starts with `{`). Permanent-fail signal documented separately as a JSON mutation-log event with two alerting options.
+- [x] **AC 17 — Documentation, Loki substrings are verified and stream-disambiguated:** The "What to detect / Log substring" table contains substrings that appear verbatim at the cited source line ranges. The per-notification delivery-failure substring is `delivery failed:` (with trailing colon) — it uniquely matches the failure-line format string at `notification_service.py:391` and does NOT match the success log (line 384), the NotImplementedError-skip log (line 387), or the JSON mutation log (which starts with `{`). Permanent-fail signal documented separately as a JSON mutation-log event with two alerting options.
 
-- [ ] **AC 18 — Documentation, five caveats present:** The "Prometheus Metrics" subsection includes five `!!! note` admonitions: clock-skew/NTP, single-gunicorn-worker, information disclosure, `ESBSocketModeFailedAtBoot` shutdown safety (`for: 5m unless up == 0`), and `/metrics` endpoint resilience (graceful degradation + log rate-limiting).
+- [x] **AC 18 — Documentation, five caveats present:** The "Prometheus Metrics" subsection includes five `!!! note` admonitions: clock-skew/NTP, single-gunicorn-worker, information disclosure, `ESBSocketModeFailedAtBoot` shutdown safety (`for: 5m unless up == 0`), and `/metrics` endpoint resilience (graceful degradation + log rate-limiting).
 
-- [ ] **AC 19 — Lint and tests pass:** `make lint` exits `0`. `make test` exits `0`. New tests present and passing: 3 in `test_notification_service.py`, 8 in `test_metrics_service.py`, 6 in `test_metrics_view.py`, 2 in `test_compose.py` = **19 new tests**.
+- [x] **AC 19 — Lint and tests pass:** `make lint` exits `0`. `make test` exits `0`. New tests present and passing: 3 in `test_notification_service.py`, 8 in `test_metrics_service.py`, 6 in `test_metrics_view.py`, 2 in `test_compose.py` = **19 new tests**.
 
 ## Additional Context
 
@@ -665,3 +665,28 @@ Three-part change:
   - In-process caching of `worker_last_iteration_at` for aggressive scrape intervals.
   - Wrapping `_PendingNotificationsCollector` in graceful-degradation try/except — not motivated by this spec.
   - Refactoring `run_worker_loop` to extract `_one_poll_iteration()` for cleaner unit-testing — would obviate the `KeyboardInterrupt`-stubbing pattern.
+
+## Review Notes
+
+- Adversarial review completed (general-purpose subagent, 2026-05-10).
+- Findings: 15 total, 9 fixed, 6 skipped (noise / wording-only).
+- Resolution approach: auto-fix.
+- Fixed:
+  - **F1** (Critical): strengthened `test_worker_last_iteration_timestamp_omitted_on_real_db_error` to assert the session is still usable post-render via a follow-up `select(PendingNotification)` query — genuinely proves the rollback inside `_WorkerStatusCollector.collect()` is necessary.
+  - **F2** (Critical): added `_socket_mode_intended` reset to the autouse fixtures in `tests/test_services/test_metrics_service.py` and `tests/test_views/test_metrics_view.py` so a Slack-init test running earlier in the session cannot leak `True` into a metrics test that does not patch the accessor.
+  - **F3** (High): `init_slack` now resets `_bolt_app`, `_socket_handler`, and `_socket_mode_intended` at the top, eliminating the impossible `(enabled=False, connected=True)` state that re-entry through an early-return path could otherwise produce.
+  - **F4** (High): wrapped the inner `db.session.rollback()` in the worker-loop defensive call site in its own `try/except`, so a rollback exception cannot escalate into the outer poll-failure backoff.
+  - **F5** (High): tightened the `esb_socket_mode_connected` help string to explicitly say it reflects "handler-binding state, NOT live WebSocket connection state."
+  - **F7** (Medium): widened `except ValueError` to `(ValueError, TypeError)` for the `datetime.fromisoformat(row.value)` parse, and added `test_worker_last_iteration_timestamp_omitted_on_malformed_value`.
+  - **F10** (Medium): added a doc note that the Loki substrings are unanchored and recommend regex-anchoring (`Notification \d+ delivery failed:`) for future-resistance.
+  - **F11** (Medium): documented the `unless on(instance) up == 0` labelling assumption and the alternative `unless on(job, instance)` form for richer relabeled deployments.
+  - **F12** (Low): explicitly documented the clock-skew failure asymmetry — worker-clock-ahead causes silent never-firing, not just delayed firing.
+- Skipped:
+  - F6: PyYAML-in-CI concern is a runtime-config issue, not a code defect.
+  - F8: `int → float` cast is harmless; `func.count()` cannot return `None`.
+  - F9: Wording-only critique; latch semantics already correct.
+  - F13: Pre-migration table absence is already covered by the `ESBWorkerNeverRan` alert rule and the doc.
+  - F14: Comment-wording critique; the comment is defensive and accurate enough.
+  - F15: `PYTHONUNBUFFERED` justification wording; the variable is correct, only the prose is debatable.
+
+Final test count: **1184 tests passing** (1163 baseline + 19 from spec tasks + 1 from F7 + 1 from rebalancing — `make test` exit 0). Final lint: **clean** (`make lint` exit 0).

@@ -9,6 +9,11 @@ services:
     env_file: .env
     environment:
       - SLACK_SOCKET_MODE_CONNECT=true
+      # Force unbuffered stdout/stderr so log lines reach journald/Loki
+      # immediately rather than sitting in Python's block buffer when stdout
+      # is not a TTY. Without this, app-side log-based alerting (Loki) lags
+      # multi-second behind the actual events.
+      - PYTHONUNBUFFERED=1
     volumes:
       - ./uploads:/app/uploads
     healthcheck:
