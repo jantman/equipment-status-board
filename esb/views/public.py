@@ -10,7 +10,7 @@ from collections import OrderedDict
 from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, send_from_directory, url_for
 
 from esb.models.document import DOCUMENT_CATEGORIES
-from esb.utils.exceptions import ValidationError
+from esb.utils.exceptions import AreaNotFound, ValidationError
 
 public_bp = Blueprint('public', __name__, url_prefix='/public')
 
@@ -35,6 +35,23 @@ def kiosk():
 
     areas = status_service.get_area_status_dashboard()
     return render_template('public/kiosk.html', areas=areas)
+
+
+@public_bp.route('/kiosk/<int:area_id>')
+def kiosk_area(area_id):
+    """Per-area kiosk display -- full-screen equipment status for one area."""
+    from esb.services import status_service
+
+    try:
+        area_data = status_service.get_single_area_status_dashboard(area_id)
+    except AreaNotFound:  # also catches AreaArchived (subclass)
+        abort(404)
+
+    return render_template(
+        'public/kiosk.html',
+        areas=[area_data],
+        area_name=area_data['area'].name,
+    )
 
 
 def _build_equipment_page_context(equipment_id):

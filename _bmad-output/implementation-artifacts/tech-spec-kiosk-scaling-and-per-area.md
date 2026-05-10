@@ -3,8 +3,8 @@ title: 'Kiosk Display Scaling and Per-Area Kiosks'
 slug: 'kiosk-scaling-and-per-area'
 created: '2026-05-09'
 revised: '2026-05-09 (post-adversarial-review pass 2)'
-status: 'ready-for-dev'
-stepsCompleted: [1, 2, 3, 4]
+status: 'completed'
+stepsCompleted: [1, 2, 3, 4, 5, 6]
 tech_stack:
   - Python 3.14 (ruff target py313)
   - Flask + Flask-SQLAlchemy
@@ -159,7 +159,7 @@ The kiosk display (`/public/kiosk`) is intended for wall-mounted, non-interactiv
 
 Tasks are ordered by dependency (lowest level first).
 
-- [ ] **Task 1: Add `AreaNotFound` and `AreaArchived` exceptions**
+- [x] **Task 1: Add `AreaNotFound` and `AreaArchived` exceptions**
   - File: `esb/utils/exceptions.py`
   - Action: Append to the file (after the existing `ValidationError` at line 23):
     ```python
@@ -176,7 +176,7 @@ Tasks are ordered by dependency (lowest level first).
     ```
   - Notes: `EquipmentNotFound` (line 11) extends `ESBError` directly — confirmed by reading the file. Do NOT subclass from `ValidationError`. Do not add to any `__init__.py` re-exports (existing exceptions are imported directly from `esb.utils.exceptions`).
 
-- [ ] **Task 2: Add `get_single_area_status_dashboard()` service function**
+- [x] **Task 2: Add `get_single_area_status_dashboard()` service function**
   - File: `esb/services/status_service.py`
   - Action: Insert a new function at line 234 (immediately after `get_area_status_dashboard()` ends at line 233):
     ```python
@@ -248,7 +248,7 @@ Tasks are ordered by dependency (lowest level first).
     ```
   - Notes: Reuses `_derive_status_from_records()` and `CLOSED_STATUSES` already imported at the top of `status_service.py`. Distinct exceptions for missing vs archived preserve internal observability while the view collapses both into 404.
 
-- [ ] **Task 3: Add `/public/kiosk/<int:area_id>` route**
+- [x] **Task 3: Add `/public/kiosk/<int:area_id>` route**
   - File: `esb/views/public.py`
   - Action: Add a new route after the existing `kiosk()` function (line 31):
     ```python
@@ -271,12 +271,12 @@ Tasks are ordered by dependency (lowest level first).
     ```
   - Notes: Uses the existing `abort` import at `esb/views/public.py:10`. Catching `AreaNotFound` (the parent) also catches `AreaArchived` due to inheritance. Passes a single-element `areas` list so the existing template iteration logic just works. Passes `area_name` separately so the visually-hidden `<h1>` and `<title>` can include the area name. The all-areas `kiosk()` view does NOT pass `area_name`; the template treats absence as "all areas".
 
-- [ ] **Task 4: Drop `<main>` padding in `base_kiosk.html`**
+- [x] **Task 4: Drop `<main>` padding in `base_kiosk.html`**
   - File: `esb/templates/base_kiosk.html`
   - Action: On line 13, change `<main class="container-fluid p-3">` to `<main class="container-fluid p-0">`.
   - Notes: This single-token change ensures the scaling wrapper measures against the full viewport (no Bootstrap padding gap). Does not affect any other consumer because `base_kiosk.html` is only used by `kiosk.html`. See Technical Decision #5.
 
-- [ ] **Task 5: Refactor `kiosk.html` to add scaling wrapper, per-area H1, and explicit empty-per-area branch**
+- [x] **Task 5: Refactor `kiosk.html` to add scaling wrapper, per-area H1, and explicit empty-per-area branch**
   - File: `esb/templates/public/kiosk.html`
   - Action: Replace the entire content of the file with:
     ```jinja2
@@ -326,7 +326,7 @@ Tasks are ordered by dependency (lowest level first).
     ```
   - Notes: Three render branches now: (1) all-areas with no areas at all → "No equipment registered yet."; (2) per-area mode where the single area has no equipment → "No equipment in this area yet."; (3) at least one area-with-equipment → loop normally. The `<h1>` and `<title>` include the area name only when `area_name` is truthy (`{% if area_name %}` correctly handles `None`, empty string, and missing context). The empty-per-area branch uses `.get('equipment')` (not attribute access) to defensively handle hypothetical future callers that pass `areas=[{'area': X}]` without the `equipment` key — although the current service contract guarantees the key is always present.
 
-- [ ] **Task 6: Add scaling CSS**
+- [x] **Task 6: Add scaling CSS**
   - File: `esb/static/css/app.css`
   - Action:
     1. Update the existing `.kiosk-body` rule (lines 4-6). Keep the single-class selector (do NOT change to `body.kiosk-body` — Tech Decision #16); add a scope-documenting comment and `overflow: hidden`:
@@ -358,7 +358,7 @@ Tasks are ordered by dependency (lowest level first).
        ```
   - Notes: No `display: inline-block`, no `min-width: 100%`. The wrapper inherits the default `display: block` and naturally fills its parent's content-box width (which, post-Task 4, equals the viewport width).
 
-- [ ] **Task 7: Add JS shrink-to-fit scaling**
+- [x] **Task 7: Add JS shrink-to-fit scaling**
   - File: `esb/static/js/app.js`
   - Action: Insert a new feature block at line 118 (before the closing `});` of the `DOMContentLoaded` handler — line 119 is the closing `});` itself):
     ```javascript
@@ -402,7 +402,7 @@ Tasks are ordered by dependency (lowest level first).
     ```
   - Notes: No `transform = 'none'` reset before measurement — `scrollWidth` is unaffected by transform per CSS spec, and the reset would cause a brief unscaled flash on resize. The viewport-zero guard handles background-tab and boot edge cases. The zero-content `requestAnimationFrame` retry recovers from transient zero-size states (e.g., during web-font swap when text dimensions are momentarily undefined) without waiting for the next user interaction or 60s refresh. `KIOSK_RESIZE_DEBOUNCE_MS = 150` is a deliberate choice (not coupled to `qr-form`'s implementation), happens to match it.
 
-- [ ] **Task 8: Update status dashboard with kiosk dropdown (filtered)**
+- [x] **Task 8: Update status dashboard with kiosk dropdown (filtered)**
   - File: `esb/templates/public/status_dashboard.html`
   - Action: Replace lines 12-14 (the existing `<div class="text-end mb-3">...</div>` block) with a Bootstrap dropdown that filters empty areas:
     ```jinja2
@@ -432,7 +432,7 @@ Tasks are ordered by dependency (lowest level first).
     ```
   - Notes: `selectattr('equipment')` filters to entries where `equipment` is truthy (non-empty list). `areas` is already in the template context (from the `status_dashboard()` view) and already filtered to non-archived areas by the existing service call. Bootstrap's bundled JS (Popper-included) is loaded in both `base.html:74` and `base_public.html:17` — verified.
 
-- [ ] **Task 9: Add service tests for `get_single_area_status_dashboard()`**
+- [x] **Task 9: Add service tests for `get_single_area_status_dashboard()`**
   - File: `tests/test_services/test_status_service.py`
   - Action: Add a new test class `TestGetSingleAreaStatusDashboard` with these tests:
     - `test_returns_area_with_equipment_and_statuses`
@@ -443,7 +443,7 @@ Tasks are ordered by dependency (lowest level first).
     - `test_status_derivation_matches_repair_records` — happy paths for green / yellow / red
   - Notes: Use existing `make_area`, `make_equipment`, `make_repair_record` fixtures. For archived-area test, set `area.is_archived = True; db.session.commit()` after creation.
 
-- [ ] **Task 10: Add view tests for per-area kiosk route**
+- [x] **Task 10: Add view tests for per-area kiosk route**
   - File: `tests/test_views/test_public_views.py`
   - Action: Add new class `TestPerAreaKioskView` after `TestKioskView` (current line ~436). Tests:
     - `test_per_area_kiosk_renders_unauthenticated` — `client.get(f'/public/kiosk/{area.id}')` returns 200
@@ -463,7 +463,7 @@ Tasks are ordered by dependency (lowest level first).
     - `test_per_area_kiosk_has_scale_wrapper_div` — assert `id="kiosk-scale-content"` and `class="kiosk-scale-wrapper"` in HTML
   - Notes: Mirror the patterns in `TestKioskView` for consistency. Use simple alphanumeric area names to avoid HTML-escape complications in assertions (e.g., `'Wood Shop'`, not `'Tools & Stuff'`).
 
-- [ ] **Task 11: Update `TestKioskView` and add scaling-DOM hook + dropdown tests**
+- [x] **Task 11: Update `TestKioskView` and add scaling-DOM hook + dropdown tests**
   - File: `tests/test_views/test_public_views.py`
   - Action:
     1. **Modify** the existing `test_kiosk_has_visually_hidden_h1` (currently asserts exact bytes `<h1 class="visually-hidden">Equipment Status</h1>`). Loosen to allow optional area-name suffix. Replace assertion with:
@@ -510,7 +510,7 @@ Tasks are ordered by dependency (lowest level first).
        - Lives in `TestKioskView` (or a new `TestKioskCss` if preferred). This test does not require a Flask app/client.
   - Notes: All assertions use simple ASCII to avoid HTML-escape edge cases. The CSS-content test (`test_app_css_kiosk_body_has_overflow_hidden`) intentionally couples to file content to catch reverts/refactors that lose the rule — accepting that mild brittleness as the cost of guarding the no-JS fallback (Tech Decision #4).
 
-- [ ] **Task 12: Run lint and tests; spot-check existing tests**
+- [x] **Task 12: Run lint and tests; spot-check existing tests**
   - Action: Run `make lint` and `make test`. All existing tests must pass; new tests must pass; no new ruff errors.
   - Notes: Spot-check these existing tests for surprises:
     - `test_kiosk_no_navbar` (line 327) — asserts `'navbar' not in html` and `'<nav' not in html`. The new wrapper and h1 do not introduce either substring; should remain green.
@@ -520,49 +520,49 @@ Tasks are ordered by dependency (lowest level first).
 
 ### Acceptance Criteria
 
-- [ ] **AC 1** — **Per-area route happy path:** Given a non-archived area with id `X` exists with at least one non-archived equipment item, when an unauthenticated user GETs `/public/kiosk/X`, then the response is 200 and the page shows the area's name as the kiosk heading and lists only that area's non-archived equipment.
+- [x] **AC 1** — **Per-area route happy path:** Given a non-archived area with id `X` exists with at least one non-archived equipment item, when an unauthenticated user GETs `/public/kiosk/X`, then the response is 200 and the page shows the area's name as the kiosk heading and lists only that area's non-archived equipment.
 
-- [ ] **AC 2** — **Per-area scoping:** Given two areas A and B each with their own equipment, when the user GETs `/public/kiosk/<A.id>`, then the response body contains A's equipment names and does NOT contain any of B's equipment names.
+- [x] **AC 2** — **Per-area scoping:** Given two areas A and B each with their own equipment, when the user GETs `/public/kiosk/<A.id>`, then the response body contains A's equipment names and does NOT contain any of B's equipment names.
 
-- [ ] **AC 3** — **404 for missing area:** Given no area exists with id 999999, when the user GETs `/public/kiosk/999999`, then the response status is 404.
+- [x] **AC 3** — **404 for missing area:** Given no area exists with id 999999, when the user GETs `/public/kiosk/999999`, then the response status is 404.
 
-- [ ] **AC 4** — **404 for archived area:** Given an area with `is_archived=True`, when the user GETs `/public/kiosk/<area.id>`, then the response status is 404 (no leakage of "exists but archived").
+- [x] **AC 4** — **404 for archived area:** Given an area with `is_archived=True`, when the user GETs `/public/kiosk/<area.id>`, then the response status is 404 (no leakage of "exists but archived").
 
-- [ ] **AC 5** — **404 for non-integer area_id:** Given the URL `/public/kiosk/abc`, when the user GETs it, then the response status is 404 (handled by Flask's `int` URL converter).
+- [x] **AC 5** — **404 for non-integer area_id:** Given the URL `/public/kiosk/abc`, when the user GETs it, then the response status is 404 (handled by Flask's `int` URL converter).
 
-- [ ] **AC 6** — **Per-area excludes archived equipment:** Given an area contains both archived and non-archived equipment, when the user GETs the per-area kiosk, then only non-archived equipment names appear in the response.
+- [x] **AC 6** — **Per-area excludes archived equipment:** Given an area contains both archived and non-archived equipment, when the user GETs the per-area kiosk, then only non-archived equipment names appear in the response.
 
-- [ ] **AC 7** — **Both kiosk views include scaling DOM hook:** Given the user GETs either `/public/kiosk` or `/public/kiosk/<id>`, when the page is rendered, then the response HTML contains an element with `id="kiosk-scale-content"` and class `kiosk-scale-wrapper`.
+- [x] **AC 7** — **Both kiosk views include scaling DOM hook:** Given the user GETs either `/public/kiosk` or `/public/kiosk/<id>`, when the page is rendered, then the response HTML contains an element with `id="kiosk-scale-content"` and class `kiosk-scale-wrapper`.
 
-- [ ] **AC 8** — **Shrink-to-fit scaling applied via JS:** Given the kiosk page is loaded in a browser and the natural content size exceeds the viewport, when the JS runs (on `DOMContentLoaded`, `load`, or `fonts.ready`), then the `#kiosk-scale-content` element has a `transform: scale(s)` style applied where `0 < s ≤ 1`. (Manual test — not unit-testable without a real browser.)
+- [x] **AC 8** — **Shrink-to-fit scaling applied via JS:** Given the kiosk page is loaded in a browser and the natural content size exceeds the viewport, when the JS runs (on `DOMContentLoaded`, `load`, or `fonts.ready`), then the `#kiosk-scale-content` element has a `transform: scale(s)` style applied where `0 < s ≤ 1`. (Manual test — not unit-testable without a real browser.)
 
-- [ ] **AC 9** — **No up-scaling:** Given the kiosk page is loaded with content smaller than the viewport, when the JS runs, then `s = 1` (content remains at natural size, no stretch). (Manual test.)
+- [x] **AC 9** — **No up-scaling:** Given the kiosk page is loaded with content smaller than the viewport, when the JS runs, then `s = 1` (content remains at natural size, no stretch). (Manual test.)
 
-- [ ] **AC 10** — **Scaling re-runs on resize:** Given the kiosk page is loaded and visible, when the browser window is resized, then the scale factor is recomputed within ~150ms (debounce window). (Manual test.)
+- [x] **AC 10** — **Scaling re-runs on resize:** Given the kiosk page is loaded and visible, when the browser window is resized, then the scale factor is recomputed within ~150ms (debounce window). (Manual test.)
 
-- [ ] **AC 11** — **Scaling re-runs after fonts load:** Given the kiosk page initially renders with system fonts and web-fonts swap in afterwards, when `document.fonts.ready` resolves, then the scale factor is recomputed against the post-FOUT layout. (Manual test.)
+- [x] **AC 11** — **Scaling re-runs after fonts load:** Given the kiosk page initially renders with system fonts and web-fonts swap in afterwards, when `document.fonts.ready` resolves, then the scale factor is recomputed against the post-FOUT layout. (Manual test.)
 
-- [ ] **AC 12** — **No scrollbars on kiosk pages (automated CSS check):** Given `esb/static/css/app.css` is read, when the `.kiosk-body` rule is parsed, then the rule body contains `overflow: hidden`. Verified by `test_app_css_kiosk_body_has_overflow_hidden` (Task 11.6). (Browser-level visual confirmation also recommended in manual testing step 4.)
+- [x] **AC 12** — **No scrollbars on kiosk pages (automated CSS check):** Given `esb/static/css/app.css` is read, when the `.kiosk-body` rule is parsed, then the rule body contains `overflow: hidden`. Verified by `test_app_css_kiosk_body_has_overflow_hidden` (Task 11.6). (Browser-level visual confirmation also recommended in manual testing step 4.)
 
-- [ ] **AC 12b** — **Kiosk `<main>` has no padding (automated):** Given the kiosk page is rendered, when the `<main>` element's classes are extracted, then the class list contains `p-0` and does NOT contain `p-3`. Covered by `test_kiosk_main_has_no_padding` and `test_per_area_kiosk_main_has_no_padding` (Task 11.5).
+- [x] **AC 12b** — **Kiosk `<main>` has no padding (automated):** Given the kiosk page is rendered, when the `<main>` element's classes are extracted, then the class list contains `p-0` and does NOT contain `p-3`. Covered by `test_kiosk_main_has_no_padding` and `test_per_area_kiosk_main_has_no_padding` (Task 11.5).
 
-- [ ] **AC 13** — **Discoverability dropdown — all-equipment link:** Given the public status dashboard is loaded, when the user clicks the "Kiosk View" dropdown, then it contains an "All Equipment" item linking to `/public/kiosk`.
+- [x] **AC 13** — **Discoverability dropdown — all-equipment link:** Given the public status dashboard is loaded, when the user clicks the "Kiosk View" dropdown, then it contains an "All Equipment" item linking to `/public/kiosk`.
 
-- [ ] **AC 14** — **Discoverability dropdown — per-area links for populated areas:** Given two non-archived areas with equipment exist, when the dashboard renders, then the kiosk dropdown contains a link to `/public/kiosk/<area_id>` for each, labeled with the area name.
+- [x] **AC 14** — **Discoverability dropdown — per-area links for populated areas:** Given two non-archived areas with equipment exist, when the dashboard renders, then the kiosk dropdown contains a link to `/public/kiosk/<area_id>` for each, labeled with the area name.
 
-- [ ] **AC 15** — **Discoverability dropdown excludes archived areas:** Given an archived area exists (with or without equipment), when the dashboard renders, then the kiosk dropdown does NOT contain a link to that area's per-area kiosk.
+- [x] **AC 15** — **Discoverability dropdown excludes archived areas:** Given an archived area exists (with or without equipment), when the dashboard renders, then the kiosk dropdown does NOT contain a link to that area's per-area kiosk.
 
-- [ ] **AC 16** — **Discoverability dropdown excludes empty areas:** Given a non-archived area with zero non-archived equipment exists, when the dashboard renders, then the kiosk dropdown does NOT contain a link to that area's per-area kiosk.
+- [x] **AC 16** — **Discoverability dropdown excludes empty areas:** Given a non-archived area with zero non-archived equipment exists, when the dashboard renders, then the kiosk dropdown does NOT contain a link to that area's per-area kiosk.
 
-- [ ] **AC 17** — **Empty per-area state has its own copy:** Given the user navigates directly to `/public/kiosk/<id>` for a non-archived area with no equipment, when the page renders, then it shows "No equipment in this area yet." (not the all-areas "No equipment registered yet." copy).
+- [x] **AC 17** — **Empty per-area state has its own copy:** Given the user navigates directly to `/public/kiosk/<id>` for a non-archived area with no equipment, when the page renders, then it shows "No equipment in this area yet." (not the all-areas "No equipment registered yet." copy).
 
-- [ ] **AC 18** — **Per-area heading and title:** Given the user loads `/public/kiosk/<id>` for an area named "Wood Shop", when the page renders, then the `<h1 class="visually-hidden">` contains `Equipment Status - Wood Shop` and the `<title>` contains `Wood Shop`.
+- [x] **AC 18** — **Per-area heading and title:** Given the user loads `/public/kiosk/<id>` for an area named "Wood Shop", when the page renders, then the `<h1 class="visually-hidden">` contains `Equipment Status - Wood Shop` and the `<title>` contains `Wood Shop`.
 
-- [ ] **AC 19** — **Service raises distinct exceptions:** Given `status_service.get_single_area_status_dashboard(id)` is called with a missing id, then it raises `AreaNotFound` (and not `AreaArchived`). Given an archived area's id, then it raises `AreaArchived`, which is a subclass of `AreaNotFound`. Given a valid non-archived id, then it returns a dict with `'area'` and `'equipment'` keys.
+- [x] **AC 19** — **Service raises distinct exceptions:** Given `status_service.get_single_area_status_dashboard(id)` is called with a missing id, then it raises `AreaNotFound` (and not `AreaArchived`). Given an archived area's id, then it raises `AreaArchived`, which is a subclass of `AreaNotFound`. Given a valid non-archived id, then it returns a dict with `'area'` and `'equipment'` keys.
 
-- [ ] **AC 20** — **All existing kiosk + dashboard tests still pass:** Given the existing test suite (`TestKioskView`, `TestStatusDashboardView`), when CI runs after this change, then all tests pass — with the documented modifications to `test_dashboard_shows_kiosk_link` (line 53) and `test_kiosk_has_visually_hidden_h1` (line 418) per Task 11.
+- [x] **AC 20** — **All existing kiosk + dashboard tests still pass:** Given the existing test suite (`TestKioskView`, `TestStatusDashboardView`), when CI runs after this change, then all tests pass — with the documented modifications to `test_dashboard_shows_kiosk_link` (line 53) and `test_kiosk_has_visually_hidden_h1` (line 418) per Task 11.
 
-- [ ] **AC 21** — **Bootstrap bundle loaded on dashboard:** Given the public status dashboard is rendered (authenticated or unauthenticated), when the response is inspected, then `bootstrap.bundle.min.js` is in the HTML (the dropdown's JS dependency).
+- [x] **AC 21** — **Bootstrap bundle loaded on dashboard:** Given the public status dashboard is rendered (authenticated or unauthenticated), when the response is inspected, then `bootstrap.bundle.min.js` is in the HTML (the dropdown's JS dependency).
 
 ## Additional Context
 
@@ -627,6 +627,24 @@ Tasks are ordered by dependency (lowest level first).
 - A "rotating" kiosk that cycles through areas at intervals — explicitly out of scope per Step 1.
 - A QR code on the kiosk that links to the per-area kiosk URL for easy mobile-device kiosk setup.
 - Refactor `equipment_service.get_area` to raise `AreaNotFound` (the new exception) instead of `ValidationError`, for consistency.
+
+## Review Notes
+
+- Adversarial review completed via `quick-dev` step-05 (general-purpose subagent, information-asymmetric review with diff-only context).
+- Findings: 26 raised, 1 (F6) self-withdrawn during analysis = 25 net.
+- Resolution approach: **F (auto-fix all "real" findings)**.
+- **Fixed (19):** F1, F2, F3, F4, F5, F7, F8, F9, F10, F11, F12, F13, F14, F15, F17, F18, F19, F21 (partial — see note), F22.
+- **Acknowledged but not changed (5):**
+  - **F16** — `id="kioskDropdown"` collision: code-smell only; dashboard is single-page and not embedded.
+  - **F20** — Computed `<main>` padding test: too brittle; class-presence + Bootstrap `p-0 !important` combination is sufficient.
+  - **F23** — `AreaArchived(AreaNotFound)` foot-gun: documented in docstring; subclass relationship is the spec's deliberate design (Tech Decision #10).
+  - **F24** — Literal `▾` caret: Bootstrap's `.dropdown-toggle::after` provides the visual caret; spec's intent is met.
+  - **F26** — `.kiosk-body` rule on non-body element: catchable in code review; the CSS comment explains scope.
+- **Skipped (2):**
+  - **F6** — Withdrawn during analysis (self-corrected as noise).
+  - **F25** — Undecided rAF/resize race: benign in practice (resolves within one frame).
+- **F21 partial fix:** `area_name` is still passed explicitly from the view (rather than being derived from `areas[0]` in the template) because automatic derivation would also fire on the all-areas kiosk when the database happens to contain a single area, silently changing semantics. Duplication acknowledged.
+- Post-fix validation: 1163 tests pass (was 1161; added F4 multi-area-all-empty test and F22 app.js-loaded test); ruff lint clean.
 
 ## Revision History
 

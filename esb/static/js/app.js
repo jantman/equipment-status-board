@@ -116,6 +116,57 @@ document.addEventListener('DOMContentLoaded', function () {
     areaFilter.addEventListener('change', applyFilters);
     statusFilter.addEventListener('change', applyFilters);
   }
+
+  // --- Kiosk shrink-to-fit scaling ---
+  // Contract: only `transform` styles may be applied to #kiosk-scale-content.
+  // Any non-transform style that affects layout (font-size, width, padding,
+  // etc.) breaks the scrollWidth/scrollHeight measurement assumption.
+  // See Tech Decision #17 in the spec.
+  var kioskScale = document.getElementById('kiosk-scale-content');
+  if (kioskScale) {
+    var KIOSK_RESIZE_DEBOUNCE_MS = 150;
+    // Cap rAF retries so a permanently-zero layout (display:none, hidden
+    // iframe, CSS bug) cannot spin the CPU. ~60 frames ~= 1 second at 60Hz.
+    var KIOSK_RAF_MAX_RETRIES = 60;
+    var rafRetries = 0;
+    var resizeTimer = null;
+    function applyKioskScale() {
+      // scrollWidth/scrollHeight report natural unscaled dimensions per
+      // CSS spec -- transforms do not affect layout.
+      var contentW = kioskScale.scrollWidth;
+      var contentH = kioskScale.scrollHeight;
+      var viewportW = document.documentElement.clientWidth;
+      var viewportH = document.documentElement.clientHeight;
+      if (viewportW <= 0 || viewportH <= 0) return;  // hidden tab / boot
+      if (contentW <= 0 || contentH <= 0) {
+        // Layout transiently zero (e.g., during font swap). Retry on the
+        // next animation frame so we don't get stuck with no transform.
+        if (rafRetries < KIOSK_RAF_MAX_RETRIES) {
+          rafRetries++;
+          requestAnimationFrame(applyKioskScale);
+        }
+        return;
+      }
+      rafRetries = 0;
+      var scale = Math.min(1, viewportW / contentW, viewportH / contentH);
+      kioskScale.style.transform = 'scale(' + scale + ')';
+    }
+    applyKioskScale();
+    // Re-run after images, web-fonts, etc. settle to avoid FOUT-induced miscalibration.
+    if (document.readyState === 'complete') {
+      // 'load' has already fired before this script ran -- invoke directly.
+      applyKioskScale();
+    } else {
+      window.addEventListener('load', applyKioskScale);
+    }
+    if (document.fonts && document.fonts.ready && typeof document.fonts.ready.then === 'function') {
+      document.fonts.ready.then(applyKioskScale);
+    }
+    window.addEventListener('resize', function () {
+      if (resizeTimer) clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(applyKioskScale, KIOSK_RESIZE_DEBOUNCE_MS);
+    });
+  }
 });
 
 // --- QR code live preview (no-op on pages without #qr-form) ---

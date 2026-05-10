@@ -1,16 +1,24 @@
 {% extends "base_kiosk.html" %}
 
-{% block title %}Equipment Status - Kiosk{% endblock %}
+{% block title %}Equipment Status{% if area_name %} - {{ area_name }}{% endif %} - Kiosk{% endblock %}
 
 {% block content %}
-<h1 class="visually-hidden">Equipment Status</h1>
-{% if not areas %}
+<h1 class="visually-hidden">Equipment Status{% if area_name %} - {{ area_name }}{% endif %}</h1>
+<div id="kiosk-scale-content" class="kiosk-scale-wrapper">
+{% set populated_areas = areas | selectattr('equipment') | list %}
+{% if area_name and not populated_areas %}
+<section class="mb-4">
+  <h2 class="kiosk-area-heading mb-3">{{ areas[0].area.name }}</h2>
+  <div class="text-center py-5">
+    <p class="fs-3 text-muted">No equipment in this area yet.</p>
+  </div>
+</section>
+{% elif not populated_areas %}
 <div class="text-center py-5">
   <p class="fs-3 text-muted">No equipment registered yet.</p>
 </div>
 {% else %}
-  {% for area_data in areas %}
-  {% if area_data.equipment %}
+  {% for area_data in populated_areas %}
   <section class="mb-4">
     <h2 class="kiosk-area-heading mb-3">{{ area_data.area.name }}</h2>
     <div class="kiosk-equipment-grid">
@@ -31,7 +39,7 @@
       {% endfor %}
     </div>
   </section>
-  {% endif %}
   {% endfor %}
 {% endif %}
+</div>
 {% endblock %}

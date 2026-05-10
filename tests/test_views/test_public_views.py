@@ -1,10 +1,19 @@
 """Tests for public views (status dashboard, kiosk, QR equipment pages, problem reports)."""
 
+import re
 from datetime import date
 from io import BytesIO
+from pathlib import Path
 from unittest.mock import patch
 
 from esb.models.repair_record import RepairRecord
+
+
+def _main_element_classes(html: str) -> list[str]:
+    """Return the class list on the rendered ``<main>`` element."""
+    match = re.search(r'''<main\b[^>]*\bclass=["']([^"']*)["']''', html)
+    assert match, 'no <main> element with class attribute found'
+    return match.group(1).split()
 
 
 class TestStatusDashboardView:
@@ -51,10 +60,90 @@ class TestStatusDashboardView:
         assert b'Staff Login' not in response.data
 
     def test_dashboard_shows_kiosk_link(self, client):
-        """Dashboard shows Kiosk View link."""
+        """Dashboard shows Kiosk View dropdown with the All Equipment link."""
         response = client.get('/public/')
         assert response.status_code == 200
-        assert b'/public/kiosk' in response.data
+        html = response.data.decode()
+        # Must contain the All Equipment dropdown item linking to /public/kiosk
+        # (not just any kiosk URL -- the per-area links would also satisfy a
+        # naive substring check).
+        assert 'href="/public/kiosk"' in html
+        assert 'All Equipment' in html
+
+    def test_dashboard_kiosk_dropdown_contains_all_equipment_link(self, client):
+        """Dashboard renders Kiosk View as a Bootstrap dropdown with All Equipment item."""
+        response = client.get('/public/')
+        html = response.data.decode()
+        assert 'data-bs-toggle="dropdown"' in html
+        assert 'href="/public/kiosk"' in html
+        assert 'All Equipment' in html
+
+    def test_dashboard_kiosk_dropdown_contains_per_area_links_for_populated_areas(
+        self, client, make_area, make_equipment,
+    ):
+        """Dropdown includes per-area kiosk URLs for areas with equipment."""
+        area1 = make_area(name='Wood Shop')
+        area2 = make_area(name='Metal Shop')
+        make_equipment(name='Lathe', area=area1)
+        make_equipment(name='Welder', area=area2)
+
+        response = client.get('/public/')
+        html = response.data.decode()
+        assert f'href="/public/kiosk/{area1.id}"' in html
+        assert f'href="/public/kiosk/{area2.id}"' in html
+        assert 'Wood Shop' in html
+        assert 'Metal Shop' in html
+
+    def test_dashboard_kiosk_dropdown_excludes_empty_areas(
+        self, client, make_area, make_equipment,
+    ):
+        """Dropdown excludes per-area links for areas with zero equipment."""
+        populated = make_area(name='Busy Shop')
+        empty = make_area(name='Empty Room')
+        make_equipment(name='Drill', area=populated)
+
+        response = client.get('/public/')
+        html = response.data.decode()
+        assert f'href="/public/kiosk/{populated.id}"' in html
+        assert f'href="/public/kiosk/{empty.id}"' not in html
+
+    def test_dashboard_kiosk_dropdown_excludes_archived_areas(
+        self, client, make_area, make_equipment,
+    ):
+        """Dropdown excludes per-area links for archived areas (even with equipment)."""
+        from esb.extensions import db
+
+        active = make_area(name='Active Shop')
+        archived = make_area(name='Closed Wing')
+        make_equipment(name='Active Tool', area=active)
+        make_equipment(name='Old Tool', area=archived)
+        archived.is_archived = True
+        db.session.commit()
+
+        response = client.get('/public/')
+        html = response.data.decode()
+        assert f'href="/public/kiosk/{active.id}"' in html
+        assert f'href="/public/kiosk/{archived.id}"' not in html
+        assert 'Closed Wing' not in html
+
+    def test_dashboard_kiosk_dropdown_only_all_equipment_when_no_areas(self, app, client):
+        """Empty database: dropdown has All Equipment, no divider, no per-area URLs."""
+        from esb.services import status_service
+        # Precondition: empty DB (guard against future fixtures seeding default areas).
+        assert status_service.get_area_status_dashboard() == []
+
+        response = client.get('/public/')
+        html = response.data.decode()
+        assert 'href="/public/kiosk"' in html
+        assert 'All Equipment' in html
+        assert '<hr class="dropdown-divider">' not in html
+        assert not re.search(r'href="/public/kiosk/\d+"', html)
+
+    def test_dashboard_loads_bootstrap_bundle_js(self, client):
+        """Dashboard loads bootstrap.bundle.min.js (the dropdown's JS dependency)."""
+        response = client.get('/public/')
+        html = response.data.decode()
+        assert 'bootstrap.bundle.min.js' in html
 
     def test_equipment_page_links_to_dashboard(self, client, make_area, make_equipment):
         """Equipment page has a Back to Status Dashboard link."""
@@ -308,6 +397,18 @@ class TestKioskView:
         assert response.status_code == 200
         assert b'No equipment registered yet.' in response.data
 
+    def test_kiosk_empty_state_when_all_areas_have_no_equipment(self, client, make_area):
+        """All-areas kiosk shows empty-state copy when areas exist but none have equipment (F4)."""
+        make_area(name='Empty One')
+        make_area(name='Empty Two')
+
+        response = client.get('/public/kiosk')
+        assert response.status_code == 200
+        html = response.data.decode()
+        assert 'No equipment registered yet.' in html
+        # Sanity: the per-area empty copy must NOT appear on the all-areas view.
+        assert 'No equipment in this area yet.' not in html
+
     def test_kiosk_excludes_archived_equipment(self, client, make_area, make_equipment):
         """Archived equipment is excluded from kiosk display."""
         area = make_area(name='Shop')
@@ -416,13 +517,21 @@ class TestKioskView:
         assert 'Closed Wing' not in html
 
     def test_kiosk_has_visually_hidden_h1(self, client, make_area, make_equipment):
-        """Kiosk page has a visually-hidden h1 for accessibility."""
+        """Kiosk page has a visually-hidden h1 for accessibility (no area-name suffix on all-areas view)."""
         area = make_area(name='Shop')
         make_equipment(name='Tool', area=area)
 
         response = client.get('/public/kiosk')
         html = response.data.decode()
-        assert '<h1 class="visually-hidden">Equipment Status</h1>' in html
+        # Bind H1 element, visually-hidden class, AND text in a single match
+        # so a regression that drops any of the three is caught.
+        match = re.search(
+            r'<h1[^>]*class="[^"]*\bvisually-hidden\b[^"]*"[^>]*>([^<]*)</h1>',
+            html,
+        )
+        assert match, 'expected <h1 class="visually-hidden">...</h1>'
+        # All-areas kiosk: no area name suffix.
+        assert match.group(1).strip() == 'Equipment Status'
 
     def test_kiosk_equipment_name_is_heading(self, client, make_area, make_equipment):
         """Equipment names use h3 elements for proper heading hierarchy."""
@@ -432,6 +541,240 @@ class TestKioskView:
         response = client.get('/public/kiosk')
         html = response.data.decode()
         assert '<h3 class="kiosk-equipment-name' in html
+
+    def test_kiosk_has_scale_wrapper_div(self, client, make_area, make_equipment):
+        """Kiosk page wraps content in #kiosk-scale-content for the JS scaler to target."""
+        area = make_area(name='Shop')
+        make_equipment(name='Tool', area=area)
+
+        response = client.get('/public/kiosk')
+        html = response.data.decode()
+        assert 'id="kiosk-scale-content"' in html
+        assert 'kiosk-scale-wrapper' in html
+
+    def test_kiosk_main_has_no_padding(self, client, make_area, make_equipment):
+        """Kiosk <main> uses p-0 (no padding) so the scaling wrapper measures full viewport."""
+        area = make_area(name='Shop')
+        make_equipment(name='Tool', area=area)
+
+        response = client.get('/public/kiosk')
+        classes = _main_element_classes(response.data.decode())
+        assert 'p-0' in classes
+        assert 'p-3' not in classes
+
+    def test_app_css_kiosk_body_has_overflow_hidden(self):
+        """app.css .kiosk-body rule sets overflow: hidden (no-JS-fallback / pre-JS scrollbar guard)."""
+        css_path = Path(__file__).resolve().parents[2] / 'esb' / 'static' / 'css' / 'app.css'
+        css = css_path.read_text()
+        assert '.kiosk-body' in css
+        idx = css.index('.kiosk-body')
+        block_end = css.index('}', idx)
+        block = css[idx:block_end]
+        assert 'overflow: hidden' in block
+
+    def test_kiosk_loads_app_js(self, client, make_area, make_equipment):
+        """Kiosk pages must load app.js -- it carries the scaling implementation."""
+        area = make_area(name='Shop')
+        make_equipment(name='Tool', area=area)
+
+        response = client.get('/public/kiosk')
+        html = response.data.decode()
+        assert 'js/app.js' in html
+
+
+class TestPerAreaKioskView:
+    """Tests for the per-area kiosk display route /public/kiosk/<int:area_id>."""
+
+    def test_per_area_kiosk_renders_unauthenticated(self, client, make_area, make_equipment):
+        """Per-area kiosk is accessible without login."""
+        area = make_area(name='Wood Shop')
+        make_equipment(name='Lathe', area=area)
+
+        response = client.get(f'/public/kiosk/{area.id}')
+        assert response.status_code == 200
+        assert b'Lathe' in response.data
+
+    def test_per_area_kiosk_shows_only_that_areas_equipment(
+        self, client, make_area, make_equipment,
+    ):
+        """Per-area kiosk excludes equipment from other areas."""
+        area_a = make_area(name='Wood Shop')
+        area_b = make_area(name='Metal Shop')
+        make_equipment(name='Lathe', area=area_a)
+        make_equipment(name='Welder', area=area_b)
+
+        response = client.get(f'/public/kiosk/{area_a.id}')
+        html = response.data.decode()
+        assert 'Lathe' in html
+        assert 'Welder' not in html
+        assert 'Metal Shop' not in html
+
+    def test_per_area_kiosk_shows_area_name_in_h1(self, client, make_area, make_equipment):
+        """The visually-hidden h1 includes the area name."""
+        area = make_area(name='Wood Shop')
+        make_equipment(name='Lathe', area=area)
+
+        response = client.get(f'/public/kiosk/{area.id}')
+        html = response.data.decode()
+        match = re.search(
+            r'<h1[^>]*class="[^"]*\bvisually-hidden\b[^"]*"[^>]*>([^<]*)</h1>',
+            html,
+        )
+        assert match, 'expected visually-hidden <h1>'
+        assert match.group(1).strip() == 'Equipment Status - Wood Shop'
+
+    def test_per_area_kiosk_shows_area_name_in_h2_heading(
+        self, client, make_area, make_equipment,
+    ):
+        """Per-area kiosk shows the area name as the kiosk-area-heading h2."""
+        area = make_area(name='Wood Shop')
+        make_equipment(name='Lathe', area=area)
+
+        response = client.get(f'/public/kiosk/{area.id}')
+        html = response.data.decode()
+        match = re.search(
+            r'<h2[^>]*class="[^"]*\bkiosk-area-heading\b[^"]*"[^>]*>([^<]*)</h2>',
+            html,
+        )
+        assert match, 'expected <h2 class="kiosk-area-heading">'
+        assert match.group(1).strip() == 'Wood Shop'
+
+    def test_per_area_kiosk_shows_area_name_in_title(self, client, make_area, make_equipment):
+        """Per-area kiosk <title> includes the area name."""
+        area = make_area(name='Wood Shop')
+        make_equipment(name='Lathe', area=area)
+
+        response = client.get(f'/public/kiosk/{area.id}')
+        html = response.data.decode()
+        title_match = re.search(r'<title>([^<]*)</title>', html)
+        assert title_match
+        assert 'Wood Shop' in title_match.group(1)
+
+    def test_per_area_kiosk_404_for_missing_area(self, client):
+        """Returns 404 when no area exists with the given id."""
+        response = client.get('/public/kiosk/999999')
+        assert response.status_code == 404
+
+    def test_per_area_kiosk_404_for_archived_area(self, client, make_area, make_equipment):
+        """Returns 404 for archived area (no leakage of 'exists but archived')."""
+        from esb.extensions import db
+
+        area = make_area(name='Closed Wing')
+        make_equipment(name='Old Tool', area=area)
+        area.is_archived = True
+        db.session.commit()
+
+        response = client.get(f'/public/kiosk/{area.id}')
+        assert response.status_code == 404
+
+    def test_per_area_kiosk_404_for_non_integer(self, client):
+        """Returns 404 when area_id is not an integer (Flask int converter)."""
+        response = client.get('/public/kiosk/abc')
+        assert response.status_code == 404
+
+    def test_per_area_kiosk_excludes_archived_equipment(
+        self, client, make_area, make_equipment,
+    ):
+        """Archived equipment in the area is excluded from the per-area kiosk."""
+        area = make_area(name='Shop')
+        make_equipment(name='Active Tool', area=area)
+        make_equipment(name='Retired Tool', area=area, is_archived=True)
+
+        response = client.get(f'/public/kiosk/{area.id}')
+        html = response.data.decode()
+        assert 'Active Tool' in html
+        assert 'Retired Tool' not in html
+
+    def test_per_area_kiosk_shows_status_indicators(
+        self, client, make_area, make_equipment, make_repair_record,
+    ):
+        """Per-area kiosk renders compact status-indicator color classes."""
+        area = make_area(name='Shop')
+        # Side-effect-only Equipment to exercise the green path:
+        make_equipment(name='Good Tool', area=area)
+        yellow = make_equipment(name='Iffy Tool', area=area)
+        red = make_equipment(name='Broken Tool', area=area)
+        make_repair_record(equipment=yellow, status='New', severity='Degraded')
+        make_repair_record(equipment=red, status='New', severity='Down')
+
+        response = client.get(f'/public/kiosk/{area.id}')
+        html = response.data.decode()
+        assert 'bg-success' in html
+        assert 'bg-warning' in html
+        assert 'bg-danger' in html
+
+    def test_per_area_kiosk_shows_issue_descriptions(
+        self, client, make_area, make_equipment, make_repair_record,
+    ):
+        """Per-area kiosk shows issue descriptions for non-green equipment."""
+        area = make_area(name='Shop')
+        equip = make_equipment(name='Lathe', area=area)
+        make_repair_record(
+            equipment=equip, status='New', severity='Down',
+            description='Spindle motor failed',
+        )
+
+        response = client.get(f'/public/kiosk/{area.id}')
+        assert b'Spindle motor failed' in response.data
+
+    def test_per_area_kiosk_meta_refresh_present(self, client, make_area, make_equipment):
+        """Per-area kiosk inherits the 60s meta refresh from base_kiosk.html (exactly one tag)."""
+        area = make_area(name='Shop')
+        make_equipment(name='Tool', area=area)
+
+        response = client.get(f'/public/kiosk/{area.id}')
+        html = response.data.decode()
+        meta_tags = re.findall(r'<meta\s+http-equiv="refresh"[^>]*>', html)
+        assert len(meta_tags) == 1
+        assert 'content="60"' in meta_tags[0]
+
+    def test_per_area_kiosk_no_navbar(self, client, make_area, make_equipment):
+        """Per-area kiosk has no navbar elements (element-bound, not substring-match)."""
+        area = make_area(name='Shop')
+        make_equipment(name='Tool', area=area)
+
+        response = client.get(f'/public/kiosk/{area.id}')
+        html = response.data.decode()
+        # Element-bound: a `<nav` tag opening, not just any "<nav" substring
+        # in user content (e.g., an area named "navbar maintenance").
+        assert not re.search(r'<nav[\s>]', html)
+        assert not re.search(r'\bclass="[^"]*\bnavbar\b', html)
+
+    def test_per_area_kiosk_empty_area_shows_per_area_empty_copy(self, client, make_area):
+        """Area with no equipment renders the per-area-specific empty-state copy AND area name."""
+        area = make_area(name='Empty Room')
+        response = client.get(f'/public/kiosk/{area.id}')
+        assert response.status_code == 200
+        html = response.data.decode()
+        assert 'No equipment in this area yet.' in html
+        assert 'No equipment registered yet.' not in html
+        # Visible heading must show which area we're looking at (F1).
+        match = re.search(
+            r'<h2[^>]*class="[^"]*\bkiosk-area-heading\b[^"]*"[^>]*>([^<]*)</h2>',
+            html,
+        )
+        assert match, 'empty per-area kiosk should still display the area name as a visible h2'
+        assert match.group(1).strip() == 'Empty Room'
+
+    def test_per_area_kiosk_has_scale_wrapper_div(self, client, make_area, make_equipment):
+        """Per-area kiosk wraps content in #kiosk-scale-content for the JS scaler."""
+        area = make_area(name='Shop')
+        make_equipment(name='Tool', area=area)
+
+        response = client.get(f'/public/kiosk/{area.id}')
+        html = response.data.decode()
+        assert 'id="kiosk-scale-content"' in html
+        assert 'kiosk-scale-wrapper' in html
+
+    def test_per_area_kiosk_main_has_no_padding(self, client, make_area, make_equipment):
+        """Per-area kiosk <main> uses p-0 (no padding)."""
+        area = make_area(name='Shop')
+        make_equipment(name='Tool', area=area)
+
+        response = client.get(f'/public/kiosk/{area.id}')
+        classes = _main_element_classes(response.data.decode())
+        assert 'p-0' in classes
+        assert 'p-3' not in classes
 
 
 class TestEquipmentPageView:
