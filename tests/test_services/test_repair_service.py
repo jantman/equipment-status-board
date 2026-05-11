@@ -1449,6 +1449,27 @@ class TestClaimRepairRecord:
             assert record.assignee_id == original_assignee
             assert record.status == closed_status
 
+    def test_claim_unknown_user_raises(self, app, make_area, make_equipment):
+        """claim_repair_record explicitly validates the claiming user exists.
+
+        Symmetry with resolve_repair_record's user-existence check. Even
+        though update_repair_record would also catch a bogus assignee_id,
+        we raise early at the service entry to keep validation contracts
+        consistent across the two helpers.
+        """
+        area = make_area('Shop', '#shop')
+        eq = make_equipment(name='Tool', area=area)
+        record = RepairRecord(equipment_id=eq.id, description='Broken', status='New')
+        _db.session.add(record)
+        _db.session.commit()
+
+        with pytest.raises(ValidationError, match='User with id 99999 not found'):
+            repair_service.claim_repair_record(
+                repair_record_id=record.id,
+                claimed_by_user_id=99999,
+                claimed_by_username='bogus',
+            )
+
     def test_claim_self_assigned_record_is_noop(self, app, make_area, make_equipment):
         """Re-claiming a record already assigned to self produces no new timeline entries or notifications."""
         from tests.conftest import _create_user
@@ -1590,6 +1611,37 @@ class TestResolveRepairRecord:
                 resolved_by_username=tech.username,
                 note='   ',
             )
+
+    def test_resolve_zero_width_only_note_raises(self, app, make_area, make_equipment):
+        """A note consisting only of zero-width chars / BOMs raises ValidationError.
+
+        Regression: bare str.strip() does NOT strip zero-width space (U+200B),
+        zero-width non-joiner (U+200C), zero-width joiner (U+200D), or BOM
+        (U+FEFF). The service must walk the string and reject if no visible
+        character is present.
+        """
+        from tests.conftest import _create_user
+        tech = _create_user('technician', username='alice')
+        area = make_area('Shop', '#shop')
+        eq = make_equipment(name='Tool', area=area)
+        record = RepairRecord(equipment_id=eq.id, description='Broken', status='Assigned')
+        _db.session.add(record)
+        _db.session.commit()
+
+        for empty_note in (
+            '​​​',         # zero-width space
+            '‌‍',                # ZWNJ + ZWJ
+            '﻿',                      # BOM
+            ' ​\t‌\n',           # mixed whitespace + zero-width
+            '\x00\x01\x02',                # NUL + other control chars
+        ):
+            with pytest.raises(ValidationError, match='Resolution note is required'):
+                repair_service.resolve_repair_record(
+                    repair_record_id=record.id,
+                    resolved_by_user_id=tech.id,
+                    resolved_by_username=tech.username,
+                    note=empty_note,
+                )
 
     def test_resolve_unknown_user_raises(self, app, make_area, make_equipment):
         """Unknown user id raises ValidationError mentioning the bogus id."""

@@ -57,6 +57,7 @@
         <tbody>
             {% for record in records %}
             <tr class="queue-row" tabindex="0"
+                aria-label="Open Repair #{{ record.id }}: {{ record.equipment.name }} (press Enter)"
                 data-href="{{ url_for('repairs.detail', id=record.id) }}"
                 data-equipment-name="{{ record.equipment.name }}"
                 data-severity-priority="{{ '0' if record.severity == 'Down' else ('1' if record.severity == 'Degraded' else ('2' if record.severity == 'Not Sure' else '3')) }}"
@@ -84,18 +85,20 @@
                 <td>{{ record.status }}</td>
                 <td class="queue-eta-cell" data-eta-iso="{{ record.eta.isoformat() if record.eta else '' }}">{{ record.eta|format_date }}</td>
                 <td>{{ record.assignee.username if record.assignee else '' }}</td>
-                <td class="text-end" data-no-nav>
-                    {% if record.status == 'New' and record.assignee_id != current_user.id %}
+                {% set row_show_claim = record.status == 'New' and record.assignee_id != current_user.id %}
+                {% set row_show_resolve = record.status != 'New' and record.status not in CLOSED_STATUSES %}
+                <td class="text-end"{% if row_show_claim or row_show_resolve %} data-no-nav{% endif %}>
+                    {% if row_show_claim %}
                     <form method="post" action="{{ url_for('repairs.claim', id=record.id) }}" class="d-inline">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        <input type="hidden" name="next" value="{{ request.path }}">
+                        <input type="hidden" name="next" value="{{ request.full_path.rstrip('?') }}">
                         <button type="submit" class="btn btn-sm btn-outline-primary"
                                 aria-label="Claim Repair #{{ record.id }}: {{ record.equipment.name }}">
                             Claim
                         </button>
                     </form>
                     {% endif %}
-                    {% if record.status != 'New' and record.status not in CLOSED_STATUSES %}
+                    {% if row_show_resolve %}
                     <button type="button" class="btn btn-sm btn-outline-success"
                             data-bs-toggle="modal" data-bs-target="#resolveModal"
                             data-repair-id="{{ record.id }}"
@@ -116,6 +119,7 @@
     <div class="card mb-2 queue-card text-body"
          data-href="{{ url_for('repairs.detail', id=record.id) }}"
          tabindex="0"
+         aria-label="Open Repair #{{ record.id }}: {{ record.equipment.name }} (press Enter)"
          data-equipment-name="{{ record.equipment.name }}"
          data-severity-priority="{{ '0' if record.severity == 'Down' else ('1' if record.severity == 'Degraded' else ('2' if record.severity == 'Not Sure' else '3')) }}"
          data-area-id="{{ record.equipment.area_id }}"
@@ -153,7 +157,7 @@
                 {% if show_claim %}
                 <form method="post" action="{{ url_for('repairs.claim', id=record.id) }}" class="d-inline">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <input type="hidden" name="next" value="{{ request.path }}">
+                    <input type="hidden" name="next" value="{{ request.full_path.rstrip('?') }}">
                     <button type="submit" class="btn btn-sm btn-outline-primary"
                             aria-label="Claim Repair #{{ record.id }}: {{ record.equipment.name }}">
                         Claim

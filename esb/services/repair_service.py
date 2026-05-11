@@ -217,7 +217,7 @@ def list_repair_records(
     return list(scalars.all())
 
 
-CLOSED_STATUSES = ['Resolved', 'Closed - No Issue Found', 'Closed - Duplicate']
+CLOSED_STATUSES = ('Resolved', 'Closed - No Issue Found', 'Closed - Duplicate')
 
 KANBAN_COLUMNS = [s for s in REPAIR_STATUSES if s not in CLOSED_STATUSES]
 
@@ -309,7 +309,23 @@ def resolve_repair_record(
             does not exist, the record does not exist, or the record
             is already closed.
     """
-    if not note or not note.strip():
+    # Reject empty / whitespace-only / zero-width-only / control-only notes.
+    # str.strip() only handles ASCII whitespace, so we explicitly walk the
+    # codepoints looking for at least one "visible" character (anything that
+    # is neither whitespace nor in Unicode categories Cc/Cf — control and
+    # format chars, which include zero-width space U+200B, ZWNJ, ZWJ, BOM,
+    # NBSP-class etc.).
+    import unicodedata
+    has_content = False
+    if note:
+        for ch in note:
+            if ch.isspace():
+                continue
+            if unicodedata.category(ch) in ('Cc', 'Cf'):
+                continue
+            has_content = True
+            break
+    if not has_content:
         raise ValidationError('Resolution note is required')
     user = db.session.get(User, resolved_by_user_id)
     if user is None:

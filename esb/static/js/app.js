@@ -16,7 +16,7 @@ document.addEventListener('DOMContentLoaded', function () {
       if (isNavBlocker(e.target)) return;
       // Respect ctrl/cmd/shift modifiers: open in new tab/window like a real link.
       if (e.ctrlKey || e.metaKey || e.shiftKey) {
-        window.open(row.dataset.href, '_blank', 'noopener');
+        window.open(row.dataset.href, '_blank', 'noopener,noreferrer');
         return;
       }
       window.location.href = row.dataset.href;
@@ -26,7 +26,7 @@ document.addEventListener('DOMContentLoaded', function () {
       if (e.button !== 1) return;
       if (isNavBlocker(e.target)) return;
       e.preventDefault();
-      window.open(row.dataset.href, '_blank', 'noopener');
+      window.open(row.dataset.href, '_blank', 'noopener,noreferrer');
     });
     row.addEventListener('keydown', function (e) {
       if (e.key !== 'Enter' && e.key !== ' ') return;
@@ -167,7 +167,12 @@ document.addEventListener('DOMContentLoaded', function () {
     resolveModal.addEventListener('show.bs.modal', function (event) {
       var trigger = event.relatedTarget;
       if (!trigger) return;
-      var repairId = trigger.getAttribute('data-repair-id');
+      var rawId = trigger.getAttribute('data-repair-id');
+      // Defensive: data-repair-id must be a positive integer. Any other value
+      // (path traversal, scheme injection, garbage) silently aborts the
+      // dynamic-action patch so the form keeps its inert sentinel action.
+      var repairId = parseInt(rawId, 10);
+      if (!Number.isInteger(repairId) || repairId <= 0 || String(repairId) !== String(rawId).trim()) return;
       if (resolveModalForm) resolveModalForm.setAttribute('action', '/repairs/' + repairId + '/resolve');
       if (resolveModalNote) resolveModalNote.value = '';
       if (resolveModalRepairIdSpan) resolveModalRepairIdSpan.textContent = '#' + repairId;

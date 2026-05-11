@@ -35,19 +35,33 @@ def _aging_tier(seconds):
 
 
 def _safe_next_url(next_val: str | None, record_id: int) -> str:
-    """Return next_val if it is one of the two allowed targets, else fallback.
+    """Return next_val if its PATH is one of two allowed targets, else fallback.
 
-    Allowlist: /repairs/queue OR /repairs/<record_id>. Any other value
-    (external URL, backslash-escaped, scheme-injected, URL-encoded
-    variants, /repairs/<other_id>, etc.) returns the detail-page URL
-    for record_id. This explicit allowlist is more restrictive -- and
-    safer -- than regex-based filtering.
+    Allowed paths: /repairs/queue OR /repairs/<record_id>. Query strings are
+    preserved when the path matches, so a user landing here from
+    /repairs/queue?assignee=me does not lose their filter state on redirect.
+    Any URL with a scheme, netloc, backslash, or non-matching path falls back
+    to the detail page for record_id. This is more restrictive than a
+    regex filter while remaining filter-preserving.
     """
-    queue_url = url_for('repairs.queue')
+    from urllib.parse import urlparse
+
     detail_url = url_for('repairs.detail', id=record_id)
-    if next_val in (queue_url, detail_url):
-        return next_val
-    return detail_url
+    if not next_val:
+        return detail_url
+    # Reject backslash variants outright -- urlparse normalizes them silently.
+    if '\\' in next_val:
+        return detail_url
+    parsed = urlparse(next_val)
+    # Reject anything with a scheme or netloc (absolute / protocol-relative URLs).
+    if parsed.scheme or parsed.netloc:
+        return detail_url
+    queue_path = url_for('repairs.queue')
+    if parsed.path not in (queue_path, detail_url):
+        return detail_url
+    # Path is allowed -- reconstruct preserving the query string (but not
+    # the fragment, which is client-side-only and not useful here).
+    return parsed.path + (('?' + parsed.query) if parsed.query else '')
 
 
 @repairs_bp.route('/')
@@ -100,19 +114,15 @@ def queue():
 
     areas = equipment_service.list_areas()
     open_statuses = [s for s in REPAIR_STATUSES if s not in CLOSED_STATUSES]
-    try:
-        records = repair_service.get_repair_queue(
-            area_id=area_id,
-            status=status_filter,
-            assignee_id=assignee_id_filter,
-            unassigned=unassigned_filter,
-        )
-    except ValidationError as e:
-        # Defensive: the view's own canonicalization ensures the mutually-
-        # exclusive filter guard cannot fire, but any future caller refactor
-        # that lifts both into the same request should fail gracefully.
-        flash(str(e), 'danger')
-        records = []
+    # Canonicalization above guarantees assignee_id_filter and
+    # unassigned_filter are never both truthy, so the service's mutual-
+    # exclusion guard cannot fire from this caller.
+    records = repair_service.get_repair_queue(
+        area_id=area_id,
+        status=status_filter,
+        assignee_id=assignee_id_filter,
+        unassigned=unassigned_filter,
+    )
 
     return render_template(
         'repairs/queue.html',
@@ -338,26 +348,12 @@ def claim(id):
 
     if form.validate_on_submit():
         try:
-            # Capture pre-state for accurate flash wording. If the record is
-            # already assigned to current_user AND has the right status, the
-            # service no-ops via update_repair_record's value-equality guard;
-            # we still flash a benign "already own" message instead of
-            # misleading the user with "Claimed".
-            try:
-                pre_record = repair_service.get_repair_record(id)
-                was_self_assigned = pre_record.assignee_id == current_user.id
-            except ValidationError:
-                was_self_assigned = False
-
             repair_service.claim_repair_record(
                 repair_record_id=id,
                 claimed_by_user_id=current_user.id,
                 claimed_by_username=current_user.username,
             )
-            if was_self_assigned:
-                flash(f'You already own Repair #{id}.', 'info')
-            else:
-                flash(f'Claimed Repair #{id}.', 'success')
+            flash(f'Claimed Repair #{id}.', 'success')
         except ValidationError as e:
             flash(str(e), 'danger')
     else:

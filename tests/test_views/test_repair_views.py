@@ -1539,3 +1539,232 @@ class TestDetailQuickActions:
             )
             resp = tech_client.get(f'/repairs/{record.id}')
             assert f'/repairs/{record.id}/edit'.encode() in resp.data
+
+
+class TestRoundTwoReviewFixes:
+    """Tests added in response to round-2 adversarial review findings.
+
+    These tests cover round-2 fixes (F4, F8, F13, F17) and existing
+    branches that the round-1 review noted were untested.
+    """
+
+    # --- F17: case-insensitive ?assignee= matching ---
+
+    def test_queue_url_param_assignee_mixed_case_me(
+        self, tech_client, tech_user, make_area, make_equipment, make_repair_record,
+    ):
+        """Mixed-case ?assignee=Mine / ?assignee=ME / ?assignee=Me all map to "me"."""
+        from tests.conftest import _create_user
+        other = _create_user('technician', username='other')
+        area = make_area('Shop')
+        eq = make_equipment('Tool', area=area)
+        make_repair_record(equipment=eq, status='Assigned', assignee_id=tech_user.id)
+        make_repair_record(equipment=eq, status='Assigned', assignee_id=other.id)
+
+        for raw in ('Me', 'ME', 'mE'):
+            resp = tech_client.get(f'/repairs/queue?assignee={raw}')
+            my_rows = resp.data.count(f'data-assignee-id="{tech_user.id}"'.encode())
+            other_rows = resp.data.count(f'data-assignee-id="{other.id}"'.encode())
+            # Two rows per "my" record (desktop tr + mobile card); zero for other.
+            assert my_rows == 2, f'expected 2 rows for assignee={raw!r}, got {my_rows}'
+            assert other_rows == 0, f'expected 0 other-rows for assignee={raw!r}, got {other_rows}'
+
+    def test_queue_url_param_assignee_mixed_case_unassigned(
+        self, tech_client, tech_user, make_area, make_equipment, make_repair_record,
+    ):
+        """Mixed-case ?assignee=UNASSIGNED / Unassigned all map to "unassigned"."""
+        area = make_area('Shop')
+        eq = make_equipment('Tool', area=area)
+        make_repair_record(equipment=eq, status='New')  # unassigned
+        make_repair_record(equipment=eq, status='Assigned', assignee_id=tech_user.id)
+
+        for raw in ('UNASSIGNED', 'Unassigned'):
+            resp = tech_client.get(f'/repairs/queue?assignee={raw}')
+            unassigned_rows = resp.data.count(b'data-unassigned="true"')
+            assigned_rows = resp.data.count(b'data-unassigned="false"')
+            assert unassigned_rows == 2
+            assert assigned_rows == 0
+
+    # --- F8: sentinel modal action returns 404 ---
+
+    def test_modal_sentinel_action_returns_404(self, tech_client):
+        """The sentinel POST URL `/repairs/_resolve_modal_inert` MUST return 404.
+
+        The resolve modal renders this as the form's initial action attribute
+        so that, if JavaScript fails to patch the per-record action, the
+        submission lands on a clearly-non-existent endpoint instead of
+        silently POSTing back to the current page URL. If a future route
+        ever shadows this path, this test fails loudly.
+        """
+        resp = tech_client.post('/repairs/_resolve_modal_inert', data={'note': 'x'})
+        assert resp.status_code == 404
+
+    # --- F13: form-only CSRF rejection (TestingConfig disables CSRF
+    # globally, so we test the form class directly with CSRF enabled
+    # at the form-instance level) ---
+
+    def test_claim_form_rejects_missing_csrf_token(self, app):
+        """RepairClaimForm.validate_on_submit() rejects a POST with no CSRF.
+
+        Direct form-instance test because the test client config disables
+        CSRF globally. We construct the form with `meta={'csrf': True}`
+        and POST without a token to verify the rejection path.
+        """
+        from esb.forms.repair_forms import RepairClaimForm
+        from flask_wtf.csrf import generate_csrf
+
+        with app.test_request_context('/repairs/1/claim', method='POST', data={}):
+            form = RepairClaimForm(meta={'csrf': True})
+            assert form.validate_on_submit() is False
+            # The csrf_token field should have errors on a no-token submit.
+            assert form.csrf_token.errors
+
+        # Sanity: with a valid token, the form validates.
+        with app.test_request_context('/repairs/1/claim', method='POST'):
+            token = generate_csrf()
+        with app.test_request_context(
+            '/repairs/1/claim', method='POST', data={'csrf_token': token},
+        ):
+            form = RepairClaimForm(meta={'csrf': True})
+            # Cannot assert True deterministically without binding the session
+            # the token was generated against; assert at least the negative
+            # path's errors do NOT appear when a token IS supplied.
+            form.validate_on_submit()
+            # If errors exist they are NOT due to a missing token, but to
+            # session-binding mismatch. Either way the negative case above
+            # is the load-bearing assertion.
+
+    def test_resolve_form_rejects_missing_csrf_token(self, app):
+        """RepairResolveForm.validate_on_submit() rejects a POST with no CSRF."""
+        from esb.forms.repair_forms import RepairResolveForm
+
+        with app.test_request_context(
+            '/repairs/1/resolve', method='POST', data={'note': 'Fixed'},
+        ):
+            form = RepairResolveForm(meta={'csrf': True})
+            assert form.validate_on_submit() is False
+            assert form.csrf_token.errors
+
+    # --- F4: query-string preservation across Claim/Resolve redirect ---
+
+    def test_claim_preserves_queue_query_string_in_redirect(
+        self, tech_client, make_area, make_equipment, make_repair_record,
+    ):
+        """A claim POST with next='/repairs/queue?assignee=me' redirects to
+        the queue WITH the filter query string still present.
+        """
+        area = make_area('Shop')
+        eq = make_equipment('Tool', area=area)
+        record = make_repair_record(equipment=eq, status='New')
+
+        resp = tech_client.post(
+            f'/repairs/{record.id}/claim',
+            data={'next': '/repairs/queue?assignee=me&area=1'},
+        )
+        assert resp.status_code == 302
+        loc = resp.headers['Location']
+        # Path must match queue; query must be preserved verbatim.
+        assert loc.endswith('/repairs/queue?assignee=me&area=1')
+
+    def test_resolve_preserves_queue_query_string_in_redirect(
+        self, tech_client, make_area, make_equipment, make_repair_record,
+    ):
+        area = make_area('Shop')
+        eq = make_equipment('Tool', area=area)
+        record = make_repair_record(equipment=eq, status='Assigned')
+
+        resp = tech_client.post(
+            f'/repairs/{record.id}/resolve',
+            data={'note': 'Fixed', 'next': '/repairs/queue?assignee=unassigned'},
+        )
+        assert resp.status_code == 302
+        assert resp.headers['Location'].endswith('/repairs/queue?assignee=unassigned')
+
+    def test_claim_rejects_unsafe_path_with_query_string(
+        self, tech_client, make_repair_record,
+    ):
+        """Query string is preserved ONLY when path is in the allowlist.
+
+        Path /repairs/queue/../../evil with a query string still falls back
+        to the record detail URL.
+        """
+        record = make_repair_record(status='New')
+        resp = tech_client.post(
+            f'/repairs/{record.id}/claim',
+            data={'next': '/repairs/queue/../../evil?assignee=me'},
+        )
+        assert resp.status_code == 302
+        # urlparse keeps the path component literal; allowlist won't match.
+        assert resp.headers['Location'].endswith(f'/repairs/{record.id}')
+
+    def test_resolve_template_emits_full_path_in_next(
+        self, tech_client, tech_user, make_area, make_equipment, make_repair_record,
+    ):
+        """Queue template renders next with the query string from the request URL.
+
+        Round-2 fix: switched from request.path to request.full_path.rstrip('?')
+        so filter state survives Claim/Resolve redirects.
+        """
+        area = make_area('Shop')
+        eq = make_equipment('Tool', area=area)
+        make_repair_record(equipment=eq, status='Assigned', assignee_id=tech_user.id)
+
+        resp = tech_client.get('/repairs/queue?assignee=me')
+        assert resp.status_code == 200
+        # Hidden next field must contain the filter query string.
+        assert b'name="next" value="/repairs/queue?assignee=me"' in resp.data
+
+    def test_resolve_template_no_trailing_question_mark_when_no_query(
+        self, tech_client, make_repair_record,
+    ):
+        """request.full_path always appends '?' when no query; the template
+        rstrips it so the rendered next is the bare path."""
+        make_repair_record(status='Assigned')
+        resp = tech_client.get('/repairs/queue')
+        assert resp.status_code == 200
+        # Hidden next should be exactly '/repairs/queue' (no trailing '?').
+        assert b'name="next" value="/repairs/queue"' in resp.data
+        assert b'name="next" value="/repairs/queue?"' not in resp.data
+
+    # --- F12: data-no-nav rendered only when actions exist ---
+
+    def test_actions_td_has_no_nav_when_actions_present(
+        self, tech_client, make_area, make_equipment, make_repair_record,
+    ):
+        area = make_area('Shop')
+        eq = make_equipment('Tool', area=area)
+        make_repair_record(equipment=eq, status='New')
+        resp = tech_client.get('/repairs/queue')
+        # data-no-nav present on the actions td.
+        assert re.search(rb'<td[^>]*class="text-end"[^>]*data-no-nav', resp.data)
+
+    def test_actions_td_omits_no_nav_when_no_actions(
+        self, tech_client, tech_user, make_area, make_equipment, make_repair_record,
+    ):
+        """A row with no claim/resolve buttons (New + self-assigned) renders
+        the Actions <td> WITHOUT data-no-nav, so the cell is navigable."""
+        area = make_area('Shop')
+        eq = make_equipment('Tool', area=area)
+        make_repair_record(
+            equipment=eq, status='New', assignee_id=tech_user.id,
+        )
+        resp = tech_client.get('/repairs/queue')
+        # Need to find the actions td and verify it does NOT carry data-no-nav.
+        # There should be exactly one queue-row and its last td is the Actions cell.
+        match = re.search(rb'<td class="text-end"([^>]*)>', resp.data)
+        assert match, 'actions td not found'
+        td_attrs = match.group(1)
+        assert b'data-no-nav' not in td_attrs
+
+    # --- F5: aria-label on rows and cards ---
+
+    def test_row_has_aria_label_for_screen_readers(
+        self, tech_client, make_area, make_equipment, make_repair_record,
+    ):
+        area = make_area('Shop')
+        eq = make_equipment('TableSaw', area=area)
+        record = make_repair_record(equipment=eq, status='Assigned')
+        resp = tech_client.get('/repairs/queue')
+        expected = f'aria-label="Open Repair #{record.id}: TableSaw'.encode()
+        # Both desktop row and mobile card carry the aria-label.
+        assert resp.data.count(expected) == 2

@@ -21,7 +21,7 @@
         {% if record.status == 'New' and record.assignee_id != current_user.id %}
         <form method="post" action="{{ url_for('repairs.claim', id=record.id) }}" class="d-inline">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <input type="hidden" name="next" value="{{ request.path }}">
+            <input type="hidden" name="next" value="{{ request.full_path.rstrip('?') }}">
             <button type="submit" class="btn btn-outline-primary"
                     aria-label="Claim Repair #{{ record.id }}: {{ record.equipment.name }}">
                 Claim

@@ -19,7 +19,7 @@
          to the current page URL. #}
       <form method="post" action="/repairs/_resolve_modal_inert" id="resolveModalForm">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input type="hidden" name="next" value="{{ request.path }}">
+        <input type="hidden" name="next" value="{{ request.full_path.rstrip('?') }}">
         <div class="modal-body">
           <label for="resolveModalNote" class="form-label">Resolution Note <span class="text-danger">*</span></label>
           <textarea id="resolveModalNote" name="note" class="form-control" rows="4" maxlength="5000" required></textarea>
