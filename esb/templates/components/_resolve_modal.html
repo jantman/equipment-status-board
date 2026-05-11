@@ -4,7 +4,8 @@
    modal-footer wrapping one button) because we need a textarea inside
    the form. The form's action is patched at show.bs.modal time by the
    handler in app.js. #}
-<div class="modal fade" id="resolveModal" tabindex="-1" aria-labelledby="resolveModalLabel" aria-hidden="true">
+<div class="modal fade" id="resolveModal" tabindex="-1" aria-labelledby="resolveModalLabel" aria-hidden="true"
+     data-script-root="{{ request.script_root }}">
   <div class="modal-dialog">
     <div class="modal-content">
       <div class="modal-header">
@@ -16,8 +17,9 @@
       {# action is patched per-trigger by app.js show.bs.modal handler. The
          sentinel below ensures that if JS fails to load, the form submits to
          a non-existent endpoint and returns 404 instead of silently POSTing
-         to the current page URL. #}
-      <form method="post" action="/repairs/_resolve_modal_inert" id="resolveModalForm">
+         to the current page URL. request.script_root keeps the sentinel
+         inside the app's mount point if deployed under SCRIPT_NAME. #}
+      <form method="post" action="{{ request.script_root }}/repairs/_resolve_modal_inert" id="resolveModalForm">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="next" value="{{ request.full_path.rstrip('?') }}">
         <div class="modal-body">

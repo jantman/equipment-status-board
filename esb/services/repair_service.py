@@ -310,11 +310,15 @@ def resolve_repair_record(
             is already closed.
     """
     # Reject empty / whitespace-only / zero-width-only / control-only notes.
-    # str.strip() only handles ASCII whitespace, so we explicitly walk the
-    # codepoints looking for at least one "visible" character (anything that
-    # is neither whitespace nor in Unicode categories Cc/Cf — control and
-    # format chars, which include zero-width space U+200B, ZWNJ, ZWJ, BOM,
-    # NBSP-class etc.).
+    # Python's str.strip() is Unicode-aware for whitespace (covers NBSP,
+    # U+2000-U+200A, U+2028/2029, etc. — anything where ch.isspace() is
+    # True). But it does NOT strip Unicode-category Cc (control) or Cf
+    # (format) characters, which include zero-width space U+200B, ZWNJ
+    # U+200C, ZWJ U+200D, BOM U+FEFF, ASCII NUL/control bytes, etc.
+    # A note like '​​​' or '\x00\x01' would pass a bare
+    # str.strip() check but be visually empty. So we walk the codepoints
+    # explicitly looking for at least one "visible" character (anything
+    # that is neither whitespace nor Cc/Cf).
     import unicodedata
     has_content = False
     if note:

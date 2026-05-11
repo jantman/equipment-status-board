@@ -164,6 +164,11 @@ document.addEventListener('DOMContentLoaded', function () {
     var resolveModalForm = document.getElementById('resolveModalForm');
     var resolveModalNote = document.getElementById('resolveModalNote');
     var resolveModalRepairIdSpan = document.getElementById('resolveModalRepairId');
+    // SCRIPT_NAME-aware prefix. Empty string when the app is mounted at
+    // the server root; otherwise the WSGI mount prefix (e.g. '/esb').
+    // Read from a data-attribute on the modal that the template renders
+    // from {{ request.script_root }}.
+    var resolveModalScriptRoot = resolveModal.getAttribute('data-script-root') || '';
     resolveModal.addEventListener('show.bs.modal', function (event) {
       var trigger = event.relatedTarget;
       if (!trigger) return;
@@ -173,7 +178,7 @@ document.addEventListener('DOMContentLoaded', function () {
       // dynamic-action patch so the form keeps its inert sentinel action.
       var repairId = parseInt(rawId, 10);
       if (!Number.isInteger(repairId) || repairId <= 0 || String(repairId) !== String(rawId).trim()) return;
-      if (resolveModalForm) resolveModalForm.setAttribute('action', '/repairs/' + repairId + '/resolve');
+      if (resolveModalForm) resolveModalForm.setAttribute('action', resolveModalScriptRoot + '/repairs/' + repairId + '/resolve');
       if (resolveModalNote) resolveModalNote.value = '';
       if (resolveModalRepairIdSpan) resolveModalRepairIdSpan.textContent = '#' + repairId;
     });
