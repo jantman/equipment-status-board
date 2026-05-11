@@ -1,0 +1,1141 @@
+---
+title: 'Technician Web UI UX Improvements'
+slug: 'technician-web-ux-improvements'
+created: '2026-05-11'
+status: 'ready-for-dev'
+stepsCompleted: [1, 2, 3, 4]
+adversarial_review_applied: '2026-05-11'
+tech_stack:
+  - 'Python 3.14'
+  - 'Flask + Flask-SQLAlchemy + Flask-WTF + Flask-Login'
+  - 'Bootstrap 5 (bundled via static/js/bootstrap.bundle.min.js, includes Modal component)'
+  - 'Vanilla JavaScript (no framework). All event handlers in esb/static/js/app.js or scoped <script> blocks — never inline HTML attributes (CSP-friendly).'
+  - 'Jinja2 templates'
+  - 'pytest for views + services tests'
+files_to_modify:
+  - 'esb/__init__.py (register CLOSED_STATUSES as Jinja context)'
+  - 'esb/services/repair_service.py (add resolve_repair_record; no get_repair_queue change)'
+  - 'esb/views/repairs.py (two new POST routes; queue/detail view inject forms)'
+  - 'esb/forms/repair_forms.py (two new form classes)'
+  - 'esb/slack/handlers.py (converge resolve_with_note onto new service helper)'
+  - 'esb/static/js/app.js (add assignee filter; mobile-card click-nav; modal-trigger handler; modal-textarea reset)'
+  - 'esb/templates/repairs/queue.html (Actions column; restructured mobile cards; new filter select; resolve modal include)'
+  - 'esb/templates/repairs/detail.html (Claim/Resolve buttons in header; resolve modal include)'
+  - 'esb/templates/components/_resolve_modal.html (new)'
+  - 'tests/test_services/test_repair_service.py'
+  - 'tests/test_views/test_repair_views.py'
+  - 'tests/test_slack/test_handlers.py'
+  - 'docs/technicians.md'
+code_patterns:
+  - 'Blueprint route handlers in esb/views/repairs.py protected by @role_required("technician")'
+  - 'POST forms render CSRF via raw input matching admin/areas.html: <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"> (NOT form.hidden_tag() — that emits id="csrf_token" which collides when multiple forms exist on one page)'
+  - 'Service-layer functions raise ValidationError; views catch and flash(str(e), "danger")'
+  - 'POST-then-redirect with allowlist-validated next param (only two valid targets: queue index, repair detail)'
+  - 'Service-layer claim_repair_record already exists with closed-record guard (esb/services/repair_service.py:225). The new resolve_repair_record mirrors that pattern at the same file.'
+  - 'Client-side filtering of queue rows/cards via app.js — toggles style.display; never reloads. Adding the new Assignee filter follows the existing Area + Status pattern (esb/static/js/app.js:80-118).'
+  - 'Clickable rows + cards use data-href + JS navigation (existing pattern at esb/static/js/app.js:5-16). Mobile cards adopt the same pattern, eliminating anchor-inside-anchor issues.'
+  - 'Bootstrap modal pattern matching admin/areas.html:54-73: modal-content holds modal-header, then a <form> wrapping modal-body + modal-footer. Cancel button inside footer uses data-bs-dismiss; Submit button is type=submit inside the form.'
+test_patterns:
+  - 'tests/test_views/test_repair_views.py uses staff_client / tech_client / make_equipment / make_repair_record fixtures from tests/conftest.py'
+  - 'tests/test_services/test_repair_service.py groups tests in classes per-function (e.g. TestClaimRepairRecord starts at line 1357)'
+  - 'View tests assert status codes, flash messages in resp.data, and DB state via _db.session.refresh(record)'
+  - 'CSRF is disabled in TestingConfig (esb/config.py:67) so test POSTs do not need a token'
+  - 'tests/test_slack/test_handlers.py uses _register_and_capture(app) to capture handler fns from a MagicMock bolt_app, then invokes them directly'
+issue: 'https://github.com/jantman/equipment-status-board/issues/35'
+---
+
+# Tech-Spec: Technician Web UI UX Improvements
+
+**Created:** 2026-05-11
+**GitHub Issue:** [#35 Technician web UI UX improvements](https://github.com/jantman/equipment-status-board/issues/35)
+**Adversarial Review Applied:** 2026-05-11 (25 findings, all addressed in this revision)
+
+## Overview
+
+### Problem Statement
+
+The two most common technician actions on the web UI — **claiming a new repair** and **resolving an open one** — require navigating multiple pages and form fields:
+
+1. Today, to claim a `New` repair: open the queue → click the row → click **Edit** → change *Status* to "Assigned" → change *Assignee* to self → click **Save Changes**. That's 5 clicks for an action that is logically one decision.
+2. To resolve an open repair: open the queue → click the row → click **Edit** → change *Status* to "Resolved" → type a note in the *Add Note* textarea (a convention, not enforced) → click **Save Changes**. The note is not required, and nothing prompts the technician to add one.
+3. The repair queue has no way to quickly see "my open repairs" or "open unassigned repairs" — a technician must visually scan the *Assignee* column.
+
+The Slack `/esb-repair` dispatcher already exposes one-button **Claim** and **Resolve with Note** flows (issue #34, the `repair_action_submission` handler at `esb/slack/handlers.py:597-625`), and the underlying `repair_service.claim_repair_record()` helper exists with the New→Assigned promotion rule baked in. The web UI lags this UX.
+
+### Solution
+
+Three changes:
+
+1. **Claim button** on every open repair record whose status is `'New'` AND whose `assignee_id != current_user.id`. POSTs to `/repairs/<id>/claim`, calls the existing `repair_service.claim_repair_record()`, redirects back to the originating page (allowlist-validated) with a success flash. Single click, no form input.
+
+2. **Resolve button** on every open repair record whose status is NOT in `CLOSED_STATUSES` AND NOT `'New'` (UI nudge — technicians triage `New` records first, not blind-resolve them). Clicking opens a Bootstrap modal with a required note textarea. Submitting POSTs to `/repairs/<id>/resolve`, calls a new `repair_service.resolve_repair_record()` helper that sets `status='Resolved'` and appends the note as a timeline entry in one call, then redirects with a success flash.
+
+3. **Assignee filter** on `/repairs/queue` with options All / Mine / Unassigned. **Pure client-side**, matching the existing Area and Status filters (`esb/static/js/app.js:80-118`) — no URL parameters, no server-side query mutation. The filter compares `data-assignee-id` on each row/card against the current user's id (embedded as a data attribute on the queue container).
+
+Buttons appear in three surfaces: the queue table row (desktop), the queue card (mobile), and the repair detail page header. The Resolve modal is extracted as a Jinja partial (`components/_resolve_modal.html`) and included once per page; a single `show.bs.modal` handler in `app.js` reads the trigger button's `data-repair-id`, patches the modal's form `action`, clears any stale textarea text, and updates the visible title. The Slack dispatcher's `resolve_with_note` branch is also converged onto the new service helper for single-source-of-truth.
+
+### Scope
+
+**In Scope:**
+
+- New service function `repair_service.resolve_repair_record(repair_record_id, resolved_by_user_id, resolved_by_username, note)`. Body: validate user exists (mirrors `update_repair_record`'s `assignee_id` validation), validate note non-empty after stripping, validate record open (raise `ValidationError` if in `CLOSED_STATUSES`), call `update_repair_record(status='Resolved', note=note.strip())`. Mirrors `claim_repair_record` shape and order-of-validations.
+- Two new view routes in `esb/views/repairs.py`:
+  - `POST /repairs/<int:id>/claim` — calls `claim_repair_record`, redirects via allowlist-validated `next`.
+  - `POST /repairs/<int:id>/resolve` — calls `resolve_repair_record`, narrows form-error flashing to the `note` field (CSRF/other failures flash a generic "Invalid resolve request" message).
+- A `_safe_next_url(next_val, fallback, record_id)` helper using an **explicit allowlist** of two paths: `url_for('repairs.queue')` and `url_for('repairs.detail', id=record_id)`. Anything else (including backslash, scheme, protocol-relative, URL-encoded variants) falls back to detail.
+- Two new Flask-WTF forms in `esb/forms/repair_forms.py`: `RepairClaimForm` (CSRF only) and `RepairResolveForm` (note + submit).
+- `esb/static/js/app.js` extension:
+  - Add Assignee filter to `applyFilters()` — comparison against `dataset.assigneeId` and `dataset.unassigned` on rows/cards.
+  - Extend the click-to-navigate selector to include `.queue-card[data-href]` (mobile cards adopt the same `data-href` pattern as desktop rows).
+  - Update `.queue-card` filter display-toggle to set `display` directly on the card div (not via `closest('a')`, since the mobile-card restructure drops the wrapping `<a>`).
+  - Add a `show.bs.modal` listener on `#resolveModal` that reads `data-repair-id` from the trigger, sets the form's `action` to `/repairs/<id>/resolve`, **clears the textarea**, and updates the visible repair-id badge.
+- `esb/__init__.py`: register a context processor exposing `CLOSED_STATUSES` so templates use a single source of truth — `{% if record.status not in CLOSED_STATUSES %}` rather than hard-coding the list.
+- Slack convergence: `esb/slack/handlers.py:597-625` (the `repair_action_submission` view-submission handler's `resolve_with_note` branch) refactored to call `repair_service.resolve_repair_record(...)` instead of `update_repair_record(status='Resolved', note=...)`. Single source of truth for resolve invariants (closed-record guard, empty-note guard, user-exists guard). The pre-validation in the Slack handler is retained for per-input-block error attribution.
+- Template updates:
+  - `esb/templates/repairs/queue.html`: add an **Actions** `<th>`/`<td>` column to the desktop table; restructure mobile cards (drop wrapping `<a>`, add `data-href` + `data-assignee-id` + `data-unassigned` on `.queue-card` itself, action buttons live in a separate `card-body` row inside the same card div); add the **Assignee** filter `<select>`; embed `data-current-user-id` on a queue-scoped container; include the resolve-modal partial. All buttons carry `aria-label` annotations.
+  - `esb/templates/repairs/detail.html`: add Claim and Resolve buttons in the header row alongside the existing Edit button, with `{% if %}` guards using the new Jinja global `CLOSED_STATUSES`; include the resolve-modal partial.
+  - `esb/templates/components/_resolve_modal.html` (new): the modal markup — `<form>` lives **inside** `modal-content`, sibling to `modal-header`, wrapping `modal-body` + `modal-footer` (matches `esb/templates/admin/areas.html:54-73` placement). CSRF rendered via raw `<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">` rather than `form.hidden_tag()` to avoid duplicate `id="csrf_token"` collisions across multiple forms on the same page.
+- Tests in `tests/test_services/test_repair_service.py`:
+  - New `TestResolveRepairRecord` class covering: resolve open record → status='Resolved', note timeline entry created; closed record raises `ValidationError`; empty / whitespace-only note raises `ValidationError`; nonexistent record raises `ValidationError`; nonexistent user_id raises `ValidationError`; resolve from `New` is allowed at the service layer; the `resolved` Slack notification is queued via the existing trigger; non-ASCII (emoji + multilingual) note round-trips through the timeline entry intact.
+  - Tests for re-claim no-op behavior (regression test for the concurrent-claim case): claiming an already-self-assigned record produces zero new `assignee_change` or `status_change` timeline entries and queues zero notifications (the `update_repair_record` no-op guard catches it).
+- Tests in `tests/test_views/test_repair_views.py`:
+  - New `TestClaimRepairRoute` class (10 tests): tech and staff happy path on `New` and on later open statuses; closed-record danger flash with no mutation; nonexistent ID → 404; unauthenticated → login redirect; member-role → 403; safe `next` honored; unsafe `next` (`//evil.com/`, `/\evil.com/`, `http://evil.com/`) falls back to detail; CSRF-disabled test config sanity.
+  - New `TestResolveRepairRoute` class (10 tests): tech and staff happy path; empty note flashes WTForms validation error and does not mutate; whitespace-only note flashes service-layer "Resolution note is required" and does not mutate; closed-record danger flash; nonexistent → 404; unauthenticated → login; member-role → 403; resolve-from-`New` allowed via route; safe `next` honored; CSRF-failure path flashes generic "Invalid resolve request" (not the raw CSRF error message).
+  - Extension of existing queue/detail tests (10 tests): queue rendering includes Claim button when applicable; queue omits Claim when already self-assigned; queue renders Resolve trigger for open-non-New records; queue includes `id="resolveModal"`; queue includes `data-current-user-id`; mobile-card click-nav works (`data-href` present on `.queue-card`); detail page shows Claim for `New`-not-self-assigned; detail page shows Resolve for `Assigned`; detail page hides BOTH for every value in `CLOSED_STATUSES`; detail page hides Resolve (but shows Edit) for `New`.
+- Tests in `tests/test_slack/test_handlers.py`:
+  - Update the existing `resolve_with_note` dispatcher test (locate by symbol — the `repair_action_submission` test class) to assert it calls `repair_service.resolve_repair_record(...)` instead of `update_repair_record(...)`. Confirm the Slack-side per-field empty-note error attribution is preserved (asserts `ack(response_action='errors', errors={'note_block': ...})` still fires for empty input).
+- `docs/technicians.md` update: add a "Quick Actions" subsection plus a mention of the Assignee filter.
+- DB schema verification (no migration produced — just a verification task): confirm `repair_timeline_entries.content` column uses `utf8mb4` (4-byte Unicode) in the deployed MariaDB so emoji/non-ASCII notes round-trip correctly. If `utf8mb3`, raise as a follow-up — not a blocker for this spec since SQLite (test DB) is full Unicode and the production schema can be migrated later.
+
+**Out of Scope:**
+
+- **Kanban card quick actions.** Staff-only view; this issue is technician-focused. Adding quick actions there is a reasonable follow-up.
+- **Backfilling claim_repair_record's missing user-exists check.** `claim_repair_record` doesn't validate the user explicitly because `update_repair_record` validates the `assignee_id` (which receives the same value). The new `resolve_repair_record` lacks that incidental coverage (no `assignee_id` change) so adds the validation directly. Backfilling claim is non-behavior-changing cleanup — out of scope.
+- **Backfilling the broader codebase's `form.hidden_tag()` → raw CSRF input pattern.** Pre-existing duplicate-`id` issue affects detail-page note/photo forms today; the new spec uses the raw-input pattern to avoid amplifying it but does not retrofit the existing forms.
+- **Database schema / charset migration.** If the verification task discovers `utf8mb3`, the migration is a separate ticket.
+- **Concurrency: row-level locking on claim.** Two simultaneous claims produce last-write-wins on `assignee_id` with one extra timeline entry; the no-op guard in `update_repair_record` ensures only one `status_changed` notification fires when both attempts hit a `New` record. Acceptable for this makerspace. Pessimistic locking is out of scope.
+- **No-op claim button when self-assigned.** UI hides the Claim button when `record.assignee_id == current_user.id`, so a no-op claim is unreachable via the queue/detail page. The service still accepts re-claim and idempotently no-ops (regression test included).
+- **JavaScript framework / build pipeline.** Vanilla JS only — no React, no Vue, no esbuild. All JS lives in `esb/static/js/app.js`.
+- **Bulk actions** ("claim all selected"). The issue asks for "one-button" per record.
+- **Notification trigger changes.** Resolve flows through `update_repair_record`, which already queues the `resolved` Slack notification.
+
+## Context for Development
+
+### Codebase Patterns
+
+- **Service-layer pattern.** Views in `esb/views/repairs.py` never call the ORM directly for business logic; they delegate to `esb/services/repair_service.py`. All validation lives in the service and raises `esb.utils.exceptions.ValidationError`. Views catch it and flash `str(e)` with category `'danger'`, then re-render or redirect. Audit-log entries and Slack notification queueing happen in the service layer. The two new routes follow this exact shape.
+
+- **The Claim service already exists.** `repair_service.claim_repair_record(repair_record_id, claimed_by_user_id, claimed_by_username)` at `esb/services/repair_service.py:225`. Key behaviors:
+  - Calls `get_repair_record(id)` (raises `ValidationError` on not-found).
+  - Raises `ValidationError` if `record.status in CLOSED_STATUSES`.
+  - Always sets `assignee_id = claimed_by_user_id`.
+  - Promotes `status` to `'Assigned'` **only** when current status is `'New'`. For all other open statuses, it is a pure assignee swap.
+  - Delegates to `update_repair_record()`, which creates timeline entries, queues notifications, and runs the no-op guard.
+  - **No web view currently calls this function** — it's only invoked from Slack today (`esb/slack/handlers.py:614`). The new `/repairs/<id>/claim` route is its first web caller.
+  - The user-exists check is implicit via `update_repair_record`'s validation of the `assignee_id` change (same value passed through).
+
+- **`update_repair_record` is the single mutation entry point.** All status / assignee / ETA / note changes go through it (`esb/services/repair_service.py:375`). Behaviors:
+  - Accepts `**changes` with whitelisted keys `status`, `severity`, `assignee_id`, `eta`, `specialist_description`, and a separate `note` kwarg.
+  - Creates a `RepairTimelineEntry` of the appropriate `entry_type` for each changed field; the `note` kwarg appends a `note` entry in the same transaction.
+  - **No-op guard:** skips notification + timeline-entry creation if the new value equals the current value. This is the safety net for concurrent claim/resolve attempts.
+  - Validates `assignee_id` references an existing User (raises `ValidationError`) — but does **not** validate `author_id` symmetrically. `resolve_repair_record` therefore adds its own user-exists check on `resolved_by_user_id` (which is passed only as `author_id`, not as `assignee_id`).
+  - Queues Slack notifications when `status` transitions to a `CLOSED_STATUSES` value (the `resolved` event) or to any other open status (the `status_changed` event from #34). Resolve from this spec hits the `resolved` path automatically.
+  - Triggers static-page-push regeneration when `status`, `severity`, or `eta` changes.
+  - The new `resolve_repair_record()` is a thin wrapper that calls `update_repair_record(status='Resolved', note=note.strip())`; all that machinery is reused for free.
+
+- **`@role_required('technician')` decorator** (`esb/utils/decorators.py:15`) gates both new routes. Role hierarchy is `staff > technician > member`, so `staff` admits but `member` (and unauthenticated) is rejected with `abort(403)` after login.
+
+- **Clickable rows/cards use `data-href` + JS navigation.** `esb/static/js/app.js:5-16` already implements this for `.queue-row[data-href]` and `.repair-history-row[data-href]`. The mobile-card restructure (Task 8) adopts the same pattern by adding `data-href` to `.queue-card` and extending the selector in `app.js`. This eliminates the existing anchor-wraps-card pattern, which would otherwise force a redesign for embedded action buttons.
+
+- **Bootstrap 5 Modal pattern.** Verified canonical placement in `esb/templates/admin/areas.html:54-73`:
+  ```html
+  <div class="modal fade" id="...">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">...</div>
+        <!-- form lives INSIDE modal-content, sibling to header, wrapping body+footer -->
+        <form method="POST" action="...">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="modal-body">...</div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-primary">Submit</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  ```
+  This is the structure Task 7 (modal partial) uses. **Do NOT wrap `modal-content` in `<form>`** — that creates layout edge cases when Bootstrap's `data-bs-backdrop` interacts with the form.
+
+- **CSRF token rendering.** Codebase pattern from `admin/areas.html:67`: render raw `<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">` instead of `{{ form.hidden_tag() }}`. The raw form omits the `id="csrf_token"` attribute that `hidden_tag()` emits, which would otherwise collide across multiple forms on the same page (the queue page has N+1 forms — one per queue row's Claim button plus one modal). `csrf_token()` is a Flask-WTF Jinja global. Test config disables CSRF entirely (`esb/config.py:67`).
+
+- **Client-side filtering of the queue.** Existing pattern at `esb/static/js/app.js:80-118`: `applyFilters()` reads two `<select>` values and toggles `style.display` on `.queue-row` and `.queue-card` elements. New Assignee filter follows the same pattern with one addition — the comparison is against `dataset.assigneeId` (numeric string) and `dataset.unassigned` (boolean string). The current user's id is embedded as `data-current-user-id` on a queue-scoped container (e.g., the `#queue-table-wrapper` div) and read once at filter time. No server-side query mutation, no URL parameters, no `next`-style stickiness across page reloads. (This matches the existing Area and Status filters which also do not persist.)
+
+- **Service-function signature convention.** Existing helpers like `claim_repair_record` take `claimed_by_user_id: int` + `claimed_by_username: str` (separate args). `resolve_repair_record` follows the same convention: `resolved_by_user_id`, `resolved_by_username`, plus the required `note: str`. Views supply both from `current_user.id` and `current_user.username` (Flask-Login proxy).
+
+- **Redirect-after-POST with `next` allowlist.** Both new routes accept an optional hidden form field `next`. The `_safe_next_url(next_val, fallback, record_id)` helper accepts only two specific values: `url_for('repairs.queue')` (i.e., `/repairs/queue`) and `url_for('repairs.detail', id=record_id)` (i.e., `/repairs/<id>`). Any other value (including backslash variants, scheme-injected variants, URL-encoded variants) falls back. This is more restrictive — and far safer — than a generic "starts with `/`, not `//`" regex.
+
+- **`request.path` (not `request.full_path`) for populating `next`.** `full_path` appends a trailing `?` when no query string is present, producing ugly URLs like `/repairs/queue?`. `path` returns the bare path. Since filters are client-side, there is no query string worth preserving across a redirect.
+
+- **CLOSED_STATUSES as a Jinja global.** A new context processor in `esb/__init__.py` exposes `CLOSED_STATUSES` (imported from `repair_service`) to every template. Templates use `{% if record.status not in CLOSED_STATUSES %}` rather than hard-coding the list — eliminating the divergence risk if the list ever grows.
+
+- **Existing tests.** `tests/test_views/test_repair_views.py` (~930 lines) has class-per-route structure. Follow it: `TestClaimRepairRoute`, `TestResolveRepairRoute`, plus extensions to the existing queue/detail test classes. `tests/test_services/test_repair_service.py` `TestClaimRepairRecord` at line 1357 is the reference structure for `TestResolveRepairRecord`. `tests/test_slack/test_handlers.py` uses `_register_and_capture(app)` to capture handler functions from a `MagicMock` Bolt app, then invokes them directly — the convergence test follows that exact pattern.
+
+### Files to Reference
+
+| File | Purpose |
+| ---- | ------- |
+| `esb/__init__.py` | Add a context processor exposing `CLOSED_STATUSES` to all templates. Place it near `inject_current_year` (line 73). |
+| `esb/services/repair_service.py` | Add `resolve_repair_record()` immediately after `claim_repair_record` (which ends at line 272). No changes to `get_repair_queue` (line 338) — assignee filtering is now client-side. |
+| `esb/views/repairs.py` | Add `_safe_next_url` helper after `_aging_tier` (which ends at line 27). Instantiate `RepairClaimForm` + `RepairResolveForm` in `queue` (line 58) and `detail` (line 131) views and pass to templates. Add two new route handlers `claim` and `resolve` after the `edit` route (ends at line 277). |
+| `esb/forms/repair_forms.py` | Add `RepairClaimForm` and `RepairResolveForm` classes at the end of file. |
+| `esb/slack/handlers.py` | Refactor lines 597-625 (the `resolve_with_note` branch of `repair_action_submission`) to call `repair_service.resolve_repair_record(...)` instead of `update_repair_record(status='Resolved', note=...)`. Retain the pre-validation at lines 599-603 for per-input-block error attribution. |
+| `esb/static/js/app.js` | (a) Extend `.queue-row[data-href]` selector at line 5 to also include `.queue-card[data-href]`. (b) In `applyFilters()` (line 85-114), add the Assignee filter comparison and update the mobile-card branch to set `display` directly on `.queue-card` (not via `closest('a')`). (c) Add a `show.bs.modal` listener on `#resolveModal` that reads `data-repair-id`, sets the form `action`, clears the textarea, and updates the title. |
+| `esb/templates/repairs/queue.html` | Add the Assignee filter `<select>`; embed `data-current-user-id` on `#queue-table-wrapper`; add the Actions column to the desktop table; restructure mobile cards (no wrapping `<a>`; `data-href` on `.queue-card`; action buttons in a sibling `card-body` div); include the resolve-modal partial at the bottom. |
+| `esb/templates/repairs/detail.html` | Add Claim and Resolve buttons in the header row using `{% if record.status not in CLOSED_STATUSES %}` style guards. Include the resolve-modal partial at the bottom. |
+| `esb/templates/components/_resolve_modal.html` | NEW. Modal with `<form>` inside `modal-content` wrapping body+footer, raw CSRF input, hidden `next` field defaulting to `request.path`. |
+| `esb/templates/admin/areas.html` | READ-ONLY REFERENCE for the canonical modal-form pattern (lines 54-73) and raw CSRF input (line 67). |
+| `esb/models/repair_record.py` | Read-only — `REPAIR_STATUSES` constant. `CLOSED_STATUSES` lives in `repair_service.py:220`. |
+| `esb/utils/decorators.py` | Read-only — `@role_required('technician')` applied to both new routes. |
+| `tests/conftest.py` | Read-only — fixtures `tech_client`, `staff_client`, `tech_user`, `staff_user`, `make_area`, `make_equipment`, `make_repair_record`, helper `_create_user`. Add a new helper `member_user` fixture (or use `_create_user('member', 'memberuser')` inline) for the 403 tests. |
+| `tests/test_services/test_repair_service.py` | Add `TestResolveRepairRecord` near `TestClaimRepairRecord` (line 1357). Add the reclaim-no-op regression test inside `TestClaimRepairRecord`. Add the non-ASCII round-trip test inside `TestResolveRepairRecord`. |
+| `tests/test_views/test_repair_views.py` | Add `TestClaimRepairRoute` and `TestResolveRepairRoute` classes. Extend existing queue tests (around line 647) for the new filter and button-rendering assertions. Extend existing detail tests (around line 112) for the button-visibility-by-status matrix. |
+| `tests/test_slack/test_handlers.py` | Update the existing `resolve_with_note` dispatcher test to assert convergence onto `resolve_repair_record`. |
+| `docs/technicians.md` | Update around line 23-56 (the "Working with the Repair Queue" section) with "Quick Actions" subsection and mention the Assignee filter. |
+
+### Technical Decisions
+
+- **Reuse `update_repair_record` rather than duplicate.** `resolve_repair_record` is a thin wrapper, just like `claim_repair_record`. This keeps the timeline / audit / notification / static-page-regeneration machinery in one place. Resolve fires the existing `resolved` Slack notification path automatically.
+
+- **Service vs. UI restrictions on Resolve.** The UI hides the Resolve button when status is `'New'` (technicians should triage first, not blind-resolve). The *service* `resolve_repair_record()` does NOT enforce this — Slack's existing resolve flow allows resolving any open record (including `New`), and we shouldn't break that contract. Service raises only on (a) closed record, (b) empty / whitespace-only note, (c) not-found ID, (d) not-found user_id. This split between UI policy and service invariants matches the codebase's pattern (claim's New→Assigned promotion is a service rule because both Slack and web need it; the "hide Resolve on New" is a web-UI convention only).
+
+- **Order of validations in `resolve_repair_record`.** Check note non-empty FIRST (gives the cleanest user-facing message), then user-exists, then record-exists-and-open. This order means a typo'd ID with empty note flashes "Resolution note is required", which is the right UX even if technically the ID is also wrong.
+
+- **Queue filter is purely client-side.** All three filters (Area, Status, Assignee) use the same `applyFilters()` JS function in `esb/static/js/app.js`. No URL query parameters, no `?assignee=me`-style state, no server-side `get_repair_queue()` extension. This: (a) matches the existing Area/Status filter mechanic, (b) eliminates the URL-state-vs-UI-state inconsistency from the previous draft, (c) drops one source of staleness (bookmarked URLs with stale params), (d) keeps the service-layer simple. Trade-off: filters don't persist across navigation; that already matches existing behavior.
+
+- **Embedding `current_user.id` in the DOM.** The Assignee filter's "Mine" option compares `dataset.assigneeId` on each row against `data-current-user-id` set once on the queue-scoped container (`#queue-table-wrapper`). Render via Jinja: `<div id="queue-table-wrapper" ... data-current-user-id="{{ current_user.id }}">`. The JS reads it via `container.dataset.currentUserId` (string) and compares with `===` (string equality — both sides are strings).
+
+- **Mobile cards adopt the desktop `data-href` pattern.** Drops the `<a>` wrapper entirely. The `.queue-card` div carries `data-href`, `data-assignee-id`, `data-unassigned`, and the other existing data attributes. `app.js` extends `.queue-row[data-href], .repair-history-row[data-href]` to also include `.queue-card[data-href]`. Result: (a) eliminates the anchor-inside-anchor problem when adding embedded action buttons, (b) eliminates the `closest('a')` filter logic that would break after restructure, (c) makes the entire card click-target uniform (no whitespace-gap problem), (d) preserves keyboard navigation via the existing keydown handler on `[data-href]` rows.
+
+- **Action buttons inside row/card stop click propagation.** Both desktop `<td>` and mobile `.card-body` containing the action buttons get `<td onclick="event.stopPropagation()">` — WAIT, no. **Inline `onclick` is banned (CSP-incompatible).** Instead: the `app.js` click handler on `.queue-row[data-href], .queue-card[data-href]` checks `event.target.closest('button, a, form, [data-no-nav]')` and bails if found. This delegates the stop-propagation responsibility to the navigation handler itself, with no inline handlers anywhere. (See Task 3 for the exact JS patch.)
+
+- **All JavaScript in `app.js` or scoped `<script>` blocks — never inline attributes.** The modal-trigger handler, the filter wiring, and the click-nav handler all live in `app.js`. This is (a) CSP-friendly (a future strict `script-src 'self'` policy would not break the app), (b) easier to test/lint, (c) consistent with the codebase pattern (kiosk-scale, QR preview, queue sort/filter all live in `app.js`).
+
+- **Modal note textarea is cleared on `show.bs.modal`.** Two technicians' worth of stale text is a data-integrity hazard: a note typed for Repair #5 then dismissed could attach to Repair #8 if the textarea retains its value across openings. The JS handler explicitly sets `textarea.value = ''` on every show. (We also drop it on `hidden.bs.modal` for defense-in-depth, though `show` alone is sufficient.)
+
+- **`_safe_next_url` is an explicit allowlist of exactly two paths.** Rather than regex-based filtering (which the adversarial review demonstrated can be bypassed via backslash, scheme injection, etc.), the helper compares the candidate against `url_for('repairs.queue')` and `url_for('repairs.detail', id=record_id)`. Anything else → fallback to detail. The check is straightforward equality, not pattern-matching.
+
+- **Resolve route flashes only `note`-field errors verbatim, generic message otherwise.** Iterating `form.errors.items()` and flashing every value leaks CSRF-error strings ("The CSRF token is missing.") to end users. Instead, the resolve route flashes errors from `form.note.errors` specifically, and falls back to "Invalid resolve request — please try again." for any other failure. The claim route, having only CSRF as a possible non-success path, flashes "Invalid claim request — please try again." uniformly.
+
+- **`CLOSED_STATUSES` exposed via context processor.** New code in `esb/__init__.py`:
+  ```python
+  @app.context_processor
+  def inject_repair_constants():
+      from esb.services.repair_service import CLOSED_STATUSES
+      return {'CLOSED_STATUSES': CLOSED_STATUSES}
+  ```
+  Templates use `{% if record.status not in CLOSED_STATUSES %}` — one source of truth.
+
+- **Slack convergence (F20).** The Slack `resolve_with_note` branch is changed to call `repair_service.resolve_repair_record(...)`. The Slack-side pre-validation (lines 599-603) is kept for per-input-block error attribution — without it, the service-layer empty-note error would attach to the wrong block (`action_block` instead of `note_block`). The service raise still happens (defense-in-depth) but is reached only via mis-call or race. After this change, both Slack and web use the same single source of truth for resolve invariants.
+
+- **Concurrency: two simultaneous claims.** Tech A claims at T0, Tech B claims at T0+10ms. Both pass the closed-record guard (record was `New`). A's `update_repair_record` commits → `assignee=A, status='Assigned'`, one `assignee_change` and one `status_change` timeline entry, two notifications queued (`status_changed` plus `assignee_change` is not a separate event but the timeline entry reflects it). B's call sees the now-`Assigned` record:
+  - `assignee_id` change from A to B → real change → one timeline entry, no `status_changed` notification (status was already `Assigned` so no-op guard catches it).
+  - `status` change from `Assigned` to `Assigned` → no-op guard catches it.
+  Net effect: data is `assignee=B, status='Assigned'`, two timeline entries (one each), one `status_changed` notification (from A's transition only). Acceptable. Documented in Notes. Regression test confirms re-claim of self-assigned record produces zero new entries.
+
+### Files Verified (line numbers exact)
+
+| File | Symbol | Line |
+| ---- | ------ | ---- |
+| `esb/services/repair_service.py` | `_aging_tier` referenced (actually in `repairs.py`) | n/a |
+| `esb/services/repair_service.py` | `CLOSED_STATUSES =` | 220 |
+| `esb/services/repair_service.py` | `claim_repair_record` (`def`) | 225 |
+| `esb/services/repair_service.py` | end of `claim_repair_record` | 272 |
+| `esb/services/repair_service.py` | `get_repair_queue` (`def`) | 338 |
+| `esb/services/repair_service.py` | `update_repair_record` (`def`) | 375 |
+| `esb/services/repair_service.py` | `assignee_id` validation in update | 409-412 |
+| `esb/services/repair_service.py` | `resolved` notification trigger | 513-518 |
+| `esb/views/repairs.py` | `_aging_tier` (`def`) | 20-27 |
+| `esb/views/repairs.py` | `queue` (`def`) | 58 |
+| `esb/views/repairs.py` | `detail` (`def`) | 131 |
+| `esb/views/repairs.py` | `edit` (`def`) | 229 |
+| `esb/views/repairs.py` | end of `edit` | 277 |
+| `esb/slack/handlers.py` | `resolve_with_note` branch | 597-625 |
+| `esb/templates/admin/areas.html` | canonical modal-form pattern | 54-73 |
+| `esb/templates/admin/areas.html` | raw CSRF input | 67 |
+| `esb/static/js/app.js` | clickable-row selector | 5 |
+| `esb/static/js/app.js` | `applyFilters()` body | 85-114 |
+| `esb/__init__.py` | `inject_current_year` context processor | 73 |
+| `esb/config.py` | `WTF_CSRF_ENABLED = False` (TestingConfig) | 67 |
+| `tests/test_services/test_repair_service.py` | `TestClaimRepairRecord` | 1357 |
+| `tests/test_views/test_repair_views.py` | queue-filter test cluster | 647 |
+| `tests/test_views/test_repair_views.py` | detail-page test cluster | 112 |
+
+## Implementation Plan
+
+### Tasks
+
+Tasks ordered bottom-up: constants/context → service helpers → forms → views → JS → templates → tests → docs.
+
+- [ ] **Task 1: Expose `CLOSED_STATUSES` as a Jinja context.**
+  - File: `esb/__init__.py`
+  - Action: Immediately after the existing `inject_current_year` context processor (around line 73-75), add:
+    ```python
+    @app.context_processor
+    def inject_repair_constants():
+        from esb.services.repair_service import CLOSED_STATUSES
+        return {'CLOSED_STATUSES': CLOSED_STATUSES}
+    ```
+  - Notes: Local import avoids a circular import at module load (repair_service imports from extensions and models, both of which are wired up before context processors run; lazy import is the safer pattern). Verified by inspection of `inject_current_year`'s neighborhood.
+
+- [ ] **Task 2: Add `resolve_repair_record()` service function.**
+  - File: `esb/services/repair_service.py`
+  - Action: Add a new function immediately after `claim_repair_record` (which ends at line 272). Signature and body:
+    ```python
+    def resolve_repair_record(
+        repair_record_id: int,
+        resolved_by_user_id: int,
+        resolved_by_username: str,
+        note: str,
+    ) -> RepairRecord:
+        """Resolve a repair record with a required note.
+
+        Validates inputs in order: note non-empty, user exists, record
+        exists and is open. Then sets status='Resolved' and appends the
+        note as a timeline entry in the same transaction via
+        update_repair_record. The 'resolved' Slack notification fires
+        automatically via the existing trigger in update_repair_record.
+
+        UI-level rule that 'New' records should be claimed before resolve
+        is NOT enforced here -- the service contract is permissive so
+        both Slack's dispatcher and the web UI can layer their own
+        conventions. Resolves from 'New' are allowed.
+
+        Args:
+            repair_record_id: ID of the RepairRecord to resolve.
+            resolved_by_user_id: ESB user id of the resolving user. Must
+                reference an existing User.
+            resolved_by_username: Username (for timeline-entry attribution).
+            note: Resolution note. Required; whitespace-only is rejected.
+
+        Returns:
+            The updated RepairRecord.
+
+        Raises:
+            ValidationError: if note is empty/whitespace-only, the user
+                does not exist, the record does not exist, or the record
+                is already closed.
+        """
+        if not note or not note.strip():
+            raise ValidationError('Resolution note is required')
+        user = db.session.get(User, resolved_by_user_id)
+        if user is None:
+            raise ValidationError(f'User with id {resolved_by_user_id} not found')
+        record = get_repair_record(repair_record_id)
+        if record.status in CLOSED_STATUSES:
+            raise ValidationError(
+                f'Cannot resolve repair record {repair_record_id}: '
+                f'status {record.status!r} is already closed',
+            )
+        return update_repair_record(
+            repair_record_id=repair_record_id,
+            updated_by=resolved_by_username,
+            author_id=resolved_by_user_id,
+            status='Resolved',
+            note=note.strip(),
+        )
+    ```
+  - Notes: The explicit `User.get` check fills the gap that `claim_repair_record` gets incidentally (claim passes user_id as `assignee_id` which `update_repair_record` validates; resolve does not change `assignee_id` so needs its own check). Error message format mirrors `update_repair_record`'s existing pattern (`f'User with id {x} not found'`).
+
+- [ ] **Task 3: Add `RepairClaimForm` and `RepairResolveForm`.**
+  - File: `esb/forms/repair_forms.py`
+  - Action: At the bottom of the file (after `RepairPhotoUploadForm`), add:
+    ```python
+    class RepairClaimForm(FlaskForm):
+        """Form for claim quick action -- CSRF only, no inputs."""
+
+        submit = SubmitField('Claim')
+
+
+    class RepairResolveForm(FlaskForm):
+        """Form for resolve quick action -- requires a note."""
+
+        note = TextAreaField(
+            'Resolution Note',
+            validators=[DataRequired(), Length(max=5000)],
+        )
+        submit = SubmitField('Resolve')
+    ```
+  - Notes: No new imports needed; `FlaskForm`, `SubmitField`, `TextAreaField`, `DataRequired`, `Length` are imported already at top of file. The forms exist primarily for CSRF wiring and field validation — the actual CSRF token is rendered as a raw input in templates (see Task 7), not via `form.hidden_tag()`. The forms ARE still instantiated in the views so that the WTForms validation cycle runs on submit.
+
+- [ ] **Task 4: Add `_safe_next_url` helper to `esb/views/repairs.py`.**
+  - File: `esb/views/repairs.py`
+  - Action: After the existing `_aging_tier` helper (ends at line 27), add:
+    ```python
+    def _safe_next_url(next_val: str | None, record_id: int) -> str:
+        """Return next_val if it is one of the two allowed targets, else fallback.
+
+        Allowlist: /repairs/queue OR /repairs/<record_id>. Any other value
+        (external URL, backslash-escaped, scheme-injected, URL-encoded
+        variants, /repairs/<other_id>, etc.) returns the detail-page URL
+        for record_id. This explicit allowlist is more restrictive -- and
+        safer -- than regex-based filtering.
+        """
+        queue_url = url_for('repairs.queue')
+        detail_url = url_for('repairs.detail', id=record_id)
+        if next_val in (queue_url, detail_url):
+            return next_val
+        return detail_url
+    ```
+  - Action: Update the imports at the top of the file (the existing import block already includes `Blueprint, abort, current_app, flash, redirect, render_template, request, send_from_directory, url_for` from flask; nothing new to add for the helper itself, but add the form imports):
+    ```python
+    from esb.forms.repair_forms import (
+        RepairClaimForm,
+        RepairNoteForm,
+        RepairPhotoUploadForm,
+        RepairRecordCreateForm,
+        RepairRecordUpdateForm,
+        RepairResolveForm,
+    )
+    ```
+  - Notes: Two paths only. The `record_id`-specific detail URL means `/repairs/42/claim` POST with `next=/repairs/99` (a different record's detail page) falls back to `/repairs/42` rather than silently allowing cross-record navigation. Tight scope.
+
+- [ ] **Task 5: Add the `claim` route.**
+  - File: `esb/views/repairs.py`
+  - Action: After the `edit` route (ends at line 277), add:
+    ```python
+    @repairs_bp.route('/<int:id>/claim', methods=['POST'])
+    @role_required('technician')
+    def claim(id):
+        """Quick-action: claim a repair record (assignee=self, New->Assigned)."""
+        form = RepairClaimForm()
+        try:
+            repair_service.get_repair_record(id)
+        except ValidationError:
+            abort(404)
+
+        if form.validate_on_submit():
+            try:
+                repair_service.claim_repair_record(
+                    repair_record_id=id,
+                    claimed_by_user_id=current_user.id,
+                    claimed_by_username=current_user.username,
+                )
+                flash(f'Claimed Repair #{id}.', 'success')
+            except ValidationError as e:
+                flash(str(e), 'danger')
+        else:
+            flash('Invalid claim request -- please try again.', 'danger')
+
+        return redirect(_safe_next_url(request.form.get('next'), id))
+    ```
+  - Notes: 404 check comes BEFORE form validation so that a missing ID never sees a CSRF error. The single `else:` branch covers all form failures (CSRF, missing fields) with one generic message — never leaks raw WTForms strings.
+
+- [ ] **Task 6: Add the `resolve` route.**
+  - File: `esb/views/repairs.py`
+  - Action: Immediately below the `claim` route from Task 5, add:
+    ```python
+    @repairs_bp.route('/<int:id>/resolve', methods=['POST'])
+    @role_required('technician')
+    def resolve(id):
+        """Quick-action: resolve a repair record with a required note."""
+        form = RepairResolveForm()
+        try:
+            repair_service.get_repair_record(id)
+        except ValidationError:
+            abort(404)
+
+        if form.validate_on_submit():
+            try:
+                repair_service.resolve_repair_record(
+                    repair_record_id=id,
+                    resolved_by_user_id=current_user.id,
+                    resolved_by_username=current_user.username,
+                    note=form.note.data,
+                )
+                flash(f'Resolved Repair #{id}.', 'success')
+            except ValidationError as e:
+                flash(str(e), 'danger')
+        else:
+            # Narrow leak surface: surface only note-field errors verbatim;
+            # any other failure (CSRF, etc.) gets a generic message that
+            # does not expose framework internals.
+            if form.note.errors:
+                for error in form.note.errors:
+                    flash(error, 'danger')
+            else:
+                flash('Invalid resolve request -- please try again.', 'danger')
+
+        return redirect(_safe_next_url(request.form.get('next'), id))
+    ```
+  - Notes: The `note.errors` narrowing avoids flashing "The CSRF token is missing." to end users when CSRF fails. The narrower path also makes the AC for empty-note flash deterministic ("This field is required." — the WTForms default for `DataRequired`).
+
+- [ ] **Task 7: Inject quick-action forms into the `queue` and `detail` views.**
+  - File: `esb/views/repairs.py`
+  - Action (queue, in `queue()` function around line 58): instantiate the forms and pass them to the template:
+    ```python
+    claim_form = RepairClaimForm()
+    resolve_form = RepairResolveForm()
+    ```
+    Add `claim_form=claim_form, resolve_form=resolve_form` to the `render_template(...)` kwargs. **Do NOT** add any `assignee_id`, `unassigned`, or `active_assignee` kwargs — assignee filtering is fully client-side.
+  - Action (detail, in `detail()` function around line 131): same — instantiate `claim_form` and `resolve_form` and pass to `render_template`.
+  - Notes: No change to `get_repair_queue` signature. The view's filter parameters remain `area_id` and `status_filter` only.
+
+- [ ] **Task 8: Update `esb/static/js/app.js` — three changes in one pass.**
+  - File: `esb/static/js/app.js`
+  - Action 8a: Extend the clickable-row selector at line 5. Current:
+    ```javascript
+    document.querySelectorAll('.queue-row[data-href], .repair-history-row[data-href]').forEach(function (row) {
+    ```
+    Change to:
+    ```javascript
+    document.querySelectorAll('.queue-row[data-href], .queue-card[data-href], .repair-history-row[data-href]').forEach(function (row) {
+    ```
+    AND update the click + keydown handlers to skip navigation when the click originated on an interactive descendant. Replace the handler body:
+    ```javascript
+    row.addEventListener('click', function (e) {
+      // Don't navigate if the click came from a button/form/link inside the row.
+      if (e.target.closest('button, a[href], form, [data-no-nav]')) return;
+      window.location.href = row.dataset.href;
+    });
+    row.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') {
+        // Likewise skip if focus is on an interactive descendant.
+        if (document.activeElement.closest('button, a[href], form, [data-no-nav]')) return;
+        e.preventDefault();
+        window.location.href = row.dataset.href;
+      }
+    });
+    ```
+  - Action 8b: In `applyFilters()` (current location lines 85-114), extend the filter logic to include Assignee comparison, and update the mobile-card path to set display on `.queue-card` directly (the wrapping `<a>` no longer exists post-Task 9 restructure). Replace the function with:
+    ```javascript
+    var areaFilter = document.getElementById('area-filter');
+    var statusFilter = document.getElementById('status-filter');
+    var assigneeFilter = document.getElementById('assignee-filter');
+    var queueContainer = document.getElementById('queue-table-wrapper');
+    var currentUserId = queueContainer ? queueContainer.dataset.currentUserId : '';
+
+    if (areaFilter && statusFilter && assigneeFilter) {
+      function applyFilters() {
+        var areaVal = areaFilter.value;
+        var statusVal = statusFilter.value;
+        var assigneeVal = assigneeFilter.value;
+        var visibleCount = 0;
+
+        function matchesAssignee(el) {
+          if (!assigneeVal) return true;
+          if (assigneeVal === 'me') return el.dataset.assigneeId === currentUserId;
+          if (assigneeVal === 'unassigned') return el.dataset.unassigned === 'true';
+          return true;
+        }
+
+        document.querySelectorAll('.queue-row').forEach(function (row) {
+          var areaMatch = !areaVal || row.dataset.areaId === areaVal;
+          var statusMatch = !statusVal || row.dataset.status === statusVal;
+          var assigneeMatch = matchesAssignee(row);
+          var visible = areaMatch && statusMatch && assigneeMatch;
+          row.style.display = visible ? '' : 'none';
+          if (visible) visibleCount++;
+        });
+
+        document.querySelectorAll('.queue-card').forEach(function (card) {
+          var areaMatch = !areaVal || card.dataset.areaId === areaVal;
+          var statusMatch = !statusVal || card.dataset.status === statusVal;
+          var assigneeMatch = matchesAssignee(card);
+          card.style.display = (areaMatch && statusMatch && assigneeMatch) ? '' : 'none';
+        });
+
+        var emptyEl = document.getElementById('queue-empty');
+        if (emptyEl) {
+          emptyEl.classList.toggle('d-none', visibleCount > 0);
+        }
+      }
+
+      areaFilter.addEventListener('change', applyFilters);
+      statusFilter.addEventListener('change', applyFilters);
+      assigneeFilter.addEventListener('change', applyFilters);
+    }
+    ```
+  - Action 8c: Add the modal-trigger handler. Insert anywhere inside the `DOMContentLoaded` listener — for example, after the queue-filter block:
+    ```javascript
+    // --- Resolve modal: wire up dynamic action + clear stale textarea ---
+    var resolveModal = document.getElementById('resolveModal');
+    if (resolveModal) {
+      resolveModal.addEventListener('show.bs.modal', function (event) {
+        var trigger = event.relatedTarget;
+        if (!trigger) return;
+        var repairId = trigger.getAttribute('data-repair-id');
+        var form = document.getElementById('resolveModalForm');
+        var textarea = document.getElementById('resolveModalNote');
+        var titleSpan = document.getElementById('resolveModalRepairId');
+        if (form) form.setAttribute('action', '/repairs/' + repairId + '/resolve');
+        if (textarea) textarea.value = '';
+        if (titleSpan) titleSpan.textContent = '#' + repairId;
+      });
+    }
+    ```
+  - Notes: All three changes are required for the new UX to function. The `closest('button, a[href], form, [data-no-nav]')` guard in 8a is what allows action buttons inside rows/cards to NOT trigger row-nav — replaces the inline `onclick="event.stopPropagation()"` from the previous draft and is CSP-friendly. The modal handler clears the textarea on every show so dismissed notes don't carry over between repair records.
+
+- [ ] **Task 9: Create the resolve-modal partial.**
+  - File: `esb/templates/components/_resolve_modal.html` (NEW)
+  - Action: Write:
+    ```jinja
+    {# Bootstrap 5 modal -- include once per page. The form lives INSIDE
+       modal-content, sibling to modal-header, wrapping body+footer (matches
+       admin/areas.html canonical placement). The form's action is patched
+       at show.bs.modal time by the handler in app.js. #}
+    <div class="modal fade" id="resolveModal" tabindex="-1" aria-labelledby="resolveModalLabel" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="resolveModalLabel">
+              Resolve Repair <span id="resolveModalRepairId"></span>
+            </h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <form method="post" action="" id="resolveModalForm" novalidate>
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="next" value="{{ request.path }}">
+            <div class="modal-body">
+              <label for="resolveModalNote" class="form-label">Resolution Note <span class="text-danger">*</span></label>
+              <textarea id="resolveModalNote" name="note" class="form-control" rows="4" maxlength="5000" required></textarea>
+              <div class="form-text">Describe what was done. Required.</div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+              <button type="submit" class="btn btn-success">Resolve</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+    ```
+  - Notes: No inline `<script>` — the `show.bs.modal` listener lives in `app.js` per Task 8c. The `<form>` placement matches `admin/areas.html:54-73`. Raw CSRF input (no `form.hidden_tag()`) avoids duplicate-id collisions with the page's other forms. `request.path` (not `full_path`) avoids the trailing-`?` quirk. The textarea has `maxlength="5000"` matching the WTForms `Length(max=5000)` validator.
+
+- [ ] **Task 10: Update `queue.html` — Actions column, restructured mobile cards, Assignee filter, modal include.**
+  - File: `esb/templates/repairs/queue.html`
+  - Action 10a: After the status filter `<select>` block (currently lines 25-32), add the Assignee filter:
+    ```jinja
+    <div class="col-auto">
+        <select id="assignee-filter" class="form-select form-select-sm" aria-label="Filter by assignee">
+            <option value="">All Assignees</option>
+            <option value="me">Mine</option>
+            <option value="unassigned">Unassigned</option>
+        </select>
+    </div>
+    ```
+    No `onchange` attribute — the JS in Task 8b wires the `change` event listener.
+  - Action 10b: Add `data-current-user-id` to the queue table wrapper. Change the opening tag (currently line 36):
+    ```jinja
+    <div id="queue-table-wrapper" class="d-none d-md-block" data-current-user-id="{{ current_user.id }}">
+    ```
+  - Action 10c: Add an Actions column header to the desktop table. After the existing Assignee `<th>` (line 46), insert:
+    ```jinja
+    <th class="text-end">Actions</th>
+    ```
+  - Action 10d: Add `data-assignee-id` and `data-unassigned` to each `.queue-row` (modify line 51-59 area). Add inside the existing `<tr ...>` open tag:
+    ```jinja
+    data-assignee-id="{{ record.assignee_id or '' }}"
+    data-unassigned="{{ 'true' if record.assignee_id is none else 'false' }}"
+    ```
+  - Action 10e: Add the action `<td>` to each row, after the existing Assignee `<td>` (currently line 76):
+    ```jinja
+    <td class="text-end">
+        {% if record.status == 'New' and record.assignee_id != current_user.id %}
+        <form method="post" action="{{ url_for('repairs.claim', id=record.id) }}" class="d-inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="next" value="{{ request.path }}">
+            <button type="submit" class="btn btn-sm btn-outline-primary"
+                    aria-label="Claim Repair #{{ record.id }}: {{ record.equipment.name }}">
+                Claim
+            </button>
+        </form>
+        {% endif %}
+        {% if record.status != 'New' and record.status not in CLOSED_STATUSES %}
+        <button type="button" class="btn btn-sm btn-outline-success"
+                data-bs-toggle="modal" data-bs-target="#resolveModal"
+                data-repair-id="{{ record.id }}"
+                aria-label="Resolve Repair #{{ record.id }}: {{ record.equipment.name }}">
+            Resolve
+        </button>
+        {% endif %}
+    </td>
+    ```
+    No `onclick`. The `app.js` row-nav handler (Task 8a) checks `event.target.closest('button, form, ...')` and bails for clicks originating in this cell.
+  - Action 10f: Replace the entire mobile-cards block (currently lines 84-119). Replace with:
+    ```jinja
+    <div id="queue-cards-wrapper" class="d-md-none" data-current-user-id="{{ current_user.id }}">
+        {% for record in records %}
+        <div class="card mb-2 queue-card"
+             data-href="{{ url_for('repairs.detail', id=record.id) }}"
+             tabindex="0"
+             role="link"
+             aria-label="Open Repair #{{ record.id }}: {{ record.equipment.name }}"
+             data-equipment-name="{{ record.equipment.name }}"
+             data-severity-priority="{{ '0' if record.severity == 'Down' else ('1' if record.severity == 'Degraded' else ('2' if record.severity == 'Not Sure' else '3')) }}"
+             data-area-id="{{ record.equipment.area_id }}"
+             data-area="{{ record.equipment.area.name }}"
+             data-age-seconds="{{ (now_utc - record.created_at).total_seconds()|int }}"
+             data-status="{{ record.status }}"
+             data-assignee="{{ record.assignee.username if record.assignee else '' }}"
+             data-assignee-id="{{ record.assignee_id or '' }}"
+             data-unassigned="{{ 'true' if record.assignee_id is none else 'false' }}">
+            <div class="card-body py-2 px-3">
+                <div class="d-flex justify-content-between align-items-center">
+                    <strong>{{ record.equipment.name }}</strong>
+                    {% if record.severity == 'Down' %}
+                    <span class="badge bg-danger">Down</span>
+                    {% elif record.severity in ['Degraded', 'Not Sure'] %}
+                    <span class="badge bg-warning text-dark">{{ record.severity }}</span>
+                    {% elif record.severity %}
+                    <span class="badge bg-secondary">{{ record.severity }}</span>
+                    {% else %}
+                    <span class="badge bg-secondary">None</span>
+                    {% endif %}
+                </div>
+                <div class="small text-muted mt-1">
+                    <span class="badge bg-info text-dark">{{ record.status }}</span>
+                    &middot; {{ record.equipment.area.name }}
+                    &middot; {{ record.created_at|relative_time }}
+                    {% if record.eta %}
+                    &middot; ETA: {{ record.eta|format_date }}
+                    {% endif %}
+                </div>
+                {% if (record.status == 'New' and record.assignee_id != current_user.id) or (record.status != 'New' and record.status not in CLOSED_STATUSES) %}
+                <div class="mt-2 d-flex gap-2">
+                    {% if record.status == 'New' and record.assignee_id != current_user.id %}
+                    <form method="post" action="{{ url_for('repairs.claim', id=record.id) }}" class="d-inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="next" value="{{ request.path }}">
+                        <button type="submit" class="btn btn-sm btn-outline-primary"
+                                aria-label="Claim Repair #{{ record.id }}: {{ record.equipment.name }}">
+                            Claim
+                        </button>
+                    </form>
+                    {% endif %}
+                    {% if record.status != 'New' and record.status not in CLOSED_STATUSES %}
+                    <button type="button" class="btn btn-sm btn-outline-success"
+                            data-bs-toggle="modal" data-bs-target="#resolveModal"
+                            data-repair-id="{{ record.id }}"
+                            aria-label="Resolve Repair #{{ record.id }}: {{ record.equipment.name }}">
+                        Resolve
+                    </button>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    ```
+    Note the key structural change: `.queue-card` is now the click target (via `data-href` + the extended selector in Task 8a). The wrapping `<a>` is gone. `role="link"` + `tabindex="0"` + `aria-label` preserve accessibility for screen readers and keyboard navigation. Action buttons live INSIDE the same `card-body` so the entire card visual surface (including the gap between text and buttons) reads as one unit; the JS click handler navigates UNLESS the click originated on a button/form (the `closest()` guard handles that).
+  - Action 10g: At the bottom of `queue.html`, before `{% endblock %}`, include the modal:
+    ```jinja
+    {% include 'components/_resolve_modal.html' %}
+    ```
+  - Notes: The Resolve guard uses `record.status not in CLOSED_STATUSES` (the Jinja global from Task 1) — defense in depth in case a closed record ever leaks into the queue. The Claim guard reads `record.assignee_id` directly (no DB hit for `record.assignee` relationship — `assignee_id` is on the row).
+
+- [ ] **Task 11: Update `detail.html` — header Claim/Resolve buttons + modal include.**
+  - File: `esb/templates/repairs/detail.html`
+  - Action: Replace the header `<div>` (currently lines 13-21) with:
+    ```jinja
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1>Repair #{{ record.id }}</h1>
+        <div class="d-flex gap-2 align-items-center">
+            {% if record.status == 'New' and record.assignee_id != current_user.id %}
+            <form method="post" action="{{ url_for('repairs.claim', id=record.id) }}" class="d-inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="next" value="{{ request.path }}">
+                <button type="submit" class="btn btn-outline-primary"
+                        aria-label="Claim Repair #{{ record.id }}: {{ record.equipment.name }}">
+                    Claim
+                </button>
+            </form>
+            {% endif %}
+            {% if record.status != 'New' and record.status not in CLOSED_STATUSES %}
+            <button type="button" class="btn btn-outline-success"
+                    data-bs-toggle="modal" data-bs-target="#resolveModal"
+                    data-repair-id="{{ record.id }}"
+                    aria-label="Resolve Repair #{{ record.id }}: {{ record.equipment.name }}">
+                Resolve
+            </button>
+            {% endif %}
+            <a href="{{ url_for('repairs.edit', id=record.id) }}" class="btn btn-primary">Edit</a>
+            <span class="badge bg-{{ 'danger' if record.severity == 'Down' else ('warning text-dark' if record.severity in ['Degraded', 'Not Sure'] else 'secondary') }}">
+                {{ record.severity or 'No Severity' }}
+            </span>
+        </div>
+    </div>
+    ```
+  - Action: At the bottom of `detail.html`, after the Timeline `</ol>` and before `{% endblock %}`, add:
+    ```jinja
+    {% include 'components/_resolve_modal.html' %}
+    ```
+  - Notes: Uses the Jinja global `CLOSED_STATUSES` from Task 1 — no hard-coded list. Resolve hidden for `New` AND for any closed status; Claim hidden when self-assigned.
+
+- [ ] **Task 12: Add service-layer tests for `resolve_repair_record`.**
+  - File: `tests/test_services/test_repair_service.py`
+  - Action: Add a `TestResolveRepairRecord` class near `TestClaimRepairRecord` (which starts at line 1357). Tests:
+    1. `test_resolve_open_record_sets_status_and_creates_note_entry` — start at `Assigned`; resolve with `note='Fixed'`; assert returned record has `status='Resolved'`; assert a `RepairTimelineEntry` of `entry_type='note'` with `content='Fixed'` exists; assert a `RepairTimelineEntry` of `entry_type='status_change'` with `new_value='Resolved'` exists.
+    2. `test_resolve_from_new_status_is_allowed` — start at `New`; resolve; assert status becomes `Resolved` (service-layer is permissive; the triage rule is UI-only).
+    3. `test_resolve_strips_whitespace_from_note` — pass `note='  Fixed  '`; assert the saved timeline entry's `content == 'Fixed'`.
+    4. `test_resolve_empty_note_raises` — pass `note=''` → assert `ValidationError`; match on exact message `'Resolution note is required'`.
+    5. `test_resolve_whitespace_only_note_raises` — pass `note='   '` → same assertion as #4.
+    6. `test_resolve_unknown_user_raises` — pass `resolved_by_user_id=99999`; assert `ValidationError` with message containing `'User with id 99999 not found'`.
+    7. `test_resolve_unknown_record_raises` — pass non-existent `repair_record_id=99999`; assert `ValidationError` with message containing `'Repair record with id 99999 not found'`. Note: this requires the note-non-empty and user-exists checks to pass first per the order-of-validations decision, so pass a valid note and a real user.
+    8. `test_resolve_closed_record_raises` — for each of `('Resolved', 'Closed - Duplicate', 'Closed - No Issue Found')`: create record, attempt resolve, assert `ValidationError` with message containing `'already closed'`, assert record was NOT mutated.
+    9. `test_resolve_queues_resolved_notification` — set `notify_resolved='true'` via config; resolve a record; assert a `PendingNotification` with `notification_type='slack_message'` and `payload['event_type']=='resolved'` was enqueued.
+    10. `test_resolve_does_not_queue_when_notify_resolved_false` — set `notify_resolved='false'` via config; resolve; assert no `resolved` notification was queued (sanity check — feature flag still respected).
+    11. `test_resolve_with_non_ascii_note_roundtrips` — resolve with `note='Fixed! 🔧 Тест съел проблема'`; refresh the record; assert the saved timeline entry's `content` equals the input exactly (no truncation, no mojibake). Asserts SQLite (test DB) handles full Unicode; production charset verification is Task 19.
+  - Notes: Use `tests.conftest._create_user`, `make_area`, `make_equipment` directly as `TestClaimRepairRecord` does. Tests #4-#7 verify the order-of-validations (empty-note check first, then user, then record-existence, then closed-record); construct each test with all-other-fields-valid to isolate the variable under test.
+
+- [ ] **Task 13: Add the reclaim-no-op regression test.**
+  - File: `tests/test_services/test_repair_service.py`
+  - Action: Inside `TestClaimRepairRecord` (line 1357), add:
+    ```python
+    def test_claim_self_assigned_record_is_noop(self, app, make_area, make_equipment):
+        """Re-claiming a record already assigned to self produces no new timeline entries or notifications."""
+        from tests.conftest import _create_user
+        tech = _create_user('technician', username='alice')
+        area = make_area('Shop', '#shop')
+        eq = make_equipment(name='Tool', area=area)
+        record = RepairRecord(
+            equipment_id=eq.id, description='Broken', status='Assigned', assignee_id=tech.id,
+        )
+        _db.session.add(record)
+        _db.session.commit()
+
+        timeline_count_before = record.timeline_entries.count()
+
+        repair_service.claim_repair_record(
+            repair_record_id=record.id,
+            claimed_by_user_id=tech.id,
+            claimed_by_username=tech.username,
+        )
+
+        _db.session.refresh(record)
+        assert record.timeline_entries.count() == timeline_count_before
+        # Also no new notifications queued (use PendingNotification count).
+    ```
+  - Notes: Covers the concurrent-claim race scenario: a second claim by the already-assigned user is a no-op via `update_repair_record`'s value-comparison guard. Pinning this behavior in a test means the next refactor can't silently break it.
+
+- [ ] **Task 14: Add view tests for the claim route.**
+  - File: `tests/test_views/test_repair_views.py`
+  - Action: Add a `TestClaimRepairRoute` class with the following tests. For all tests, after the POST, use `_db.session.refresh(record)` and assert the resulting state; assert flash messages via `with client.session_transaction() as s: assert (b'Claimed', 'success') in [(b'Claimed Repair #{0}.'.format(id).encode(), c) for ...]` (or use `follow_redirects=True` and search `resp.data`).
+    1. `test_tech_claims_new_record_promotes_to_assigned` — tech_client POST to `/repairs/<id>/claim` on a `New` record; assert 302; assert `record.status == 'Assigned'`, `record.assignee_id == tech_user.id`; assert success flash text "Claimed Repair #<id>." appears.
+    2. `test_staff_claims_record` — staff_client POST works (role hierarchy).
+    3. `test_tech_claims_assigned_record_swaps_assignee_keeps_status` — starting `status='Assigned'` assigned to user A, tech_client claims; assert `assignee_id == tech_user.id`, `status == 'Assigned'` (no promotion past New).
+    4. `test_claim_on_closed_record_flashes_danger_and_does_not_mutate` — starting `status='Resolved'`, POST claim; assert 302; assert danger flash contains "closed"; assert record state unchanged.
+    5. `test_claim_nonexistent_returns_404` — POST to `/repairs/99999/claim`; assert 404.
+    6. `test_claim_unauthenticated_redirects_to_login` — POST without login; assert 302 with `/auth/login` in `resp.headers['Location']`.
+    7. `test_claim_as_member_returns_403` — create a member-role user via `_create_user('member', 'memberuser')`, log in via `client.post('/auth/login', data={'username': 'memberuser', 'password': 'testpass'})`, then POST claim; assert 403.
+    8. `test_claim_respects_safe_next_url_for_queue` — POST with `next=/repairs/queue`; assert 302 with `Location == /repairs/queue`.
+    9. `test_claim_respects_safe_next_url_for_detail` — POST with `next=/repairs/<id>`; assert 302 with `Location == /repairs/<id>`.
+    10. `test_claim_rejects_other_record_detail_next` — create two records id=A and id=B; POST claim on A with `next=/repairs/<B>`; assert 302 with `Location == /repairs/<A>` (allowlist disallows cross-record next).
+    11. `test_claim_rejects_protocol_relative_next` — POST with `next=//evil.example.com/`; assert 302 with `Location == /repairs/<id>` (fallback).
+    12. `test_claim_rejects_scheme_next` — POST with `next=http://evil.example.com/`; assert fallback.
+    13. `test_claim_rejects_backslash_next` — POST with `next=/\evil.com/path`; assert fallback (allowlist exact-match rejects this).
+  - Notes: Test names assert against `url_for('repairs.claim', id=record.id).encode()` in the byte-search, not hardcoded paths. The flash-assertion pattern uses session-flashes inspection to avoid relying on follow_redirects rendering.
+
+- [ ] **Task 15: Add view tests for the resolve route.**
+  - File: `tests/test_views/test_repair_views.py`
+  - Action: Add a `TestResolveRepairRoute` class. Tests:
+    1. `test_tech_resolves_open_record_with_note` — tech_client POST `{'note': 'Fixed'}` to `/repairs/<id>/resolve` on an `Assigned` record; assert 302; assert `record.status == 'Resolved'`; assert a `RepairTimelineEntry` with `entry_type='note', content='Fixed'` exists.
+    2. `test_staff_resolves_record` — staff_client works.
+    3. `test_resolve_empty_note_flashes_form_error` — POST `{'note': ''}`; assert danger flash contains "This field is required" (WTForms `DataRequired` default); assert record NOT mutated.
+    4. `test_resolve_whitespace_only_note_flashes_service_error` — POST `{'note': '   '}`; WTForms `DataRequired` passes (whitespace truthy), but `resolve_repair_record` raises; assert danger flash contains "Resolution note is required"; assert record NOT mutated.
+    5. `test_resolve_on_closed_record_flashes_danger_and_does_not_mutate` — starting `status='Resolved'`, POST resolve with valid note; assert danger flash contains "already closed"; non-mutation.
+    6. `test_resolve_nonexistent_returns_404` — POST to `/repairs/99999/resolve` with note; assert 404.
+    7. `test_resolve_unauthenticated_redirects_to_login`.
+    8. `test_resolve_as_member_returns_403`.
+    9. `test_resolve_from_new_status_allowed_via_route` — starting `status='New'`, POST resolve with note; assert status becomes `'Resolved'`.
+    10. `test_resolve_respects_safe_next_url_for_queue` — POST with `next=/repairs/queue` and valid note; assert `Location == /repairs/queue`.
+    11. `test_resolve_rejects_unsafe_next_url` — POST with `next=http://evil.example.com/`; assert fallback to detail.
+    12. `test_resolve_with_non_ascii_note_succeeds` — POST `{'note': 'Fixed! 🔧'}`; assert 302; assert the timeline entry content is the exact bytes.
+  - Notes: CSRF-failure-flashes-generic-message is hard to test cleanly because TestingConfig disables CSRF. A future expansion can test this with a separate config; for now the code path is covered by inspection of Task 6's code.
+
+- [ ] **Task 16: Add tests for queue rendering of buttons + filter + modal.**
+  - File: `tests/test_views/test_repair_views.py`
+  - Action: Extend the queue test cluster around line 647. Tests:
+    1. `test_queue_renders_claim_button_for_new_unclaimed` — create a `New` record assigned to no one; tech_client GET queue; assert `url_for('repairs.claim', id=record.id).encode() in resp.data`; assert `b'>Claim<' in resp.data`.
+    2. `test_queue_omits_claim_button_when_self_assigned` — create a `New` record assigned to `tech_user`; tech_client GET queue; assert `url_for('repairs.claim', id=record.id).encode() not in resp.data`.
+    3. `test_queue_renders_resolve_button_for_assigned` — create an `Assigned` record; GET queue; assert `b'data-bs-target="#resolveModal"' in resp.data`; assert `'data-repair-id="{}"'.format(record.id).encode() in resp.data`.
+    4. `test_queue_includes_resolve_modal` — GET queue; assert `b'id="resolveModal"' in resp.data`.
+    5. `test_queue_embeds_current_user_id` — GET queue; assert `'data-current-user-id="{}"'.format(tech_user.id).encode() in resp.data`.
+    6. `test_queue_assignee_filter_select_rendered` — GET queue; assert `b'id="assignee-filter"' in resp.data` and the three `<option>` values are present (`""`, `"me"`, `"unassigned"`).
+    7. `test_queue_mobile_card_has_data_href` — GET queue; assert `b'class="card mb-2 queue-card"' in resp.data` AND the same card has `'data-href="{}"'.format(url_for('repairs.detail', id=record.id)).encode() in resp.data` (regex-or-string-match the card block).
+    8. `test_queue_mobile_card_has_assignee_data_attrs` — GET queue with one unassigned record and one assigned; assert `b'data-unassigned="true"'` appears for the unassigned record and `'data-assignee-id="{}"'.format(other_user.id).encode()` for the assigned one.
+    9. `test_queue_row_has_assignee_data_attrs` — same as #8 but for desktop rows.
+  - Notes: The "active filter" (Mine/Unassigned) state is purely a JS concern post-page-load — no view test for filter behavior, only for the presence of the filter `<select>`. Filter behavior testing would require Selenium/Playwright; left out of scope per existing test conventions.
+
+- [ ] **Task 17: Add detail-page button-visibility tests.**
+  - File: `tests/test_views/test_repair_views.py`
+  - Action: Add a `TestDetailQuickActions` class around line 112 (detail-page test cluster). Tests:
+    1. `test_detail_shows_claim_for_new_not_self_assigned` — create `New` record assigned to a different user; tech_client GET detail; assert claim form action URL `url_for('repairs.claim', id=record.id)` appears in `resp.data`.
+    2. `test_detail_hides_claim_when_self_assigned` — `New` record assigned to tech_user; assert claim URL NOT in `resp.data`.
+    3. `test_detail_shows_resolve_for_open_non_new` — `Assigned` record; assert `b'data-bs-target="#resolveModal"'` AND `'data-repair-id="{}"'.format(record.id).encode()` in `resp.data`.
+    4. `test_detail_hides_resolve_for_new` — `New` record; assert NO resolve modal trigger for this record's id in `resp.data`.
+    5. `test_detail_hides_both_buttons_for_closed_record` — parametrize over each value in `CLOSED_STATUSES`; for each: create record at that status, GET detail, assert neither claim URL nor resolve `data-repair-id="<id>"` appears.
+    6. `test_detail_modal_included` — GET detail; assert `b'id="resolveModal"' in resp.data`.
+    7. `test_detail_edit_button_still_visible` — regression test that the existing Edit button remains visible for all statuses (open AND closed).
+  - Notes: Test #5 is the regression test that catches any future drift between the Jinja global `CLOSED_STATUSES` and the template's `not in CLOSED_STATUSES` check. If `CLOSED_STATUSES` grows, this test must pass without code changes (because the template uses the global).
+
+- [ ] **Task 18: Converge Slack `resolve_with_note` onto `resolve_repair_record`.**
+  - File: `esb/slack/handlers.py`
+  - Action: Locate the `repair_action_submission` view-submission handler (the function decorated with the action-submission registration). In the dispatch block (lines 612-625), restructure the resolve branch:
+    
+    Current (lines 597-625, the relevant portion):
+    ```python
+    elif action == 'resolve_with_note':
+        note_val = values.get('note_block', {}).get('note', {}).get('value')
+        if not note_val or not note_val.strip():
+            ack(response_action='errors', errors={
+                'note_block': 'Note is required when resolving.',
+            })
+            return
+        changes['status'] = 'Resolved'
+        changes['note'] = note_val.strip()
+    ...
+    try:
+        if action == 'claim':
+            repair_service.claim_repair_record(...)
+        else:
+            repair_service.update_repair_record(
+                repair_record_id=repair_record_id,
+                updated_by=esb_user.username,
+                author_id=esb_user.id,
+                **changes,
+            )
+    ```
+    
+    Updated:
+    ```python
+    elif action == 'resolve_with_note':
+        note_val = values.get('note_block', {}).get('note', {}).get('value')
+        if not note_val or not note_val.strip():
+            ack(response_action='errors', errors={
+                'note_block': 'Note is required when resolving.',
+            })
+            return
+        # Note retained for the service call; do NOT add to `changes`.
+        resolve_note = note_val.strip()
+    ...
+    try:
+        if action == 'claim':
+            repair_service.claim_repair_record(
+                repair_record_id=repair_record_id,
+                claimed_by_user_id=esb_user.id,
+                claimed_by_username=esb_user.username,
+            )
+        elif action == 'resolve_with_note':
+            repair_service.resolve_repair_record(
+                repair_record_id=repair_record_id,
+                resolved_by_user_id=esb_user.id,
+                resolved_by_username=esb_user.username,
+                note=resolve_note,
+            )
+        else:
+            repair_service.update_repair_record(
+                repair_record_id=repair_record_id,
+                updated_by=esb_user.username,
+                author_id=esb_user.id,
+                **changes,
+            )
+    ```
+  - Notes: The Slack-side pre-validation at line 599-603 is preserved — it attaches the empty-note error to the correct input block (`note_block`) for Slack UX. The service-layer raise becomes defense-in-depth (reached only if a Slack client somehow bypasses the validation, e.g., a misconfigured workflow). Both Slack and web now share a single source of truth for the closed-record guard, user-exists guard, and Resolved-transition logic.
+
+- [ ] **Task 19: Verify Slack handler test still covers `resolve_with_note` post-convergence.**
+  - File: `tests/test_slack/test_handlers.py`
+  - Action: Locate the existing test(s) for `repair_action_submission`'s `resolve_with_note` branch (search for `'resolve_with_note'` literal in the test file). Update the test that asserts the service call:
+    - Was: `mock_update_repair_record.assert_called_once_with(... status='Resolved' ... note=...)`.
+    - Becomes: `mock_resolve_repair_record.assert_called_once_with(repair_record_id=..., resolved_by_user_id=..., resolved_by_username=..., note=...)`.
+    - Add a separate assertion that `mock_update_repair_record` is NOT called via the resolve_with_note path (the new code does not flow through it).
+    - Confirm the empty-note pre-validation test (asserting `ack(response_action='errors', errors={'note_block': 'Note is required when resolving.'})`) is preserved — Slack-side validation is unchanged.
+  - Notes: Patch the service module appropriately — `with patch('esb.slack.handlers.repair_service.resolve_repair_record') as mock_resolve_repair_record:` matches the existing patching pattern.
+
+- [ ] **Task 20: Verify production schema's `repair_timeline_entries.content` charset.**
+  - File: none (verification task).
+  - Action:
+    1. Connect to the production MariaDB (or the most-prod-like staging) and run:
+       ```sql
+       SELECT column_name, character_set_name, collation_name
+       FROM information_schema.columns
+       WHERE table_name = 'repair_timeline_entries' AND column_name = 'content';
+       ```
+    2. **Pass criterion:** `character_set_name = 'utf8mb4'` (4-byte Unicode, supports emoji).
+    3. **Fail handling:** if `utf8mb3` (3-byte, no emoji): document in the PR description and file a follow-up ticket to issue an Alembic migration changing the column charset. The migration is OUT OF SCOPE for this spec — the resolve flow still works on `utf8mb3`, just with emoji silently dropped or raising `Incorrect string value`. Slack and the existing `add_repair_note` path have the same exposure today.
+  - Notes: SQLite (test DB) handles full Unicode natively, so service tests pass regardless. This verification confirms production matches test expectations.
+
+- [ ] **Task 21: Update `docs/technicians.md`.**
+  - File: `docs/technicians.md`
+  - Action: In the "Working with the Repair Queue" section (starts at line 23), add a new subsection under "Filtering" (around line 46):
+    > The **Assignee** filter has three options: **All Assignees** (default), **Mine** (records assigned to you), and **Unassigned** (records with no assignee). Filters are applied immediately client-side — no page reload.
+    
+    Add a new subsection "Quick Actions" after "Mobile View" (around line 56):
+    > **Quick Actions.** Each row in the queue includes inline buttons for the two most common technician actions:
+    > - **Claim** — appears on `New` repairs you haven't claimed. One click sets you as the assignee and moves the status to `Assigned`.
+    > - **Resolve** — appears on any open repair that isn't `New`. Opens a small modal that asks for a resolution note (required), then sets the status to `Resolved` and records your note in the timeline.
+    >
+    > Both actions are also available from the repair detail page, next to the **Edit** button.
+  - Notes: Keep docs concise — matches existing tone.
+
+### Acceptance Criteria
+
+Numbered for traceability. Each AC has at least one corresponding test in Tasks 12-17 and 19.
+
+- [ ] **AC 1** (Claim happy path on New): Given a `New` repair record assigned to no one OR to a user other than `current_user`, when a technician POSTs to `/repairs/<id>/claim`, then 302 response; record's `status` becomes `'Assigned'`; `assignee_id` becomes `current_user.id`; success flash `Claimed Repair #<id>.` shown. (Tests T14.1, T14.2.)
+
+- [ ] **AC 2** (Claim from later open status leaves status): Given a record at any open status other than `'New'`, when claimed, then `assignee_id` updates to `current_user.id` and `status` is unchanged. (Test T14.3.)
+
+- [ ] **AC 3** (Claim rejected on closed record): Given `status in CLOSED_STATUSES`, when POST claim, then no mutation and danger flash containing "closed" is shown. (Test T14.4.)
+
+- [ ] **AC 4** (Claim 404 / 403 / login redirect): POST to nonexistent ID returns 404. Unauthenticated POST returns 302 to `/auth/login`. Member-role POST returns 403. (Tests T14.5, T14.6, T14.7.)
+
+- [ ] **AC 5** (Claim safe next allowed for two paths): Given hidden `next` field equal to `/repairs/queue` OR `/repairs/<id>` (same record), 302 Location matches. (Tests T14.8, T14.9.)
+
+- [ ] **AC 6** (Claim unsafe next falls back): `next` value of `/repairs/<other_record_id>`, `//evil.com/`, `http://evil.com/`, or `/\evil.com/path` returns 302 to `/repairs/<id>` of the claimed record. (Tests T14.10, T14.11, T14.12, T14.13.)
+
+- [ ] **AC 7** (Reclaim is a no-op): Given a record already assigned to `current_user`, when claim is called via the service (e.g., from a concurrent race), then no new timeline entries and no new notifications are created. (Test T13.)
+
+- [ ] **AC 8** (Resolve happy path): Given an open repair record, when a technician POSTs `/repairs/<id>/resolve` with `note='Fixed'`, then 302; record's `status` is `'Resolved'`; a `RepairTimelineEntry` of `entry_type='note', content='Fixed'` exists; success flash `Resolved Repair #<id>.` shown. (Tests T15.1, T15.2.)
+
+- [ ] **AC 9** (Resolve from `New` allowed at service AND route): Service-level call to `resolve_repair_record` from `New` succeeds. Route-level POST to `/repairs/<id>/resolve` from `New` succeeds. UI hides the Resolve button on `New` records — but the route does NOT block. (Tests T12.2, T15.9.)
+
+- [ ] **AC 10** (Resolve empty note rejected at form layer): Given POST with `note=''`, WTForms `DataRequired` fires; record NOT mutated; danger flash contains the WTForms default `'This field is required.'` (Test T15.3.)
+
+- [ ] **AC 11** (Resolve whitespace-only note rejected at service layer): Given POST with `note='   '`, WTForms validates but service raises `ValidationError('Resolution note is required')`; record NOT mutated; danger flash contains exact text `'Resolution note is required'` (capital R as in source). (Test T15.4.)
+
+- [ ] **AC 12** (Resolve rejected on closed record): Given `status in CLOSED_STATUSES`, POST resolve with valid note; no mutation; danger flash contains `'already closed'`. (Test T15.5.)
+
+- [ ] **AC 13** (Resolve rejects unknown user): Service call `resolve_repair_record(resolved_by_user_id=99999, ...)` raises `ValidationError` containing `'User with id 99999 not found'`. (Test T12.6.)
+
+- [ ] **AC 14** (Resolve 404 / 403 / login redirect): same as AC 4 for the resolve route. (Tests T15.6, T15.7, T15.8.)
+
+- [ ] **AC 15** (Resolve safe next + unsafe-next fallback): same shape as AC 5/AC 6 for resolve. (Tests T15.10, T15.11.)
+
+- [ ] **AC 16** (Service-layer `resolve_repair_record` queues `resolved` notification): When `notify_resolved='true'` (default), resolving an open record queues a `PendingNotification` with `notification_type='slack_message', payload['event_type']='resolved'`. (Test T12.9.)
+
+- [ ] **AC 17** (Notification feature flag respected): When `notify_resolved='false'`, no `resolved` notification is queued on resolve. (Test T12.10.)
+
+- [ ] **AC 18** (Non-ASCII note round-trips): When a technician resolves with `note='Fixed! 🔧 Тест съел проблема'`, the saved timeline entry's `content` equals the input bytes-for-bytes after `_db.session.refresh(record)`. (Test T12.11 service-level; T15.12 route-level.)
+
+- [ ] **AC 19** (Whitespace stripped from note): A note with leading/trailing whitespace is saved without it. `note='  Fixed  '` → timeline entry `content='Fixed'`. (Test T12.3.)
+
+- [ ] **AC 20** (Queue template renders Claim button when applicable): GET `/repairs/queue` for a `New` record not assigned to current user contains the claim form action URL. (Test T16.1.)
+
+- [ ] **AC 21** (Queue template hides Claim when self-assigned): GET queue for a `New` record assigned to current user does NOT contain that record's claim form action URL. (Test T16.2.)
+
+- [ ] **AC 22** (Queue template renders Resolve modal trigger for open-non-New): GET queue for an `Assigned` record contains `data-bs-target="#resolveModal"` AND `data-repair-id="<id>"`. (Test T16.3.)
+
+- [ ] **AC 23** (Queue includes modal markup once): GET queue contains `id="resolveModal"`. (Test T16.4.)
+
+- [ ] **AC 24** (Queue embeds current user id): GET queue contains `data-current-user-id="<tech_user.id>"`. (Test T16.5.)
+
+- [ ] **AC 25** (Queue Assignee filter rendered): GET queue contains `id="assignee-filter"` with three options. (Test T16.6.)
+
+- [ ] **AC 26** (Mobile cards adopt data-href pattern): GET queue contains a `.queue-card` element with a `data-href` attribute equal to `url_for('repairs.detail', id=record.id)`. (Test T16.7.)
+
+- [ ] **AC 27** (Mobile cards have assignee data attributes): GET queue with one unassigned and one assigned record contains `data-unassigned="true"` on the former and `data-assignee-id="<other_user.id>"` on the latter. (Test T16.8.)
+
+- [ ] **AC 28** (Desktop rows have assignee data attributes): same as AC 27 for `.queue-row`. (Test T16.9.)
+
+- [ ] **AC 29** (Detail page shows Claim for New non-self-assigned): GET `/repairs/<id>` for a `New` record assigned to another user contains the claim form action URL. (Test T17.1.)
+
+- [ ] **AC 30** (Detail page hides Claim when self-assigned): GET `/repairs/<id>` for a `New` record assigned to current user does NOT contain that record's claim form action URL. (Test T17.2.)
+
+- [ ] **AC 31** (Detail page shows Resolve for open non-New): GET `/repairs/<id>` for an `Assigned` record contains the modal trigger for this record. (Test T17.3.)
+
+- [ ] **AC 32** (Detail page hides Resolve for New): GET `/repairs/<id>` for a `New` record does NOT contain its modal trigger. (Test T17.4.)
+
+- [ ] **AC 33** (Detail page hides both for every closed status): For every value `s` in `CLOSED_STATUSES`, GET `/repairs/<id>` for a record at status `s` contains neither claim form action URL nor resolve modal trigger. (Test T17.5 — parametrized.)
+
+- [ ] **AC 34** (Detail page modal included): GET `/repairs/<id>` contains `id="resolveModal"`. (Test T17.6.)
+
+- [ ] **AC 35** (Detail page Edit button preserved): GET `/repairs/<id>` for ANY status (open or closed) contains the Edit button. (Test T17.7.)
+
+- [ ] **AC 36** (Slack convergence test): The Slack `resolve_with_note` handler invokes `repair_service.resolve_repair_record(repair_record_id=..., resolved_by_user_id=..., resolved_by_username=..., note=...)` and does NOT call `update_repair_record` directly via the resolve path. (Task 19's updated test.)
+
+- [ ] **AC 37** (Slack pre-validation preserved): Empty-note submission to the Slack action modal still ack-fails with `errors={'note_block': 'Note is required when resolving.'}` before reaching the service. (Task 19's existing test, retained.)
+
+- [ ] **AC 38** (CLOSED_STATUSES exposed to templates): Jinja `{% if 'Resolved' in CLOSED_STATUSES %}` evaluates true in any template; rendering a template referencing `CLOSED_STATUSES` does not raise `UndefinedError`. (Implicitly covered by the detail-template visibility tests in Task 17, which rely on the Jinja global.)
+
+- [ ] **AC 39** (Lint passes): `make lint` passes with no new violations.
+
+- [ ] **AC 40** (Tests pass): `make test` passes.
+
+## Additional Context
+
+### Dependencies
+
+- **`claim_repair_record`** (`esb/services/repair_service.py:225`) — existing, unchanged.
+- **`update_repair_record`** (`esb/services/repair_service.py:375`) — existing, unchanged. Both new helpers delegate to it.
+- **Existing `resolved` notification trigger** (`esb/services/repair_service.py:513-518`) — fires automatically when status transitions into `CLOSED_STATUSES`. No new notification wiring.
+- **Bootstrap 5 Modal component** — already bundled at `esb/static/js/bootstrap.bundle.min.js`.
+- **Flask-WTF / WTForms** — already used throughout `esb/forms/`.
+- **No DB migration.** Schema unchanged. The charset verification (Task 20) may produce a follow-up migration, but it is not produced as part of this spec.
+
+### Testing Strategy
+
+- **Service tests** (`tests/test_services/test_repair_service.py`):
+  - `TestResolveRepairRecord`: 11 tests (Task 12).
+  - Extension to `TestClaimRepairRecord`: 1 test (Task 13 — reclaim no-op).
+  - **Total: 12 service tests.**
+- **View tests** (`tests/test_views/test_repair_views.py`):
+  - `TestClaimRepairRoute`: 13 tests (Task 14).
+  - `TestResolveRepairRoute`: 12 tests (Task 15).
+  - Extension to queue tests: 9 tests (Task 16).
+  - `TestDetailQuickActions`: 7 tests (Task 17).
+  - **Total: 41 view tests.**
+- **Slack tests** (`tests/test_slack/test_handlers.py`):
+  - Update to existing `resolve_with_note` test: ~1 assertion swap + 1 new negative assertion (Task 19).
+  - **Total: 1 test updated.**
+- **Grand total: 53 net new/updated tests.** (Compared to ~0 today for this surface.)
+- **No e2e tests added.** The existing e2e suite is minimal. Per-route unit tests + manual browser plan below cover correctness.
+
+**Manual browser test plan (after all code changes):**
+1. Start the stack: `make db-up && make migrate && make run` (and `make worker` in a second terminal if you want to see the resolved notification get processed).
+2. Log in as a technician.
+3. Navigate to `/repairs/queue`. Confirm the new Assignee filter dropdown appears.
+4. Create or find a `New` repair. Confirm the row has a Claim button. Click it. Confirm: redirect back to queue with green flash; the row now shows `Assigned`, assignee=you, no Claim button, Resolve button visible.
+5. Click Resolve. Confirm modal opens with title "Resolve Repair #<id>". Type a note, click Resolve. Confirm: redirect back to queue, success flash, record disappears from open-queue (now `Resolved`); a Slack notification is queued.
+6. Open the Resolve modal on another record, type "test", close (X / Cancel), reopen for a different record. Confirm the textarea is empty (Task 8c reset).
+7. Set Assignee filter to "Mine", "Unassigned", "All" — confirm filtered view in real-time, no reload, area + status filters compose.
+8. Switch to mobile viewport (<768px). Repeat steps 4-7 on mobile cards. Confirm clicking on the card body (not the buttons) navigates to detail.
+9. Open-redirect probe: append `?next=//evil.example.com/` and `?next=http%3A//evil.example.com/` (URL-encoded) to a queue URL or any path. Submit a Claim. Confirm redirect goes to `/repairs/<id>` (detail page fallback), not external.
+10. Try a `member`-role user (create one if needed). Confirm they cannot access `/repairs/queue` at all (the nav doesn't even render the link); attempting POST to `/repairs/<id>/claim` directly returns 403.
+11. Confirm the Edit button still works for ALL statuses including `Resolved` (regression — should be unchanged).
+12. Test non-ASCII: resolve a record with `note='Fixed! 🔧 Тест съел проблема'`. Refresh the timeline view. Confirm exact characters rendered.
+
+### Notes
+
+- **Slack convergence (F20) is now in scope** (it was deferred in the previous draft). The Slack `resolve_with_note` handler shares the new `resolve_repair_record` service helper, so closed-record / empty-note / unknown-user invariants all live in one place.
+
+- **The `New` → no-Resolve UI rule** is a convention to nudge technicians toward triage. The service does not enforce it. Both web (template `{% if %}`) and Slack (dispatcher action options) layer this restriction independently. If feedback demands one-click close of `New` records (e.g., obvious-duplicate triage), the template guard is the only place to relax.
+
+- **Open-redirect protection.** Replaced the regex-based `_safe_next_url` with an explicit two-element allowlist. This eliminates:
+  - Backslash bypass (`/\evil.com/path`),
+  - Protocol-relative (`//evil.com/`),
+  - Scheme-injection (`http://evil.com/`, `javascript:`, `data:`),
+  - Cross-record next-leak (`/repairs/<other_id>` won't be honored from `/repairs/<this_id>`),
+  - URL-encoded variants (no path-string parsing means encodings can't bypass).
+
+- **CSP-friendly JavaScript.** All event handlers in `esb/static/js/app.js` or scoped `<script>` blocks. No `onclick`, `onchange`, or other inline JS attributes. This means a future deploy adding `Content-Security-Policy: script-src 'self'` would not break the app.
+
+- **Form CSRF inputs use raw `<input>`, not `form.hidden_tag()`.** This avoids the duplicate `id="csrf_token"` collision that would otherwise affect the queue page (N+1 forms — one per Claim button per row, plus one modal). Existing detail-page forms (`note_form`, `photo_form`) have the same latent issue today; the new spec uses the raw-input pattern to avoid amplifying it without retrofitting the existing forms (the latent collision is pre-existing and out of scope).
+
+- **Modal note hygiene.** The `show.bs.modal` handler clears the textarea on every open — protects against a technician typing a note for one repair, dismissing the modal, then accidentally submitting that text for a different repair.
+
+- **Concurrent claim race.** Two technicians simultaneously claiming the same `New` record produces: (a) last-write-wins on `assignee_id` (acceptable), (b) one `status_changed` notification (from the first claim's `New`→`Assigned` transition; the second claim hits the no-op guard for status), (c) one extra `assignee_change` timeline entry for the second claim. No notification storm. Test T13 pins down the no-op guard behavior so a future refactor cannot regress it.
+
+- **CLOSED_STATUSES single source of truth.** Templates reference the Jinja global (registered in Task 1) rather than hard-coding the list. If `CLOSED_STATUSES` grows in the future (e.g., a new `'Closed - Won't Fix'` value), templates automatically pick up the change AND the parameterized test T17.5 verifies the visibility-hiding works for every value in the list.
+
+- **Charset / i18n.** Task 20 verifies the production `repair_timeline_entries.content` column uses `utf8mb4`. SQLite (test DB) handles full Unicode natively, so service/view tests pass regardless. Production-side, if the column is `utf8mb3`, emoji-laden notes silently truncate or raise `Incorrect string value`. This is a pre-existing exposure (also affects `add_repair_note` and `description` columns) that the new forced-note resolve flow exercises more often.
+
+- **No URL parameters for filters.** The Assignee filter is purely client-side, like the existing Area and Status filters. This intentionally trades shareable filter URLs for simplicity and consistency. Sharing a filtered view requires the recipient to re-apply the filter manually.
+
+- **Future scope.**
+  - Kanban cards (staff-only) could carry the same quick actions; the service helpers + modal partial built here are reusable.
+  - Backfill the user-exists validation in `claim_repair_record` for symmetry.
+  - Migrate the pre-existing detail-page `note_form` / `photo_form` to use raw CSRF inputs.
+  - If the charset verification finds `utf8mb3`, issue a follow-up migration.
