@@ -22,10 +22,13 @@ def _truncate(text: str, limit: int) -> str:
 def format_status_summary(dashboard_data):
     """Format area status dashboard data as Slack mrkdwn text.
 
-    Each non-archived area renders one count line. Areas with non-green
-    equipment also list those items as bullets (severity emoji + name +
-    truncated description + optional ETA). The message ends with a hint
-    pointing users at ``/esb-status <area name>`` for one-area detail.
+    Each non-archived area that has at least one piece of equipment
+    renders one count line; areas with no equipment at all are skipped
+    to avoid cluttering the summary with empty "0 / 0 / 0" rows. Areas
+    with non-green equipment also list those items as bullets (severity
+    emoji + name + truncated description + optional ETA). The message
+    ends with a hint pointing users at ``/esb-status <area name>`` for
+    one-area detail.
 
     Args:
         dashboard_data: List of dicts from status_service.get_area_status_dashboard().
