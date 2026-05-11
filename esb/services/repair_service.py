@@ -217,7 +217,7 @@ def list_repair_records(
     return list(scalars.all())
 
 
-CLOSED_STATUSES = ['Resolved', 'Closed - No Issue Found', 'Closed - Duplicate']
+CLOSED_STATUSES = ('Resolved', 'Closed - No Issue Found', 'Closed - Duplicate')
 
 KANBAN_COLUMNS = [s for s in REPAIR_STATUSES if s not in CLOSED_STATUSES]
 
@@ -255,6 +255,9 @@ def claim_repair_record(
         ValidationError: if the record doesn't exist, the claiming user
             doesn't exist, or the record is in a closed status.
     """
+    user = db.session.get(User, claimed_by_user_id)
+    if user is None:
+        raise ValidationError(f'User with id {claimed_by_user_id} not found')
     record = get_repair_record(repair_record_id)
     if record.status in CLOSED_STATUSES:
         raise ValidationError(
@@ -269,6 +272,80 @@ def claim_repair_record(
         updated_by=claimed_by_username,
         author_id=claimed_by_user_id,
         **changes,
+    )
+
+
+def resolve_repair_record(
+    repair_record_id: int,
+    resolved_by_user_id: int,
+    resolved_by_username: str,
+    note: str,
+) -> RepairRecord:
+    """Resolve a repair record with a required note.
+
+    Validates inputs in order: note non-empty, user exists, record
+    exists and is open. Then sets status='Resolved' and appends the
+    note as a timeline entry in the same transaction via
+    update_repair_record. The 'resolved' Slack notification fires
+    automatically via the existing trigger in update_repair_record.
+
+    UI-level rule that 'New' records should be claimed before resolve
+    is NOT enforced here -- the service contract is permissive so
+    both Slack's dispatcher and the web UI can layer their own
+    conventions. Resolves from 'New' are allowed.
+
+    Args:
+        repair_record_id: ID of the RepairRecord to resolve.
+        resolved_by_user_id: ESB user id of the resolving user. Must
+            reference an existing User.
+        resolved_by_username: Username (for timeline-entry attribution).
+        note: Resolution note. Required; whitespace-only is rejected.
+
+    Returns:
+        The updated RepairRecord.
+
+    Raises:
+        ValidationError: if note is empty/whitespace-only, the user
+            does not exist, the record does not exist, or the record
+            is already closed.
+    """
+    # Reject empty / whitespace-only / zero-width-only / control-only notes.
+    # Python's str.strip() is Unicode-aware for whitespace (covers NBSP,
+    # U+2000-U+200A, U+2028/2029, etc. — anything where ch.isspace() is
+    # True). But it does NOT strip Unicode-category Cc (control) or Cf
+    # (format) characters, which include zero-width space U+200B, ZWNJ
+    # U+200C, ZWJ U+200D, BOM U+FEFF, ASCII NUL/control bytes, etc.
+    # A note like '​​​' or '\x00\x01' would pass a bare
+    # str.strip() check but be visually empty. So we walk the codepoints
+    # explicitly looking for at least one "visible" character (anything
+    # that is neither whitespace nor Cc/Cf).
+    import unicodedata
+    has_content = False
+    if note:
+        for ch in note:
+            if ch.isspace():
+                continue
+            if unicodedata.category(ch) in ('Cc', 'Cf'):
+                continue
+            has_content = True
+            break
+    if not has_content:
+        raise ValidationError('Resolution note is required')
+    user = db.session.get(User, resolved_by_user_id)
+    if user is None:
+        raise ValidationError(f'User with id {resolved_by_user_id} not found')
+    record = get_repair_record(repair_record_id)
+    if record.status in CLOSED_STATUSES:
+        raise ValidationError(
+            f'Cannot resolve repair record {repair_record_id}: '
+            f'status {record.status!r} is already closed',
+        )
+    return update_repair_record(
+        repair_record_id=repair_record_id,
+        updated_by=resolved_by_username,
+        author_id=resolved_by_user_id,
+        status='Resolved',
+        note=note.strip(),
     )
 
 
@@ -338,6 +415,8 @@ _SEVERITY_PRIORITY = case(
 def get_repair_queue(
     area_id: int | None = None,
     status: str | None = None,
+    assignee_id: int | None = None,
+    unassigned: bool = False,
 ) -> list[RepairRecord]:
     """Get open repair records for the technician queue.
 
@@ -348,10 +427,22 @@ def get_repair_queue(
     Args:
         area_id: Optional filter by equipment's area ID.
         status: Optional filter by repair record status.
+        assignee_id: Optional filter to records assigned to this user ID.
+        unassigned: When True, filter to records where assignee_id IS NULL.
+            Mutually exclusive with assignee_id; raises ValidationError if
+            both are non-default.
 
     Returns:
         List of RepairRecord instances.
+
+    Raises:
+        ValidationError: if both `assignee_id` and `unassigned=True` are
+            passed simultaneously (mutually exclusive filters).
     """
+    if assignee_id is not None and unassigned:
+        raise ValidationError(
+            'Cannot filter by both assignee_id and unassigned simultaneously',
+        )
     query = (
         db.select(RepairRecord)
         .join(RepairRecord.equipment)
@@ -367,6 +458,10 @@ def get_repair_queue(
         query = query.filter(Equipment.area_id == area_id)
     if status is not None:
         query = query.filter(RepairRecord.status == status)
+    if assignee_id is not None:
+        query = query.filter(RepairRecord.assignee_id == assignee_id)
+    elif unassigned:
+        query = query.filter(RepairRecord.assignee_id.is_(None))
     return list(
         db.session.execute(query).scalars().unique().all()
     )

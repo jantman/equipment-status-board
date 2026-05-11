@@ -6,7 +6,14 @@ from datetime import UTC, datetime, timedelta
 from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, send_from_directory, url_for
 from flask_login import current_user
 
-from esb.forms.repair_forms import RepairNoteForm, RepairPhotoUploadForm, RepairRecordCreateForm, RepairRecordUpdateForm
+from esb.forms.repair_forms import (
+    RepairClaimForm,
+    RepairNoteForm,
+    RepairPhotoUploadForm,
+    RepairRecordCreateForm,
+    RepairRecordUpdateForm,
+    RepairResolveForm,
+)
 from esb.models.repair_record import REPAIR_STATUSES
 from esb.models.repair_timeline_entry import RepairTimelineEntry
 from esb.services import equipment_service, repair_service, upload_service
@@ -25,6 +32,36 @@ def _aging_tier(seconds):
     elif days >= 3:
         return 'warm'
     return 'default'
+
+
+def _safe_next_url(next_val: str | None, record_id: int) -> str:
+    """Return next_val if its PATH is one of two allowed targets, else fallback.
+
+    Allowed paths: /repairs/queue OR /repairs/<record_id>. Query strings are
+    preserved when the path matches, so a user landing here from
+    /repairs/queue?assignee=me does not lose their filter state on redirect.
+    Any URL with a scheme, netloc, backslash, or non-matching path falls back
+    to the detail page for record_id. This is more restrictive than a
+    regex filter while remaining filter-preserving.
+    """
+    from urllib.parse import urlparse
+
+    detail_url = url_for('repairs.detail', id=record_id)
+    if not next_val:
+        return detail_url
+    # Reject backslash variants outright -- urlparse normalizes them silently.
+    if '\\' in next_val:
+        return detail_url
+    parsed = urlparse(next_val)
+    # Reject anything with a scheme or netloc (absolute / protocol-relative URLs).
+    if parsed.scheme or parsed.netloc:
+        return detail_url
+    queue_path = url_for('repairs.queue')
+    if parsed.path not in (queue_path, detail_url):
+        return detail_url
+    # Path is allowed -- reconstruct preserving the query string (but not
+    # the fragment, which is client-side-only and not useful here).
+    return parsed.path + (('?' + parsed.query) if parsed.query else '')
 
 
 @repairs_bp.route('/')
@@ -62,9 +99,30 @@ def queue():
     area_id = request.args.get('area', type=int)
     status_filter = request.args.get('status')
 
+    # Canonicalize: only 'me' and 'unassigned' are recognized values; matching
+    # is case-insensitive so '?assignee=Mine' from a manually-typed URL still
+    # works. Any other input (empty, bogus, etc.) collapses to '' so the
+    # template's dropdown still selects "All Assignees" via the
+    # {% if not active_assignee %} branch.
+    raw_assignee = request.args.get('assignee', '').lower()
+    if raw_assignee in ('me', 'unassigned'):
+        active_assignee = raw_assignee
+    else:
+        active_assignee = ''
+    assignee_id_filter = current_user.id if active_assignee == 'me' else None
+    unassigned_filter = (active_assignee == 'unassigned')
+
     areas = equipment_service.list_areas()
     open_statuses = [s for s in REPAIR_STATUSES if s not in CLOSED_STATUSES]
-    records = repair_service.get_repair_queue(area_id=area_id, status=status_filter)
+    # Canonicalization above guarantees assignee_id_filter and
+    # unassigned_filter are never both truthy, so the service's mutual-
+    # exclusion guard cannot fire from this caller.
+    records = repair_service.get_repair_queue(
+        area_id=area_id,
+        status=status_filter,
+        assignee_id=assignee_id_filter,
+        unassigned=unassigned_filter,
+    )
 
     return render_template(
         'repairs/queue.html',
@@ -73,6 +131,7 @@ def queue():
         statuses=open_statuses,
         active_area=area_id,
         active_status=status_filter,
+        active_assignee=active_assignee,
         # Strip tzinfo: db.DateTime stores naive datetimes so subtraction must match
         now_utc=datetime.now(UTC).replace(tzinfo=None),
     )
@@ -275,3 +334,67 @@ def edit(id):
         return redirect(url_for('repairs.detail', id=id))
 
     return render_template('repairs/edit.html', form=form, record=record)
+
+
+@repairs_bp.route('/<int:id>/claim', methods=['POST'])
+@role_required('technician')
+def claim(id):
+    """Quick-action: claim a repair record (assignee=self, New->Assigned)."""
+    form = RepairClaimForm()
+    try:
+        repair_service.get_repair_record(id)
+    except ValidationError:
+        abort(404)
+
+    if form.validate_on_submit():
+        try:
+            repair_service.claim_repair_record(
+                repair_record_id=id,
+                claimed_by_user_id=current_user.id,
+                claimed_by_username=current_user.username,
+            )
+            flash(f'Claimed Repair #{id}.', 'success')
+        except ValidationError as e:
+            flash(str(e), 'danger')
+    else:
+        flash('Invalid claim request -- please try again.', 'danger')
+
+    return redirect(_safe_next_url(request.form.get('next'), id))
+
+
+@repairs_bp.route('/<int:id>/resolve', methods=['POST'])
+@role_required('technician')
+def resolve(id):
+    """Quick-action: resolve a repair record with a required note."""
+    form = RepairResolveForm()
+    try:
+        repair_service.get_repair_record(id)
+    except ValidationError:
+        abort(404)
+
+    if form.validate_on_submit():
+        try:
+            repair_service.resolve_repair_record(
+                repair_record_id=id,
+                resolved_by_user_id=current_user.id,
+                resolved_by_username=current_user.username,
+                note=form.note.data,
+            )
+            flash(f'Resolved Repair #{id}.', 'success')
+        except ValidationError as e:
+            flash(str(e), 'danger')
+    else:
+        # CSRF failures get a specific reload-prompt so users with expired
+        # sessions know what to do; note-field validation errors surface
+        # verbatim (collapsed into a single flash to avoid stacked toasts
+        # if future validators are added); anything else gets a generic
+        # message that does not expose framework internals.
+        csrf_errors = getattr(form.csrf_token, 'errors', None) if hasattr(form, 'csrf_token') else None
+        if csrf_errors:
+            flash('Your session may have expired -- please reload and try again.', 'danger')
+        elif form.note.errors:
+            flash('; '.join(form.note.errors), 'danger')
+        else:
+            flash('Invalid resolve request -- please try again.', 'danger')
+
+    return redirect(_safe_next_url(request.form.get('next'), id))

@@ -49,10 +49,22 @@ Use the dropdown filters at the top of the queue to narrow the list:
 
 - **Area** — Show only repairs for a specific area
 - **Status** — Show only repairs in a specific status
+- **Assignee** — Three options: **All Assignees** (default), **Mine** (records assigned to you), and **Unassigned** (records with no assignee).
+
+All three filters work the same way: changing a dropdown narrows the *already-loaded* list immediately, with no page reload. You can also bookmark or share a pre-filtered URL: `?area=`, `?status=`, and `?assignee=me|unassigned` all apply server-side at page load, so the page comes up with the matching subset already in the table. Dropdown changes after that point refine what's visible but don't update the URL — so a reload reverts to whatever the URL says.
 
 ### Mobile View
 
 On your phone, the table rows display as stacked cards instead of a table. Each card shows the equipment name, severity, status, area, and age. This makes it easy to browse the queue one-handed while you're at the workbench.
+
+### Quick Actions
+
+Each row in the queue includes inline buttons for the two most common technician actions:
+
+- **Claim** — appears on `New` repairs you haven't claimed. One click sets you as the assignee and moves the status to `Assigned`.
+- **Resolve** — appears on any open repair that isn't `New`. Opens a small modal that asks for a resolution note (required), then sets the status to `Resolved` and records your note in the timeline.
+
+Both actions are also available from the repair detail page, next to the **Edit** button.
 
 ![Repair Queue - Desktop](images/repair-queue-desktop.png)
 

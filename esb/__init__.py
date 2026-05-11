@@ -7,6 +7,7 @@ from flask import Flask, flash, redirect, render_template, request, session, url
 
 from esb.config import config
 from esb.extensions import csrf, db, login_manager, migrate
+from esb.services.repair_service import CLOSED_STATUSES
 from esb.utils.filters import register_filters
 from esb.views import register_blueprints
 
@@ -73,6 +74,10 @@ def create_app(config_name='default'):
     @app.context_processor
     def inject_current_year():
         return {'current_year': datetime.now(timezone.utc).year}
+
+    @app.context_processor
+    def inject_repair_constants():
+        return {'CLOSED_STATUSES': CLOSED_STATUSES}
 
     # New Relic browser monitoring context processor
     if nr_license:
