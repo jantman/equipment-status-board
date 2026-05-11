@@ -4,7 +4,7 @@ slug: 'technician-web-ux-improvements'
 created: '2026-05-11'
 status: 'ready-for-dev'
 stepsCompleted: [1, 2, 3, 4]
-adversarial_review_applied: '2026-05-11'
+adversarial_review_applied: '2026-05-11 (round 1: 25 findings; round 2: 21 findings; both fully addressed)'
 tech_stack:
   - 'Python 3.14'
   - 'Flask + Flask-SQLAlchemy + Flask-WTF + Flask-Login'
@@ -34,7 +34,7 @@ code_patterns:
   - 'Service-layer claim_repair_record already exists with closed-record guard (esb/services/repair_service.py:225). The new resolve_repair_record mirrors that pattern at the same file.'
   - 'Client-side filtering of queue rows/cards via app.js — toggles style.display; never reloads. Adding the new Assignee filter follows the existing Area + Status pattern (esb/static/js/app.js:80-118).'
   - 'Clickable rows + cards use data-href + JS navigation (existing pattern at esb/static/js/app.js:5-16). Mobile cards adopt the same pattern, eliminating anchor-inside-anchor issues.'
-  - 'Bootstrap modal pattern matching admin/areas.html:54-73: modal-content holds modal-header, then a <form> wrapping modal-body + modal-footer. Cancel button inside footer uses data-bs-dismiss; Submit button is type=submit inside the form.'
+  - 'Bootstrap modal with the form wrapping modal-body + modal-footer (textarea must be inside the form; submit button must be inside the form). admin/areas.html:54-73 is referenced for the raw csrf_token input pattern only — that template''s modal is a single-button confirm with no body inputs and uses a different form-placement, which does not apply here.'
 test_patterns:
   - 'tests/test_views/test_repair_views.py uses staff_client / tech_client / make_equipment / make_repair_record fixtures from tests/conftest.py'
   - 'tests/test_services/test_repair_service.py groups tests in classes per-function (e.g. TestClaimRepairRecord starts at line 1357)'
@@ -94,7 +94,7 @@ Buttons appear in three surfaces: the queue table row (desktop), the queue card 
 - Template updates:
   - `esb/templates/repairs/queue.html`: add an **Actions** `<th>`/`<td>` column to the desktop table; restructure mobile cards (drop wrapping `<a>`, add `data-href` + `data-assignee-id` + `data-unassigned` on `.queue-card` itself, action buttons live in a separate `card-body` row inside the same card div); add the **Assignee** filter `<select>`; embed `data-current-user-id` on a queue-scoped container; include the resolve-modal partial. All buttons carry `aria-label` annotations.
   - `esb/templates/repairs/detail.html`: add Claim and Resolve buttons in the header row alongside the existing Edit button, with `{% if %}` guards using the new Jinja global `CLOSED_STATUSES`; include the resolve-modal partial.
-  - `esb/templates/components/_resolve_modal.html` (new): the modal markup — `<form>` lives **inside** `modal-content`, sibling to `modal-header`, wrapping `modal-body` + `modal-footer` (matches `esb/templates/admin/areas.html:54-73` placement). CSRF rendered via raw `<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">` rather than `form.hidden_tag()` to avoid duplicate `id="csrf_token"` collisions across multiple forms on the same page.
+  - `esb/templates/components/_resolve_modal.html` (new): the modal markup — `<form>` lives **inside** `modal-content`, sibling to `modal-header`, wrapping `modal-body` + `modal-footer` (this is a valid Bootstrap pattern; `admin/areas.html` uses a different layout for its single-button confirm modal, which doesn't apply here because we have a body-level textarea). CSRF rendered via raw `<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">` (matches `admin/areas.html:67`) rather than `form.hidden_tag()` to avoid duplicate `id="csrf_token"` collisions across multiple forms on the same page.
 - Tests in `tests/test_services/test_repair_service.py`:
   - New `TestResolveRepairRecord` class covering: resolve open record → status='Resolved', note timeline entry created; closed record raises `ValidationError`; empty / whitespace-only note raises `ValidationError`; nonexistent record raises `ValidationError`; nonexistent user_id raises `ValidationError`; resolve from `New` is allowed at the service layer; the `resolved` Slack notification is queued via the existing trigger; non-ASCII (emoji + multilingual) note round-trips through the timeline entry intact.
   - Tests for re-claim no-op behavior (regression test for the concurrent-claim case): claiming an already-self-assigned record produces zero new `assignee_change` or `status_change` timeline entries and queues zero notifications (the `update_repair_record` no-op guard catches it).
@@ -147,26 +147,28 @@ Buttons appear in three surfaces: the queue table row (desktop), the queue card 
 
 - **Clickable rows/cards use `data-href` + JS navigation.** `esb/static/js/app.js:5-16` already implements this for `.queue-row[data-href]` and `.repair-history-row[data-href]`. The mobile-card restructure (Task 8) adopts the same pattern by adding `data-href` to `.queue-card` and extending the selector in `app.js`. This eliminates the existing anchor-wraps-card pattern, which would otherwise force a redesign for embedded action buttons.
 
-- **Bootstrap 5 Modal pattern.** Verified canonical placement in `esb/templates/admin/areas.html:54-73`:
+- **Bootstrap 5 Modal pattern.** The codebase's only existing modal is `esb/templates/admin/areas.html:54-73`. That modal is a single-button confirm with NO inputs in `modal-body` — its `<form>` sits inside `modal-footer` wrapping just the submit button. **Our resolve modal cannot match that placement** because the textarea must live inside the form (otherwise the note doesn't submit) and the submit button must also live inside the form. We use a different but valid Bootstrap structure: `<form>` lives inside `modal-content`, sibling to `modal-header`, wrapping both `modal-body` and `modal-footer`:
   ```html
-  <div class="modal fade" id="...">
+  <div class="modal fade" id="resolveModal">
     <div class="modal-dialog">
       <div class="modal-content">
         <div class="modal-header">...</div>
-        <!-- form lives INSIDE modal-content, sibling to header, wrapping body+footer -->
-        <form method="POST" action="...">
+        <form method="post" action="..." id="resolveModalForm">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <div class="modal-body">...</div>
+          <input type="hidden" name="next" value="{{ request.path }}">
+          <div class="modal-body">
+            <textarea name="note" required ...></textarea>
+          </div>
           <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-            <button type="submit" class="btn btn-primary">Submit</button>
+            <button type="button" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit">Resolve</button>
           </div>
         </form>
       </div>
     </div>
   </div>
   ```
-  This is the structure Task 7 (modal partial) uses. **Do NOT wrap `modal-content` in `<form>`** — that creates layout edge cases when Bootstrap's `data-bs-backdrop` interacts with the form.
+  **Do NOT wrap `modal-content` itself in `<form>`** — that places the form OUTSIDE the modal-dialog div and risks layout issues when Bootstrap's append-to-body / backdrop options are enabled. The pattern above keeps the form scoped inside `modal-content` and is the structure Task 9 emits. `admin/areas.html` is referenced only for the **raw `<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">` pattern** (line 67) — NOT for form placement.
 
 - **CSRF token rendering.** Codebase pattern from `admin/areas.html:67`: render raw `<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">` instead of `{{ form.hidden_tag() }}`. The raw form omits the `id="csrf_token"` attribute that `hidden_tag()` emits, which would otherwise collide across multiple forms on the same page (the queue page has N+1 forms — one per queue row's Claim button plus one modal). `csrf_token()` is a Flask-WTF Jinja global. Test config disables CSRF entirely (`esb/config.py:67`).
 
@@ -195,7 +197,7 @@ Buttons appear in three surfaces: the queue table row (desktop), the queue card 
 | `esb/templates/repairs/queue.html` | Add the Assignee filter `<select>`; embed `data-current-user-id` on `#queue-table-wrapper`; add the Actions column to the desktop table; restructure mobile cards (no wrapping `<a>`; `data-href` on `.queue-card`; action buttons in a sibling `card-body` div); include the resolve-modal partial at the bottom. |
 | `esb/templates/repairs/detail.html` | Add Claim and Resolve buttons in the header row using `{% if record.status not in CLOSED_STATUSES %}` style guards. Include the resolve-modal partial at the bottom. |
 | `esb/templates/components/_resolve_modal.html` | NEW. Modal with `<form>` inside `modal-content` wrapping body+footer, raw CSRF input, hidden `next` field defaulting to `request.path`. |
-| `esb/templates/admin/areas.html` | READ-ONLY REFERENCE for the canonical modal-form pattern (lines 54-73) and raw CSRF input (line 67). |
+| `esb/templates/admin/areas.html` | READ-ONLY REFERENCE for the raw CSRF input pattern (line 67). Note: that file's modal-form PLACEMENT (form inside footer wrapping one button) is NOT the pattern this spec uses — our resolve modal needs a textarea inside the form, so we use a different valid Bootstrap structure. See Tech Decision "Bootstrap 5 Modal pattern". |
 | `esb/models/repair_record.py` | Read-only — `REPAIR_STATUSES` constant. `CLOSED_STATUSES` lives in `repair_service.py:220`. |
 | `esb/utils/decorators.py` | Read-only — `@role_required('technician')` applied to both new routes. |
 | `tests/conftest.py` | Read-only — fixtures `tech_client`, `staff_client`, `tech_user`, `staff_user`, `make_area`, `make_equipment`, `make_repair_record`, helper `_create_user`. Add a new helper `member_user` fixture (or use `_create_user('member', 'memberuser')` inline) for the 403 tests. |
@@ -218,7 +220,7 @@ Buttons appear in three surfaces: the queue table row (desktop), the queue card 
 
 - **Mobile cards adopt the desktop `data-href` pattern.** Drops the `<a>` wrapper entirely. The `.queue-card` div carries `data-href`, `data-assignee-id`, `data-unassigned`, and the other existing data attributes. `app.js` extends `.queue-row[data-href], .repair-history-row[data-href]` to also include `.queue-card[data-href]`. Result: (a) eliminates the anchor-inside-anchor problem when adding embedded action buttons, (b) eliminates the `closest('a')` filter logic that would break after restructure, (c) makes the entire card click-target uniform (no whitespace-gap problem), (d) preserves keyboard navigation via the existing keydown handler on `[data-href]` rows.
 
-- **Action buttons inside row/card stop click propagation.** Both desktop `<td>` and mobile `.card-body` containing the action buttons get `<td onclick="event.stopPropagation()">` — WAIT, no. **Inline `onclick` is banned (CSP-incompatible).** Instead: the `app.js` click handler on `.queue-row[data-href], .queue-card[data-href]` checks `event.target.closest('button, a, form, [data-no-nav]')` and bails if found. This delegates the stop-propagation responsibility to the navigation handler itself, with no inline handlers anywhere. (See Task 3 for the exact JS patch.)
+- **Action buttons inside row/card don't trigger row-nav.** Inline `onclick="event.stopPropagation()"` would solve this but is banned (CSP-incompatible). Instead, the `app.js` click handler on `.queue-row[data-href], .queue-card[data-href]` checks `event.target.closest('button, a[href], form, [data-no-nav]')` and bails if any match is found. Action containers (`<td>` in desktop, action `<div>` in mobile) carry `data-no-nav` so clicks landing on container padding (where `e.target` IS the container, not a descendant button) also bail correctly. See Task 8a for the JS patch and Task 10e/10f for the `data-no-nav` attribute placement.
 
 - **All JavaScript in `app.js` or scoped `<script>` blocks — never inline attributes.** The modal-trigger handler, the filter wiring, and the click-nav handler all live in `app.js`. This is (a) CSP-friendly (a future strict `script-src 'self'` policy would not break the app), (b) easier to test/lint, (c) consistent with the codebase pattern (kiosk-scale, QR preview, queue sort/filter all live in `app.js`).
 
@@ -262,15 +264,19 @@ Buttons appear in three surfaces: the queue table row (desktop), the queue card 
 | `esb/views/repairs.py` | `edit` (`def`) | 229 |
 | `esb/views/repairs.py` | end of `edit` | 277 |
 | `esb/slack/handlers.py` | `resolve_with_note` branch | 597-625 |
-| `esb/templates/admin/areas.html` | canonical modal-form pattern | 54-73 |
-| `esb/templates/admin/areas.html` | raw CSRF input | 67 |
+| `esb/templates/admin/areas.html` | modal markup (single-button confirm; NOT the pattern this spec uses for form placement) | 54-73 |
+| `esb/templates/admin/areas.html` | raw CSRF input (the only pattern this spec inherits from admin/areas.html) | 67 |
 | `esb/static/js/app.js` | clickable-row selector | 5 |
 | `esb/static/js/app.js` | `applyFilters()` body | 85-114 |
 | `esb/__init__.py` | `inject_current_year` context processor | 73 |
 | `esb/config.py` | `WTF_CSRF_ENABLED = False` (TestingConfig) | 67 |
-| `tests/test_services/test_repair_service.py` | `TestClaimRepairRecord` | 1357 |
-| `tests/test_views/test_repair_views.py` | queue-filter test cluster | 647 |
-| `tests/test_views/test_repair_views.py` | detail-page test cluster | 112 |
+| `tests/test_services/test_repair_service.py` | `TestClaimRepairRecord` (class start) | 1357 |
+| `tests/test_views/test_repair_views.py` | `TestRepairQueue` (class start) | 548 |
+| `tests/test_views/test_repair_views.py` | `TestRepairQueue.test_queue_combined_area_and_status_filter` (representative existing queue-filter test) | 647 |
+| `tests/test_views/test_repair_views.py` | `TestRepairRecordDetail` (class start) | 109 |
+| `tests/test_views/test_repair_views.py` | `TestRepairRecordDetail` first test (`test_staff_sees_detail`) | 112 |
+| `tests/test_slack/test_handlers.py` | `test_resolve_with_note_sets_resolved_and_adds_note` | 1315 |
+| `tests/test_slack/test_handlers.py` | `test_closed_record_returns_error` (end of resolve-with-note cluster) | 1394 |
 
 ## Implementation Plan
 
@@ -287,7 +293,7 @@ Tasks ordered bottom-up: constants/context → service helpers → forms → vie
         from esb.services.repair_service import CLOSED_STATUSES
         return {'CLOSED_STATUSES': CLOSED_STATUSES}
     ```
-  - Notes: Local import avoids a circular import at module load (repair_service imports from extensions and models, both of which are wired up before context processors run; lazy import is the safer pattern). Verified by inspection of `inject_current_year`'s neighborhood.
+  - Notes: Local import avoids a circular import at module load (repair_service imports from extensions and models, both of which are wired up before context processors run; lazy import is the safer pattern). **Hard prerequisite for Tasks 10 and 11**: if this task is skipped or regressed, the queue and detail templates raise `jinja2.exceptions.UndefinedError` on every render (because `{% if record.status not in CLOSED_STATUSES %}` cannot operate on `Undefined`). The smoke-test coverage in Tasks 16-17 (any `200`-asserting GET against the queue/detail page) fails loudly if this is broken, so the regression cannot ship silently.
 
 - [ ] **Task 2: Add `resolve_repair_record()` service function.**
   - File: `esb/services/repair_service.py`
@@ -355,7 +361,9 @@ Tasks ordered bottom-up: constants/context → service helpers → forms → vie
     class RepairClaimForm(FlaskForm):
         """Form for claim quick action -- CSRF only, no inputs."""
 
-        submit = SubmitField('Claim')
+        # No fields: CSRF is auto-included by FlaskForm; submit button is
+        # hard-coded in the template, so no SubmitField is needed.
+        pass
 
 
     class RepairResolveForm(FlaskForm):
@@ -365,9 +373,9 @@ Tasks ordered bottom-up: constants/context → service helpers → forms → vie
             'Resolution Note',
             validators=[DataRequired(), Length(max=5000)],
         )
-        submit = SubmitField('Resolve')
+        # Submit button is hard-coded in the modal template; no SubmitField.
     ```
-  - Notes: No new imports needed; `FlaskForm`, `SubmitField`, `TextAreaField`, `DataRequired`, `Length` are imported already at top of file. The forms exist primarily for CSRF wiring and field validation — the actual CSRF token is rendered as a raw input in templates (see Task 7), not via `form.hidden_tag()`. The forms ARE still instantiated in the views so that the WTForms validation cycle runs on submit.
+  - Notes: No new imports needed; `FlaskForm`, `TextAreaField`, `DataRequired`, `Length` are imported already at top of file. (`SubmitField` is also imported but no longer used by these new forms.) The forms exist so that the POST routes (Tasks 5, 6) can call `form.validate_on_submit()` and drive CSRF + `note`-required validation. CSRF tokens in templates are rendered as raw `<input>` (matches `admin/areas.html:67`) — `form.hidden_tag()` is intentionally NOT used. The forms are instantiated ONLY in the POST routes; the queue/detail GET views do not instantiate them (the templates render raw CSRF inputs and hard-code button markup).
 
 - [ ] **Task 4: Add `_safe_next_url` helper to `esb/views/repairs.py`.**
   - File: `esb/views/repairs.py`
@@ -399,7 +407,7 @@ Tasks ordered bottom-up: constants/context → service helpers → forms → vie
         RepairResolveForm,
     )
     ```
-  - Notes: Two paths only. The `record_id`-specific detail URL means `/repairs/42/claim` POST with `next=/repairs/99` (a different record's detail page) falls back to `/repairs/42` rather than silently allowing cross-record navigation. Tight scope.
+  - Notes: Two paths only. The `record_id`-specific detail URL means `/repairs/42/claim` POST with `next=/repairs/99` (a different record's detail page) falls back to `/repairs/42` rather than silently allowing cross-record navigation. Tight scope. **Trailing-slash edge case:** the route is defined as `/queue` (no trailing slash), so `url_for('repairs.queue')` returns `/repairs/queue`. The hidden `next` field is populated from `request.path`, which also returns `/repairs/queue` for that route. Both sides match exactly. A manually-typed `next=/repairs/queue/` (with trailing slash) would NOT match the allowlist and would fall back to detail — acceptable, since the hidden field never produces that value organically. If the app is ever mounted under an `APPLICATION_ROOT` or `SCRIPT_NAME` (e.g., `/esb/`), both `url_for` and `request.path` reflect the prefix consistently, so the allowlist still works.
 
 - [ ] **Task 5: Add the `claim` route.**
   - File: `esb/views/repairs.py`
@@ -471,16 +479,11 @@ Tasks ordered bottom-up: constants/context → service helpers → forms → vie
     ```
   - Notes: The `note.errors` narrowing avoids flashing "The CSRF token is missing." to end users when CSRF fails. The narrower path also makes the AC for empty-note flash deterministic ("This field is required." — the WTForms default for `DataRequired`).
 
-- [ ] **Task 7: Inject quick-action forms into the `queue` and `detail` views.**
+- [ ] **Task 7: Confirm `queue` and `detail` view signatures unchanged.**
   - File: `esb/views/repairs.py`
-  - Action (queue, in `queue()` function around line 58): instantiate the forms and pass them to the template:
-    ```python
-    claim_form = RepairClaimForm()
-    resolve_form = RepairResolveForm()
-    ```
-    Add `claim_form=claim_form, resolve_form=resolve_form` to the `render_template(...)` kwargs. **Do NOT** add any `assignee_id`, `unassigned`, or `active_assignee` kwargs — assignee filtering is fully client-side.
-  - Action (detail, in `detail()` function around line 131): same — instantiate `claim_form` and `resolve_form` and pass to `render_template`.
-  - Notes: No change to `get_repair_queue` signature. The view's filter parameters remain `area_id` and `status_filter` only.
+  - Action: **No code changes to the `queue()` and `detail()` view bodies.** The Claim and Resolve forms in the templates render CSRF directly via `{{ csrf_token() }}` (the raw-input pattern from `admin/areas.html:67`) and never reference Flask-WTF form instances. The Resolve modal's textarea is hard-coded markup, not `{{ resolve_form.note(...) }}`. So no form instantiation is needed in the GET views — the forms exist only for the POST routes (Tasks 5 and 6) to drive `validate_on_submit()`.
+  - Verify: After implementing Tasks 5, 6, 10, and 11, grep `esb/views/repairs.py` to confirm `RepairClaimForm()` and `RepairResolveForm()` appear ONLY inside the `claim` and `resolve` route bodies, never inside `queue()` or `detail()`. The `get_repair_queue` call signature also stays unchanged (no `assignee_id`/`unassigned` kwargs — assignee filtering is fully client-side).
+  - Notes: A previous draft of this task instantiated the forms in `queue()` and `detail()` and passed them to the template. That was dead code. Removed.
 
 - [ ] **Task 8: Update `esb/static/js/app.js` — three changes in one pass.**
   - File: `esb/static/js/app.js`
@@ -492,22 +495,26 @@ Tasks ordered bottom-up: constants/context → service helpers → forms → vie
     ```javascript
     document.querySelectorAll('.queue-row[data-href], .queue-card[data-href], .repair-history-row[data-href]').forEach(function (row) {
     ```
-    AND update the click + keydown handlers to skip navigation when the click originated on an interactive descendant. Replace the handler body:
+    AND update the click + keydown handlers to skip navigation when the event originated on an interactive descendant. Both handlers use `e.target.closest(...)` for consistency:
     ```javascript
+    function isNavBlocker(el) {
+      return !!(el && el.closest('button, a[href], form, [data-no-nav]'));
+    }
+
     row.addEventListener('click', function (e) {
-      // Don't navigate if the click came from a button/form/link inside the row.
-      if (e.target.closest('button, a[href], form, [data-no-nav]')) return;
+      if (isNavBlocker(e.target)) return;
       window.location.href = row.dataset.href;
     });
     row.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter' || e.key === ' ') {
-        // Likewise skip if focus is on an interactive descendant.
-        if (document.activeElement.closest('button, a[href], form, [data-no-nav]')) return;
-        e.preventDefault();
-        window.location.href = row.dataset.href;
-      }
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      // e.target is the focused element when keydown fires from a child button/link,
+      // OR the row itself when the row has focus. Either case is handled correctly.
+      if (isNavBlocker(e.target)) return;
+      e.preventDefault();
+      window.location.href = row.dataset.href;
     });
     ```
+    The `[data-no-nav]` selector slot is what protects "dead zones" inside the row — `<td>` padding (Task 10e), action-row `<div>` gaps in mobile cards (Task 10f). Without `data-no-nav` on those containers, a click on the padding around a button (where `e.target` is the container itself, not the button) would fall through to row-nav since `closest()` ascends from `e.target` and would not find an interactive ancestor.
   - Action 8b: In `applyFilters()` (current location lines 85-114), extend the filter logic to include Assignee comparison, and update the mobile-card path to set display on `.queue-card` directly (the wrapping `<a>` no longer exists post-Task 9 restructure). Replace the function with:
     ```javascript
     var areaFilter = document.getElementById('area-filter');
@@ -525,7 +532,14 @@ Tasks ordered bottom-up: constants/context → service helpers → forms → vie
 
         function matchesAssignee(el) {
           if (!assigneeVal) return true;
-          if (assigneeVal === 'me') return el.dataset.assigneeId === currentUserId;
+          if (assigneeVal === 'me') {
+            // Defensive: if currentUserId is missing (queue container absent or
+            // anonymous render), match nothing rather than falling through to
+            // matching every row with empty assignee_id (which would silently
+            // turn "Mine" into "Unassigned").
+            if (!currentUserId) return false;
+            return el.dataset.assigneeId === currentUserId;
+          }
           if (assigneeVal === 'unassigned') return el.dataset.unassigned === 'true';
           return true;
         }
@@ -582,9 +596,11 @@ Tasks ordered bottom-up: constants/context → service helpers → forms → vie
   - Action: Write:
     ```jinja
     {# Bootstrap 5 modal -- include once per page. The form lives INSIDE
-       modal-content, sibling to modal-header, wrapping body+footer (matches
-       admin/areas.html canonical placement). The form's action is patched
-       at show.bs.modal time by the handler in app.js. #}
+       modal-content, sibling to modal-header, wrapping body+footer. This
+       differs from admin/areas.html's modal (which puts the form inside
+       modal-footer wrapping one button) because we need a textarea inside
+       the form. The form's action is patched at show.bs.modal time by the
+       handler in app.js (Task 8c). #}
     <div class="modal fade" id="resolveModal" tabindex="-1" aria-labelledby="resolveModalLabel" aria-hidden="true">
       <div class="modal-dialog">
         <div class="modal-content">
@@ -611,7 +627,7 @@ Tasks ordered bottom-up: constants/context → service helpers → forms → vie
       </div>
     </div>
     ```
-  - Notes: No inline `<script>` — the `show.bs.modal` listener lives in `app.js` per Task 8c. The `<form>` placement matches `admin/areas.html:54-73`. Raw CSRF input (no `form.hidden_tag()`) avoids duplicate-id collisions with the page's other forms. `request.path` (not `full_path`) avoids the trailing-`?` quirk. The textarea has `maxlength="5000"` matching the WTForms `Length(max=5000)` validator.
+  - Notes: No inline `<script>` — the `show.bs.modal` listener lives in `app.js` per Task 8c. The `<form>` placement wraps `modal-body` + `modal-footer` (a valid Bootstrap pattern; differs from `admin/areas.html` which has no body-level inputs and so can place the form inside the footer). Raw CSRF input (no `form.hidden_tag()`) avoids duplicate-id collisions with the page's other forms. `request.path` (not `full_path`) avoids the trailing-`?` quirk. The textarea has `maxlength="5000"` aligning with the WTForms `Length(max=5000)` validator (note: browser maxlength counts UTF-16 code units while WTForms counts Python characters — see Notes).
 
 - [ ] **Task 10: Update `queue.html` — Actions column, restructured mobile cards, Assignee filter, modal include.**
   - File: `esb/templates/repairs/queue.html`
@@ -639,9 +655,9 @@ Tasks ordered bottom-up: constants/context → service helpers → forms → vie
     data-assignee-id="{{ record.assignee_id or '' }}"
     data-unassigned="{{ 'true' if record.assignee_id is none else 'false' }}"
     ```
-  - Action 10e: Add the action `<td>` to each row, after the existing Assignee `<td>` (currently line 76):
+  - Action 10e: Add the action `<td>` to each row, after the existing Assignee `<td>` (currently line 76). The `data-no-nav` attribute on the `<td>` tells the row-nav handler in `app.js` to bail for ALL clicks inside the cell (including clicks landing on the padding around the buttons, not just on the buttons themselves):
     ```jinja
-    <td class="text-end">
+    <td class="text-end" data-no-nav>
         {% if record.status == 'New' and record.assignee_id != current_user.id %}
         <form method="post" action="{{ url_for('repairs.claim', id=record.id) }}" class="d-inline">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -662,16 +678,14 @@ Tasks ordered bottom-up: constants/context → service helpers → forms → vie
         {% endif %}
     </td>
     ```
-    No `onclick`. The `app.js` row-nav handler (Task 8a) checks `event.target.closest('button, form, ...')` and bails for clicks originating in this cell.
+    No inline `onclick`. The `app.js` row-nav handler (Task 8a) checks `event.target.closest('button, a[href], form, [data-no-nav]')` — the `[data-no-nav]` slot is what catches dead-zone clicks (padding, gaps) inside this `<td>` and prevents accidental row-navigation.
   - Action 10f: Replace the entire mobile-cards block (currently lines 84-119). Replace with:
     ```jinja
-    <div id="queue-cards-wrapper" class="d-md-none" data-current-user-id="{{ current_user.id }}">
+    <div id="queue-cards-wrapper" class="d-md-none">
         {% for record in records %}
-        <div class="card mb-2 queue-card"
+        <div class="card mb-2 queue-card text-body"
              data-href="{{ url_for('repairs.detail', id=record.id) }}"
              tabindex="0"
-             role="link"
-             aria-label="Open Repair #{{ record.id }}: {{ record.equipment.name }}"
              data-equipment-name="{{ record.equipment.name }}"
              data-severity-priority="{{ '0' if record.severity == 'Down' else ('1' if record.severity == 'Degraded' else ('2' if record.severity == 'Not Sure' else '3')) }}"
              data-area-id="{{ record.equipment.area_id }}"
@@ -703,7 +717,7 @@ Tasks ordered bottom-up: constants/context → service helpers → forms → vie
                     {% endif %}
                 </div>
                 {% if (record.status == 'New' and record.assignee_id != current_user.id) or (record.status != 'New' and record.status not in CLOSED_STATUSES) %}
-                <div class="mt-2 d-flex gap-2">
+                <div class="mt-2 d-flex gap-2" data-no-nav>
                     {% if record.status == 'New' and record.assignee_id != current_user.id %}
                     <form method="post" action="{{ url_for('repairs.claim', id=record.id) }}" class="d-inline">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -729,7 +743,12 @@ Tasks ordered bottom-up: constants/context → service helpers → forms → vie
         {% endfor %}
     </div>
     ```
-    Note the key structural change: `.queue-card` is now the click target (via `data-href` + the extended selector in Task 8a). The wrapping `<a>` is gone. `role="link"` + `tabindex="0"` + `aria-label` preserve accessibility for screen readers and keyboard navigation. Action buttons live INSIDE the same `card-body` so the entire card visual surface (including the gap between text and buttons) reads as one unit; the JS click handler navigates UNLESS the click originated on a button/form (the `closest()` guard handles that).
+    Key structural changes:
+    - `.queue-card` is now the click target (via `data-href` + the extended selector in Task 8a). The wrapping `<a>` is gone.
+    - **No `role="link"` on the card div** — that ARIA role disallows nested interactive descendants (the form + buttons inside this card would violate the role's contract). The card is "clickable" via JS but does NOT claim link semantics; the action buttons inside have their own `aria-label`s and remain individually focusable. The pre-existing `<tr role="link">` on the desktop table (which also gains nested interactive content via Task 10e) has the same conflict but is out of scope to refactor here.
+    - **`text-body` class** on the card div preserves the body-text color the dropped `<a>` previously inherited from Bootstrap (no anchor-blue undertones once the wrapper is removed). No CSS change is needed in `static/css/app.css` (verified: no rule targets `.queue-card`).
+    - **No `data-current-user-id` on the mobile wrapper** — only the desktop `#queue-table-wrapper` carries the attribute (Action 10b). `getElementById` finds the desktop wrapper even when CSS hides it on mobile (`d-none d-md-block`), so JS reads `currentUserId` from one source of truth. The previous draft embedded it on both wrappers; redundant.
+    - Action buttons live INSIDE the same `card-body` so the entire card visual surface (including the gap between text and buttons) reads as one unit. The action-row `<div>` carries `data-no-nav` so clicks landing on its padding/gaps don't trigger row-navigation (mirrors Task 10e's `<td data-no-nav>` pattern).
   - Action 10g: At the bottom of `queue.html`, before `{% endblock %}`, include the modal:
     ```jinja
     {% include 'components/_resolve_modal.html' %}
@@ -843,7 +862,7 @@ Tasks ordered bottom-up: constants/context → service helpers → forms → vie
   - Action: Add a `TestResolveRepairRoute` class. Tests:
     1. `test_tech_resolves_open_record_with_note` — tech_client POST `{'note': 'Fixed'}` to `/repairs/<id>/resolve` on an `Assigned` record; assert 302; assert `record.status == 'Resolved'`; assert a `RepairTimelineEntry` with `entry_type='note', content='Fixed'` exists.
     2. `test_staff_resolves_record` — staff_client works.
-    3. `test_resolve_empty_note_flashes_form_error` — POST `{'note': ''}`; assert danger flash contains "This field is required" (WTForms `DataRequired` default); assert record NOT mutated.
+    3. `test_resolve_empty_note_flashes_form_error` — POST `{'note': ''}`; assert at least one `'danger'`-category flash via `with client.session_transaction() as s: assert any(cat == 'danger' for cat, _ in s.get('_flashes', []))`; assert record NOT mutated. Do NOT assert the exact WTForms message text — Flask-WTF version drift may change the default string.
     4. `test_resolve_whitespace_only_note_flashes_service_error` — POST `{'note': '   '}`; WTForms `DataRequired` passes (whitespace truthy), but `resolve_repair_record` raises; assert danger flash contains "Resolution note is required"; assert record NOT mutated.
     5. `test_resolve_on_closed_record_flashes_danger_and_does_not_mutate` — starting `status='Resolved'`, POST resolve with valid note; assert danger flash contains "already closed"; non-mutation.
     6. `test_resolve_nonexistent_returns_404` — POST to `/repairs/99999/resolve` with note; assert 404.
@@ -945,14 +964,12 @@ Tasks ordered bottom-up: constants/context → service helpers → forms → vie
     ```
   - Notes: The Slack-side pre-validation at line 599-603 is preserved — it attaches the empty-note error to the correct input block (`note_block`) for Slack UX. The service-layer raise becomes defense-in-depth (reached only if a Slack client somehow bypasses the validation, e.g., a misconfigured workflow). Both Slack and web now share a single source of truth for the closed-record guard, user-exists guard, and Resolved-transition logic.
 
-- [ ] **Task 19: Verify Slack handler test still covers `resolve_with_note` post-convergence.**
+- [ ] **Task 19: Verify Slack handler tests for `resolve_with_note` pass unchanged post-convergence.**
   - File: `tests/test_slack/test_handlers.py`
-  - Action: Locate the existing test(s) for `repair_action_submission`'s `resolve_with_note` branch (search for `'resolve_with_note'` literal in the test file). Update the test that asserts the service call:
-    - Was: `mock_update_repair_record.assert_called_once_with(... status='Resolved' ... note=...)`.
-    - Becomes: `mock_resolve_repair_record.assert_called_once_with(repair_record_id=..., resolved_by_user_id=..., resolved_by_username=..., note=...)`.
-    - Add a separate assertion that `mock_update_repair_record` is NOT called via the resolve_with_note path (the new code does not flow through it).
-    - Confirm the empty-note pre-validation test (asserting `ack(response_action='errors', errors={'note_block': 'Note is required when resolving.'})`) is preserved — Slack-side validation is unchanged.
-  - Notes: Patch the service module appropriately — `with patch('esb.slack.handlers.repair_service.resolve_repair_record') as mock_resolve_repair_record:` matches the existing patching pattern.
+  - Action: The existing tests for the `resolve_with_note` branch (lines 1315-1394 — `test_resolve_with_note_sets_resolved_and_adds_note`, `test_resolve_with_note_queues_only_resolved_notification`, `test_resolve_without_note_returns_error`, `test_closed_record_returns_error`) verify outcomes via `db.session.expire_all()` + DB-state inspection and `ack.call_args.kwargs` inspection. They do NOT mock service functions. Since the new `resolve_repair_record` simply calls `update_repair_record(status='Resolved', note=...)` internally, the end-state in the DB and the ack response are byte-identical to the pre-convergence behavior. **No test changes are required** — the existing four tests pass unchanged after Task 18.
+  - Verify: run `venv/bin/python -m pytest tests/test_slack/test_handlers.py -v -k "resolve_with_note or closed_record"` after Task 18 and confirm all four tests pass without modification.
+  - Optional add: a single new test `test_resolve_with_note_uses_resolve_helper` could `unittest.mock.patch('esb.slack.handlers.repair_service.resolve_repair_record')` to assert the convergence-specific call (helper invoked with the right kwargs, `update_repair_record` not called via this path). This is gilding — the four existing tests already verify the user-facing contract. Implementer's discretion.
+  - Notes: A previous draft of this task prescribed a mock-based test pattern (`with patch('esb.slack.handlers.repair_service.resolve_repair_record')...`). That pattern is incompatible with the surrounding `test_handlers.py` style: existing tests verify by DB state, not by mocking. The corrected task here keeps the existing tests as-is (they cover the convergence implicitly).
 
 - [ ] **Task 20: Verify production schema's `repair_timeline_entries.content` charset.**
   - File: none (verification task).
@@ -1002,7 +1019,7 @@ Numbered for traceability. Each AC has at least one corresponding test in Tasks 
 
 - [ ] **AC 9** (Resolve from `New` allowed at service AND route): Service-level call to `resolve_repair_record` from `New` succeeds. Route-level POST to `/repairs/<id>/resolve` from `New` succeeds. UI hides the Resolve button on `New` records — but the route does NOT block. (Tests T12.2, T15.9.)
 
-- [ ] **AC 10** (Resolve empty note rejected at form layer): Given POST with `note=''`, WTForms `DataRequired` fires; record NOT mutated; danger flash contains the WTForms default `'This field is required.'` (Test T15.3.)
+- [ ] **AC 10** (Resolve empty note rejected at form layer): Given POST with `note=''`, WTForms `DataRequired` validation fails; the record is NOT mutated; at least one `'danger'`-category flash is set on the session. The test asserts (a) no mutation and (b) flash present with category `'danger'`, NOT an exact WTForms message string (that string is library-version-dependent and may drift across Flask-WTF releases). (Test T15.3.)
 
 - [ ] **AC 11** (Resolve whitespace-only note rejected at service layer): Given POST with `note='   '`, WTForms validates but service raises `ValidationError('Resolution note is required')`; record NOT mutated; danger flash contains exact text `'Resolution note is required'` (capital R as in source). (Test T15.4.)
 
@@ -1054,7 +1071,7 @@ Numbered for traceability. Each AC has at least one corresponding test in Tasks 
 
 - [ ] **AC 35** (Detail page Edit button preserved): GET `/repairs/<id>` for ANY status (open or closed) contains the Edit button. (Test T17.7.)
 
-- [ ] **AC 36** (Slack convergence test): The Slack `resolve_with_note` handler invokes `repair_service.resolve_repair_record(repair_record_id=..., resolved_by_user_id=..., resolved_by_username=..., note=...)` and does NOT call `update_repair_record` directly via the resolve path. (Task 19's updated test.)
+- [ ] **AC 36** (Slack convergence behavior preserved): After the convergence (Task 18), the Slack `resolve_with_note` flow produces the same observable outcomes as before — a Resolved record, a single `note` timeline entry with the submitted content, exactly one queued `resolved` notification, and the same `ack(response_action='errors', errors={'note_block': ...})` for empty-note input. Verified by re-running the existing four tests at `test_handlers.py:1315-1394` without modification (Task 19).
 
 - [ ] **AC 37** (Slack pre-validation preserved): Empty-note submission to the Slack action modal still ack-fails with `errors={'note_block': 'Note is required when resolving.'}` before reaching the service. (Task 19's existing test, retained.)
 
@@ -1088,9 +1105,9 @@ Numbered for traceability. Each AC has at least one corresponding test in Tasks 
   - `TestDetailQuickActions`: 7 tests (Task 17).
   - **Total: 41 view tests.**
 - **Slack tests** (`tests/test_slack/test_handlers.py`):
-  - Update to existing `resolve_with_note` test: ~1 assertion swap + 1 new negative assertion (Task 19).
-  - **Total: 1 test updated.**
-- **Grand total: 53 net new/updated tests.** (Compared to ~0 today for this surface.)
+  - **No test changes required.** The existing four tests at lines 1315-1394 verify outcomes via DB state + `ack` inspection, not by mocking service functions. Since `resolve_repair_record` produces identical DB state to the prior `update_repair_record(status='Resolved', note=...)` call, all four pass unchanged after the Task-18 convergence. Task 19 is a verification-only task (re-run the existing tests).
+  - **Total: 0 new tests; 4 existing tests re-validated.**
+- **Grand total: 53 net new tests** (12 service + 41 view) + 4 existing Slack tests re-validated.
 - **No e2e tests added.** The existing e2e suite is minimal. Per-route unit tests + manual browser plan below cover correctness.
 
 **Manual browser test plan (after all code changes):**
@@ -1109,7 +1126,9 @@ Numbered for traceability. Each AC has at least one corresponding test in Tasks 
 
 ### Notes
 
-- **Slack convergence (F20) is now in scope** (it was deferred in the previous draft). The Slack `resolve_with_note` handler shares the new `resolve_repair_record` service helper, so closed-record / empty-note / unknown-user invariants all live in one place.
+- **Slack convergence is in scope.** The Slack `resolve_with_note` handler shares the new `resolve_repair_record` service helper, so closed-record / empty-note / unknown-user invariants all live in one place.
+
+- **Slack error-attribution caveat (acknowledged pre-existing behavior).** Service-layer `ValidationError`s from `resolve_repair_record` (closed-record race, unknown-user, defensive empty-note) propagate up the Slack handler's `except ValidationError as e: ack(response_action='errors', errors={'action_block': str(e)})` block at `handlers.py:626-628`, which hard-codes attribution to `action_block` rather than the more specific `note_block`. The Slack-side pre-validation at `handlers.py:599-603` handles the empty-note case with the correct attribution (`note_block`) BEFORE the service call. For the other error paths (closed-record race, unknown-user), the user sees the error on the action block — pre-convergence behavior, unchanged by this spec. Refining attribution per-error-type is a follow-up.
 
 - **The `New` → no-Resolve UI rule** is a convention to nudge technicians toward triage. The service does not enforce it. Both web (template `{% if %}`) and Slack (dispatcher action options) layer this restriction independently. If feedback demands one-click close of `New` records (e.g., obvious-duplicate triage), the template guard is the only place to relax.
 
@@ -1131,6 +1150,12 @@ Numbered for traceability. Each AC has at least one corresponding test in Tasks 
 - **CLOSED_STATUSES single source of truth.** Templates reference the Jinja global (registered in Task 1) rather than hard-coding the list. If `CLOSED_STATUSES` grows in the future (e.g., a new `'Closed - Won't Fix'` value), templates automatically pick up the change AND the parameterized test T17.5 verifies the visibility-hiding works for every value in the list.
 
 - **Charset / i18n.** Task 20 verifies the production `repair_timeline_entries.content` column uses `utf8mb4`. SQLite (test DB) handles full Unicode natively, so service/view tests pass regardless. Production-side, if the column is `utf8mb3`, emoji-laden notes silently truncate or raise `Incorrect string value`. This is a pre-existing exposure (also affects `add_repair_note` and `description` columns) that the new forced-note resolve flow exercises more often.
+
+- **`maxlength` vs `Length` mismatch (acknowledged).** The modal textarea's HTML `maxlength="5000"` (Task 9) counts UTF-16 code units, while WTForms `Length(max=5000)` counts Python characters (code points). For ASCII-only input these match; for emoji or supplementary-plane characters (each is 2 UTF-16 units, 1 Python char), the browser truncates ~2x earlier than the server validator. A tech pasting 4000 emoji would see ~2500 in the textarea. This is consistent with how the rest of the codebase's `TextAreaField` + `maxlength` pairs behave; no fix here.
+
+- **Session-expiry note loss (acknowledged).** If a tech opens the modal, types a long note, then their session times out before submit (`PERMANENT_SESSION_LIFETIME = 12 hours`), CSRF validation fails on POST, the route flashes a generic "Invalid resolve request" message and `_safe_next_url` redirects to detail. The clear-on-show modal hygiene means a fresh modal opens with no recovery of the typed note. This is acceptable given the long session window and the alternative (cross-login note preservation) introduces a separate security-of-storage problem. Documented so future UX tickets don't fix it without weighing the trade-off.
+
+- **Claim user-validation pathway (clarification).** `claim_repair_record` does NOT add its own user-existence check, but it IS covered: `update_repair_record` validates the `assignee_id` change (`repair_service.py:409-412`), and claim passes the same user id as `assignee_id`. The user-existence check runs BEFORE the per-field no-op guard, so even a self-reclaim (where `assignee_id` is unchanged) still validates the user. `resolve_repair_record` adds its own check because it passes the user id ONLY as `author_id` (which `update_repair_record` does NOT validate symmetrically). Backfilling `update_repair_record` to also validate `author_id` is out of scope.
 
 - **No URL parameters for filters.** The Assignee filter is purely client-side, like the existing Area and Status filters. This intentionally trades shareable filter URLs for simplicity and consistency. Sharing a filtered view requires the recipient to re-apply the filter manually.
 
