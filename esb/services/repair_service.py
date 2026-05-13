@@ -19,7 +19,10 @@ from esb.utils.logging import log_mutation
 # Ordered tuple for deterministic timeline entry creation order.
 # specialist_description is intentionally saved regardless of status -- the AC
 # requires it available when status is "Needs Specialist", not restricted to it.
-_REPAIR_UPDATABLE_FIELDS = ('status', 'severity', 'assignee_id', 'eta', 'specialist_description')
+_REPAIR_UPDATABLE_FIELDS = (
+    'status', 'severity', 'assignee_id', 'eta', 'specialist_description',
+    'duplicated_repair_id',
+)
 
 
 def _serialize(value):
@@ -215,6 +218,22 @@ def list_repair_records(
     if eager_load_assignee:
         scalars = scalars.unique()
     return list(scalars.all())
+
+
+def list_duplicate_candidates(repair_record_id: int) -> list[RepairRecord]:
+    """Return same-equipment repair records (excluding self), newest first.
+
+    Raises:
+        ValidationError: if ``repair_record_id`` does not exist.
+    """
+    record = get_repair_record(repair_record_id)
+    query = (
+        db.select(RepairRecord)
+        .filter(RepairRecord.equipment_id == record.equipment_id)
+        .filter(RepairRecord.id != record.id)
+        .order_by(RepairRecord.created_at.desc())
+    )
+    return list(db.session.execute(query).scalars().all())
 
 
 CLOSED_STATUSES = ('Resolved', 'Closed - No Issue Found', 'Closed - Duplicate')
@@ -506,6 +525,56 @@ def update_repair_record(
         if assignee is None:
             raise ValidationError(f'User with id {changes["assignee_id"]} not found')
 
+    # duplicated_repair_id validation -- keyed on real *status transitions*,
+    # not idempotent form re-submissions. See tech-spec Technical Decisions §3.
+    effective_dup_id = changes.get('duplicated_repair_id', record.duplicated_repair_id)
+    effective_status = changes.get('status', record.status)
+    transitioning_to_closed_dup = (
+        'status' in changes
+        and changes['status'] == 'Closed - Duplicate'
+        and record.status != 'Closed - Duplicate'
+    )
+    setting_dup_explicit = (
+        'duplicated_repair_id' in changes
+        and changes['duplicated_repair_id'] is not None
+        and changes['duplicated_repair_id'] != record.duplicated_repair_id
+    )
+    transitioning_away_from_closed_dup = (
+        'status' in changes
+        and changes['status'] != 'Closed - Duplicate'
+        and record.status == 'Closed - Duplicate'
+    )
+
+    if transitioning_to_closed_dup and effective_dup_id is None:
+        raise ValidationError(
+            "'Closed - Duplicate' status requires a duplicated_repair_id",
+        )
+    if setting_dup_explicit and effective_status != 'Closed - Duplicate':
+        raise ValidationError(
+            "duplicated_repair_id may only be set when status is 'Closed - Duplicate'",
+        )
+    if transitioning_to_closed_dup or setting_dup_explicit:
+        target_id = effective_dup_id
+        if target_id == repair_record_id:
+            raise ValidationError('A repair cannot be a duplicate of itself')
+        target = db.session.get(RepairRecord, target_id)
+        if target is None:
+            raise ValidationError(f'Duplicated repair {target_id} not found')
+        if target.equipment_id != record.equipment_id:
+            raise ValidationError(
+                'Duplicated repair must be on the same equipment',
+            )
+
+    # Silent clear when status transitions away from Closed - Duplicate.
+    # Callers must surface a user-visible notice -- see views/repairs.py edit()
+    # and slack/handlers.py handle_repair_action_submission.
+    if (
+        transitioning_away_from_closed_dup
+        and record.duplicated_repair_id is not None
+        and 'duplicated_repair_id' not in changes
+    ):
+        changes['duplicated_repair_id'] = None
+
     # Extract note separately (not a model field)
     note = changes.pop('note', None)
 
@@ -557,6 +626,15 @@ def update_repair_record(
                 author_name=updated_by,
                 old_value=str(old_value) if old_value else None,
                 new_value=str(new_value) if new_value else None,
+            ))
+        elif field_name == 'duplicated_repair_id':
+            db.session.add(RepairTimelineEntry(
+                repair_record_id=record.id,
+                entry_type='duplicated_repair_id_change',
+                author_id=author_id,
+                author_name=updated_by,
+                old_value=str(old_value) if old_value is not None else None,
+                new_value=str(new_value) if new_value is not None else None,
             ))
 
     # Create note timeline entry if note provided

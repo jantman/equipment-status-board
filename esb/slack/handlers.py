@@ -603,6 +603,24 @@ def register_handlers(bolt_app, app):
                     })
                     return
                 changes['status'] = status_opt['value']
+                if changes['status'] == 'Closed - Duplicate':
+                    dup_opt = (
+                        values.get('duplicate_block', {})
+                        .get('duplicated_repair_id', {})
+                        .get('selected_option')
+                    )
+                    if not dup_opt:
+                        ack(response_action='errors', errors={
+                            'duplicate_block': 'Selecting which repair this duplicates is required.',
+                        })
+                        return
+                    try:
+                        changes['duplicated_repair_id'] = int(dup_opt['value'])
+                    except (KeyError, TypeError, ValueError):
+                        ack(response_action='errors', errors={
+                            'duplicate_block': 'Invalid duplicate selection.',
+                        })
+                        return
             elif action == 'resolve_with_note':
                 note_val = values.get('note_block', {}).get('note', {}).get('value')
                 if not note_val or not note_val.strip():

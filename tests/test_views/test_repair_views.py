@@ -310,6 +310,144 @@ class TestEditRepairRecord:
         assert resp.status_code == 302
         assert '/auth/login' in resp.headers['Location']
 
+    def test_edit_page_hides_duplicate_block_for_non_duplicate_status(
+        self, staff_client, make_repair_record,
+    ):
+        """AC-14: duplicate-block has display:none when status is not Closed - Duplicate."""
+        record = make_repair_record(status='In Progress')
+        resp = staff_client.get(f'/repairs/{record.id}/edit')
+        assert resp.status_code == 200
+        assert b'id="duplicate-block"' in resp.data
+        assert b'style="display: none;"' in resp.data
+
+    def test_edit_page_shows_duplicate_block_for_closed_duplicate(
+        self, staff_client, make_equipment,
+    ):
+        """AC-15: duplicate-block visible + target option selected when status is Closed - Duplicate."""
+        eq = make_equipment()
+        target = RepairRecord(equipment_id=eq.id, description='Target', status='In Progress')
+        _db.session.add(target)
+        _db.session.commit()
+        record = RepairRecord(
+            equipment_id=eq.id,
+            description='Duplicate of target',
+            status='Closed - Duplicate',
+            duplicated_repair_id=target.id,
+        )
+        _db.session.add(record)
+        _db.session.commit()
+
+        resp = staff_client.get(f'/repairs/{record.id}/edit')
+        assert resp.status_code == 200
+        assert b'id="duplicate-block"' in resp.data
+        # Block visible: no display:none style applied
+        body = resp.data.decode()
+        # Find the duplicate-block opening tag and verify it lacks display:none.
+        idx = body.index('id="duplicate-block"')
+        # Inspect the rest of that tag up to the first '>'.
+        tag_end = body.index('>', idx)
+        assert 'display: none' not in body[idx:tag_end]
+        # The target option appears selected.
+        assert f'<option selected value="{target.id}"'.encode() in resp.data \
+            or f'value="{target.id}" selected'.encode() in resp.data
+
+    def test_edit_post_set_closed_duplicate_with_target(
+        self, staff_client, make_equipment,
+    ):
+        """AC-16: POST with status=Closed - Duplicate + duplicated_repair_id redirects, saves link."""
+        eq = make_equipment()
+        target = RepairRecord(equipment_id=eq.id, description='Target', status='In Progress')
+        _db.session.add(target)
+        _db.session.commit()
+        record = RepairRecord(equipment_id=eq.id, description='Same problem', status='In Progress')
+        _db.session.add(record)
+        _db.session.commit()
+
+        resp = staff_client.post(f'/repairs/{record.id}/edit', data={
+            'status': 'Closed - Duplicate',
+            'severity': '',
+            'assignee_id': '0',
+            'specialist_description': '',
+            'duplicated_repair_id': str(target.id),
+            'note': '',
+        }, follow_redirects=False)
+        assert resp.status_code == 302
+        assert f'/repairs/{record.id}' in resp.headers['Location']
+
+        _db.session.expire_all()
+        updated = _db.session.get(RepairRecord, record.id)
+        assert updated.duplicated_repair_id == target.id
+
+        # Detail page renders the "Marked as duplicate of" link.
+        detail_resp = staff_client.get(f'/repairs/{record.id}')
+        assert b'Marked as duplicate of' in detail_resp.data
+        assert f'Repair #{target.id}'.encode() in detail_resp.data
+
+    def test_edit_post_closed_duplicate_without_target_shows_flash(
+        self, staff_client, make_equipment,
+    ):
+        """AC-17: missing duplicated_repair_id with status=Closed - Duplicate renders 200 with danger flash."""
+        eq = make_equipment()
+        # Also create a sibling so the duplicate-of dropdown has at least one option
+        # (otherwise the form coerces 0 and the request is shaped the same, but we
+        # want to be explicit).
+        sibling = RepairRecord(equipment_id=eq.id, description='Other', status='In Progress')
+        _db.session.add(sibling)
+        _db.session.commit()
+        record = RepairRecord(equipment_id=eq.id, description='Same problem', status='In Progress')
+        _db.session.add(record)
+        _db.session.commit()
+
+        resp = staff_client.post(f'/repairs/{record.id}/edit', data={
+            'status': 'Closed - Duplicate',
+            'severity': '',
+            'assignee_id': '0',
+            'specialist_description': '',
+            'duplicated_repair_id': '0',
+            'note': '',
+        }, follow_redirects=False)
+        assert resp.status_code == 200
+        # Status of underlying record unchanged
+        _db.session.expire_all()
+        assert _db.session.get(RepairRecord, record.id).status == 'In Progress'
+        # Service ValidationError surfaces via flash
+        assert b"Closed - Duplicate" in resp.data
+        assert b'duplicated_repair_id' in resp.data
+
+    def test_edit_post_transition_away_clears_link_and_flashes_info(
+        self, staff_client, make_equipment,
+    ):
+        """AC-18: status change away from Closed - Duplicate clears the link and surfaces info flash."""
+        eq = make_equipment()
+        target = RepairRecord(equipment_id=eq.id, description='Target', status='In Progress')
+        _db.session.add(target)
+        _db.session.commit()
+        record = RepairRecord(
+            equipment_id=eq.id,
+            description='Old dup',
+            status='Closed - Duplicate',
+            duplicated_repair_id=target.id,
+        )
+        _db.session.add(record)
+        _db.session.commit()
+
+        resp = staff_client.post(f'/repairs/{record.id}/edit', data={
+            'status': 'In Progress',
+            'severity': '',
+            'assignee_id': '0',
+            'specialist_description': '',
+            'duplicated_repair_id': '0',
+            'note': '',
+        }, follow_redirects=True)
+        assert resp.status_code == 200
+        assert b'Duplicate link cleared' in resp.data
+
+        _db.session.expire_all()
+        updated = _db.session.get(RepairRecord, record.id)
+        assert updated.duplicated_repair_id is None
+        # Detail page no longer shows the duplicate row
+        assert b'Marked as duplicate of' not in resp.data
+
 
 class TestAddNote:
     """Tests for POST /repairs/<id>/notes."""
