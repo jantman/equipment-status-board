@@ -149,10 +149,11 @@ Tasks are ordered by dependency: schema → model → service signature/queries 
 
 - [ ] **Task 2: Generate the Alembic migration.**
   - File: `migrations/versions/<new_revision>_add_area_sort_order.py` (new file; revision auto-generated)
-  - Action: Follow the CLAUDE.md "Database Migrations" procedure: ensure DB container is running, inspect its IP, then run `DATABASE_URL=mysql+pymysql://root:esb_dev_password@<ip>/esb flask db migrate -m "Add sort_order to areas"`. The auto-generated file will set `down_revision = '2d0213647834'` (the current head, `add_pending_notifications_table`) — verify but do not hand-edit. Edit only the body to use:
-    - `upgrade()`: `op.batch_alter_table('areas', schema=None) as batch_op: batch_op.add_column(sa.Column('sort_order', sa.Integer(), nullable=False, server_default='0'))`.
-    - `downgrade()`: `batch_op.drop_column('sort_order')`.
-  - Notes: If `flask db heads` shows a different head when you run the command, the auto-generated `down_revision` will reflect that — do not override it. Apply the migration locally via `flask db upgrade` to verify it runs clean on a populated DB. Then run `flask db downgrade` followed by `flask db upgrade` again to confirm the cycle works (with the caveat that user-set values are lost on downgrade — see Technical Decisions).
+  - Action: Follow the CLAUDE.md "Database Migrations" procedure: ensure DB container is running, inspect its IP, then run `DATABASE_URL=mysql+pymysql://root:esb_dev_password@<ip>/esb flask db migrate -m "Add sort_order to areas"`. Accept the auto-generated body as-is — for `add_column` on MariaDB, plain `op.add_column('areas', sa.Column('sort_order', sa.Integer(), nullable=False, server_default='0'))` is correct and matches the project convention (the existing `2d0213647834` migration uses `op.batch_alter_table` only for `create_index`, not for column adds). Verify only:
+    - `down_revision` is set to the current head (`'2d0213647834'` at the time of writing — `add_pending_notifications_table`).
+    - The added column is `sa.Column('sort_order', sa.Integer(), nullable=False, server_default='0')` (the `server_default='0'` is critical — without it, the NOT NULL constraint fails on the existing rows).
+    - `downgrade()` drops the column.
+  - Notes: If the auto-generated migration omits `server_default='0'` (the autogenerator does not always emit defaults from model-level `default=` values), hand-edit it in. This is the only edit that may be required.
 
 - [ ] **Task 3: Reorder `equipment_service.list_areas()`.**
   - File: `esb/services/equipment_service.py:22-28`
@@ -181,8 +182,10 @@ Tasks are ordered by dependency: schema → model → service signature/queries 
     for area_name in sorted(buckets, key=lambda n: area_sort_keys[n]):
         ...
     ```
-    Update the docstring at lines 561-566 to describe the new ordering rule. The "No Area" sentinel bucket gets `sort_order=0` and groups alphabetically with other zero-sorted areas.
-  - Notes: Without this change, `/esb-repair` would still group areas alphabetically while every other multi-area surface respects `sort_order` — a confusing inconsistency for staff. The existing test `test_option_groups_by_area_sorted_alphabetically` (`tests/test_slack/test_forms.py:609`) MUST be updated: rename to `test_option_groups_by_area_sorted_by_sort_order_then_name` and add explicit `sort_order` values to the test's areas.
+    Update the function docstring at lines 561-566 to describe the new ordering rule (replace "Across area groups, areas are presented alphabetically (A-Z)." with the `(sort_order, name)` rule).
+  - Notes: Without this change, `/esb-repair` would still group areas alphabetically while every other multi-area surface respects `sort_order` — a confusing inconsistency for staff. Test impact:
+    - The existing test `test_option_groups_by_area_sorted_alphabetically` (`tests/test_slack/test_forms.py:609`) MUST be updated: rename to `test_option_groups_by_area_sorted_by_sort_order_then_name`. Replace the existing fixture-area names (`'Alpha'`, `'Zoo'`) with three areas using mixed `sort_order` values so the assertion meaningfully distinguishes from alphabetical (e.g., names `'A'`, `'B'`, `'C'` with sort_order `10, 5, 5` → expected order `B, C, A`). Update the test's docstring to remove the stale `"AC 31"` reference and to describe the new `(sort_order, name)` ordering instead.
+    - The "No Area" sentinel bucket in the function body is defensive (`equipment.area_id` is `NOT NULL`); no test path constructs equipment without an area, so the sentinel branch is intentionally untested.
 
 - [ ] **Task 5: Extend `create_area` and `update_area` services to accept `sort_order`.**
   - File: `esb/services/equipment_service.py:71-95` (`create_area`) and `:98-137` (`update_area`)
@@ -298,11 +301,45 @@ Tasks are ordered by dependency: schema → model → service signature/queries 
 - [ ] **Task 14: Update view tests for admin area routes.**
   - File: `tests/test_views/test_admin_views.py`
   - Action:
-    - In `TestCreateAreaPost` (line 606): add `test_creates_area_with_sort_order` that POSTs `{'name': 'X', 'slack_channel': '#x', 'sort_order': '7'}` and asserts the persisted area has `sort_order == 7`. Add `test_creates_area_with_empty_sort_order_defaults_to_zero` that POSTs `sort_order=''` (explicit empty string from the rendered form) and asserts the area is created with `sort_order == 0` — this guards against the empty-string POST regression that the view-layer `None → 0` coercion (Task 7) prevents.
-    - In `TestEditArea` (line 659): add `test_updates_sort_order` that POSTs an edit with a changed `sort_order` and asserts the updated value. In `test_renders_edit_form` (line 662), extend assertions to confirm `b'Sort Order'` is present in the form HTML and that the form `value="..."` for `sort_order` matches the area's current value.
-    - In `TestAreaMutationLogging` (line 923): add `test_sort_order_change_logged` that edits only `sort_order` and asserts the logged `data.changes` dict contains a `sort_order` key whose value is `[old, new]`. Add `test_no_log_when_sort_order_unchanged` that re-saves the same value and asserts no `area.updated` log entry is emitted (the existing `if changes:` guard at `equipment_service.py:129` enforces this).
-    - In `TestArchiveArea` (line 717): add `test_archive_preserves_sort_order` that creates an area with explicit `sort_order=5`, calls the existing `archive_area` service via POST `/admin/areas/<id>/archive`, then asserts the column value via direct DB query (`_db.session.get(Area, area.id).sort_order == 5`). Do not toggle `is_archived` back via the ORM — it is not a public-API operation and there is no UI for it; the assertion on the column value is sufficient to pin "archive does not touch sort_order."
-  - Notes: No changes required to existing tests because the new form field has `Optional()` + `default=0`; absent form keys resolve to 0.
+    - **`TestCreateAreaPost` (line 606)**:
+      - Add `test_creates_area_with_sort_order`: POSTs `{'name': 'X', 'slack_channel': '#x', 'sort_order': '7'}` and asserts the persisted area has `sort_order == 7`.
+      - Add `test_creates_area_with_empty_sort_order_defaults_to_zero`: POSTs `sort_order=''` (explicit empty string from the rendered form) and asserts the area is created with `sort_order == 0` — this guards against the empty-string POST regression that the view-layer `None → 0` coercion (Task 7) prevents.
+      - Add `test_creates_area_rejects_negative_sort_order` (covers AC 6): POSTs `sort_order='-3'`, asserts `resp.status_code == 200` (re-render, not redirect), `b'Sort order must be between 0 and 999999.' in resp.data`, AND that no area row was inserted (count via `_db.session.execute(_db.select(Area)).all()`).
+      - Add `test_creates_area_rejects_over_max_sort_order` (covers AC 6): POSTs `sort_order='1000000'`, same assertions as above.
+      - Add `test_creates_area_rejects_non_integer_sort_order` (covers AC 6): POSTs `sort_order='abc'`, same assertions as above; assert that the rendered HTML contains *both* `b'Not a valid integer value.'` and `b'Sort order must be between 0 and 999999.'` (WTForms emits both).
+    - **`TestEditArea` (line 659)**:
+      - Add `test_updates_sort_order`: POSTs an edit with a changed `sort_order` and asserts the updated value.
+      - Extend `test_renders_edit_form` (line 662) to also assert `b'Sort Order'` is present in the form HTML AND that the rendered field has the area's current value. Use a regex anchored to the field's `name` attribute to avoid matching other inputs:
+        ```python
+        import re
+        assert b'Sort Order' in resp.data
+        match = re.search(rb'<input [^>]*name="sort_order"[^>]*>', resp.data)
+        assert match is not None
+        assert b'value="0"' in match.group(0)  # area created via make_area defaults to 0
+        ```
+    - **`TestListAreas` (line 530)** (covers AC 7):
+      - Add `test_table_shows_sort_order_column`: GET `/admin/areas`, assert `b'Sort Order' in resp.data` (column header) and that the rendered HTML contains the area's `sort_order` value rendered as a table cell. Use a regex anchored on the area-row structure rather than a bare substring search.
+      - Add `test_areas_listed_in_sort_order_then_name`: create three areas with mixed `sort_order` (e.g., `make_area(name='Area A', sort_order=10)`, `Area B sort_order=5`, `Area C sort_order=5`), GET `/admin/areas`, then assert the byte-positions of the names: `resp.data.find(b'Area B') < resp.data.find(b'Area C') < resp.data.find(b'Area A')`. Sentinel-check first that each `find()` returns a non-negative value.
+    - **`TestAreaMutationLogging` (line 923)**:
+      - Add `test_sort_order_change_logged`: edits only `sort_order` and asserts the logged `data.changes` dict contains a `sort_order` key whose value is `[old, new]`.
+      - Add `test_no_log_when_sort_order_unchanged`: re-saves the same value and asserts no `area.updated` log entry is emitted (the existing `if changes:` guard at `equipment_service.py:129` enforces this). Cover both the `5 → 5` and `0 → 0` cases (the latter is the more common scenario for users who never touch the field).
+    - **`TestArchiveArea` (line 717)**:
+      - Add `test_archive_preserves_sort_order`: create an area with explicit `sort_order=5`, call the existing `archive_area` service via POST `/admin/areas/<id>/archive`, then assert the column value via direct DB query (`_db.session.get(Area, area.id).sort_order == 5`). Do not toggle `is_archived` back via the ORM — it is not a public-API operation and there is no UI for it; the assertion on the column value is sufficient to pin "archive does not touch sort_order."
+  - Notes: No changes required to existing tests because the new form field has `Optional()` + `default=0`; absent form keys resolve to 0. All new tests use the extended `make_area(..., sort_order=N)` fixture from Task 10.
+
+- [ ] **Task 14b: Add view-level ordering tests for public dashboard and kiosk (covers AC 2/3/4 at the rendered-HTML layer).**
+  - File: `tests/test_views/test_public_views.py`
+  - Action: Add two tests (mirror the pattern from `TestListAreas::test_areas_listed_in_sort_order_then_name`):
+    - `test_status_dashboard_renders_areas_in_sort_order_then_name`: GET `/`, assert area-name byte positions in `resp.data` reflect `(sort_order, name)`. Each area needs at least one piece of equipment because the public dashboard renders area sections regardless, but kiosk filters empties.
+    - `test_kiosk_renders_areas_in_sort_order_then_name`: GET `/kiosk`, same assertion pattern (with each area populated).
+  - Notes: Sentinel-check `find()` results to be non-negative before the comparison chain (otherwise `-1 < N` silently passes for missing names). Pattern:
+    ```python
+    pos_b = resp.data.find(b'Area B')
+    pos_c = resp.data.find(b'Area C')
+    pos_a = resp.data.find(b'Area A')
+    assert pos_b >= 0 and pos_c >= 0 and pos_a >= 0, 'one or more area names missing from response'
+    assert pos_b < pos_c < pos_a
+    ```
 
 - [ ] **Task 15: Add ordering regression tests for dropdown surfaces.**
   - File: `tests/test_views/test_equipment_views.py` and `tests/test_views/test_repair_views.py` (or extend existing test files that cover these views)
@@ -325,14 +362,26 @@ Tasks are ordered by dependency: schema → model → service signature/queries 
   - Action: Add `test_format_status_summary_respects_area_sort_order`. Create three areas with mixed `sort_order` plus one piece of equipment in each; call `format_status_summary(status_service.get_area_status_dashboard())`; assert area-header line order. Use string-position assertions rather than naive line splitting because the function interleaves area-count lines with non-green equipment bullet lines:
     ```python
     summary = format_status_summary(status_service.get_area_status_dashboard())
-    assert summary.find('Area B') < summary.find('Area C') < summary.find('Area A')
+    pos_b = summary.find('Area B')
+    pos_c = summary.find('Area C')
+    pos_a = summary.find('Area A')
+    assert pos_b >= 0 and pos_c >= 0 and pos_a >= 0, 'area names missing from summary'
+    assert pos_b < pos_c < pos_a
     ```
-    Do not split on `\n` — equipment bullets containing area-name substrings would match incorrectly.
+    Do not split on `\n` — equipment bullets containing area-name substrings would match incorrectly. Sentinel-check `find()` results to defend against silent passes when a name is missing (`-1 < N` is always True).
   - Notes: For `format_status_summary` itself, no production code change is needed (it consumes whatever order `get_area_status_dashboard()` returns). The dispatcher modal IS a code change (see Task 4b).
 
 - [ ] **Task 17: Add static page export ordering integration test.**
   - File: `tests/test_services/test_static_page_service.py` (file exists; extend the existing `TestGenerate` class)
-  - Action: Add `test_generate_orders_areas_by_sort_order_then_name` to the `TestGenerate` class. Create three areas with mixed `sort_order` (e.g., `make_area(name='Area A', sort_order=10)`, `make_area(name='Area B', sort_order=5)`, `make_area(name='Area C', sort_order=5)`) plus one piece of equipment in each; invoke `static_page_service.generate()`; assert area-name positions in the resulting HTML using `html.find('Area B') < html.find('Area C') < html.find('Area A')`.
+  - Action: Add `test_generate_orders_areas_by_sort_order_then_name` to the `TestGenerate` class. Create three areas with mixed `sort_order` (e.g., `make_area(name='Area A', sort_order=10)`, `make_area(name='Area B', sort_order=5)`, `make_area(name='Area C', sort_order=5)`) plus one piece of equipment in each; invoke `static_page_service.generate()`; sentinel-check that each area name appears in the HTML before asserting positions:
+    ```python
+    pos_b = html.find('Area B')
+    pos_c = html.find('Area C')
+    pos_a = html.find('Area A')
+    assert pos_b >= 0 and pos_c >= 0 and pos_a >= 0, 'area names missing from rendered HTML'
+    assert pos_b < pos_c < pos_a
+    ```
+    Without the sentinel, `find()` returning `-1` for a missing name silently passes the comparison.
   - Notes: The file already imports `app`, `make_area`, `make_equipment` fixtures via the project conftest. Use the same `make_area` / `make_equipment` pattern as the existing `test_returns_html_with_area_and_equipment` test. Do NOT create a new test module.
 
 - [ ] **Task 18: Bump `pyproject.toml` version to `0.7.0` (per CLAUDE.md "Releases").**
@@ -344,6 +393,15 @@ Tasks are ordered by dependency: schema → model → service signature/queries 
   - File: (commands)
   - Action: Run `make test` and `make lint`. Address any failures before considering the task done.
   - Notes: Per CLAUDE.md, ruff is configured at 120 chars / target py3.13.
+
+- [ ] **Task 20: Verify the migration manually against MariaDB (covers AC 1).**
+  - File: (commands; no source change)
+  - Action: AC 1 — that the migration backfills existing rows to `sort_order=0` — has no automated test (the test fixture uses `db.create_all()` from models, not Alembic). Verify manually:
+    1. Ensure the DB container is running (`docker compose up -d db`) and contains pre-existing area rows. If the DB is empty, insert two rows with the OLD schema (i.e., before applying this migration) — for example, by checking out `main`, running `make migrate`, then creating areas via `/admin/areas/new`.
+    2. Switch to the issue branch and apply the new migration: `DATABASE_URL=mysql+pymysql://root:esb_dev_password@<container_ip>/esb flask db upgrade`.
+    3. Connect to the DB (`docker exec -it equipment-status-board-db-1 mariadb -uroot -pesb_dev_password esb`) and run `SELECT id, name, sort_order FROM areas;`. All pre-existing rows MUST show `sort_order=0`.
+    4. Run `flask db downgrade` then `flask db upgrade` again to confirm the cycle works structurally (with the documented caveat that user-set values are lost on downgrade).
+  - Notes: Cannot be automated in CI without a MariaDB-backed test job. Document the verification result in the PR description.
 
 ### Acceptance Criteria
 
@@ -384,7 +442,7 @@ Tasks are ordered by dependency: schema → model → service signature/queries 
   Given areas with explicit `sort_order` values and equipment in each, when `esb/slack/forms.py:format_status_summary` is invoked with the result of `get_area_status_dashboard()`, then the per-area lines in the returned summary text appear in `(sort_order, name)` order.
 
 - [ ] **AC 12b — Slack `/esb-repair` dispatcher modal area groups respect the new ordering:**
-  Given multiple areas with mixed `sort_order` values and at least one open repair record per area, when `build_repair_dispatcher_modal(open_records)` is invoked, then the modal's `option_groups` array is ordered by `(sort_order, name)` rather than alphabetical-by-name. The `'No Area'` sentinel bucket sorts as `sort_order=0` (alongside other zero-sorted areas, alphabetically).
+  Given multiple areas with mixed `sort_order` values and at least one open repair record per area, when `build_repair_dispatcher_modal(open_records)` is invoked, then the modal's `option_groups` array is ordered by `(sort_order, name)` rather than alphabetical-by-name. (The `'No Area'` sentinel bucket in the function body is unreachable in production because `equipment.area_id` is `NOT NULL` per `esb/models/equipment.py`; the defensive code remains for safety but is not part of any AC.)
 
 - [ ] **AC 13 — Equipment and repair-form dropdowns reflect the new ordering:**
   Given areas with explicit `sort_order` values, when a staff user loads `/equipment`, `/equipment/new`, `/equipment/<id>/edit`, or `/repairs/queue`, then the `<option>` elements in each area dropdown appear in `(sort_order, name)` order.
@@ -408,11 +466,13 @@ Tasks are ordered by dependency: schema → model → service signature/queries 
   - Defensive int coercion: `create_area(sort_order='7')` is accepted and `area.sort_order == 7` (covered by the new tests).
 - **View tests (admin):**
   - POST flows for create/edit with `sort_order` set (`'7'`), empty (`''`), and omitted (Task 14).
-  - Validation rejection of negative values and values above `max=999999`.
-  - Mutation logging round-trip including the no-op (unchanged) case.
-  - Form re-render shows current value via `obj=area` on edit.
+  - Validation rejection of negative values, values above `max=999999`, and non-integer input (`'abc'`) — covers AC 6 (Task 14).
+  - Admin areas list (`/admin/areas`) shows the `Sort Order` column header and renders areas in `(sort_order, name)` order — covers AC 7 (Task 14, `TestListAreas`).
+  - Mutation logging round-trip including both no-op cases (`5→5` and `0→0`).
+  - Form re-render shows current value via `obj=area` on edit (with regex anchored to the `name="sort_order"` attribute).
   - Archive preserves `sort_order` (`TestArchiveArea::test_archive_preserves_sort_order`).
   - Existing tests must remain green without payload changes (AC 10).
+- **View tests (public dashboard / kiosk):** New ordering regression tests at the rendered-HTML layer for `/` (status dashboard) and `/kiosk` — covers AC 2/3/4 at the view layer (Task 14b).
 - **View tests (dropdowns):** New regression tests for area dropdown order on `/equipment`, `/equipment/new`, `/equipment/<id>/edit`, and `/repairs/queue` (Task 15).
 - **Slack tests:** New ordering test for `format_status_summary` (Task 16) in `tests/test_slack/test_forms.py`.
 - **Static page tests:** New ordering integration test for `static_page_service.generate()` (Task 17) in `tests/test_services/test_static_page_service.py`.
