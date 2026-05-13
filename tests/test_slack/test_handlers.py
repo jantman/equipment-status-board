@@ -392,6 +392,45 @@ class TestEsbUpdateCommand:
         assert modal['callback_id'] == 'repair_update_submission'
         assert modal['private_metadata'] == str(self.record.id)
 
+    def test_modal_status_options_include_closed_duplicate_when_record_is_already(self):
+        """If the record's current status is already Closed - Duplicate, the
+        option must remain so Slack does not reject the modal (initial_option
+        must exist in options).
+        """
+        # Need a second repair to satisfy the service-layer validation for the
+        # existing Closed - Duplicate record. Then create one with that status.
+        target = _create_repair_record(
+            equipment=self.equipment, status='In Progress', description='target',
+        )
+        from esb.models.repair_record import RepairRecord
+        dup_record = RepairRecord(
+            equipment_id=self.equipment.id,
+            description='already closed as dup',
+            status='Closed - Duplicate',
+            duplicated_repair_id=target.id,
+        )
+        self.db.session.add(dup_record)
+        self.db.session.commit()
+
+        ack = MagicMock()
+        client = MagicMock()
+        client.users_info.return_value = {
+            'user': {'profile': {'email': self.staff_user.email}},
+        }
+        body = {
+            'trigger_id': 'T123', 'user_id': 'U123', 'channel_id': 'C123',
+            'text': str(dup_record.id),
+        }
+
+        self.handlers['command:/esb-update'](ack=ack, body=body, client=client)
+
+        modal = client.views_open.call_args.kwargs['view']
+        status_block = next(b for b in modal['blocks'] if b.get('block_id') == 'status_block')
+        values = [o['value'] for o in status_block['element']['options']]
+        assert 'Closed - Duplicate' in values
+        # initial_option set to the record's current status -- must also be in options.
+        assert status_block['element']['initial_option']['value'] == 'Closed - Duplicate'
+
     def test_modal_status_options_exclude_closed_duplicate(self):
         """Closed - Duplicate filtered from /esb-update modal: the update flow
         does not collect a dup target, so setting that status here would always

@@ -503,6 +503,13 @@ def update_repair_record(
         assignee_id (int | None): New assignee user ID, or None to unassign.
         eta (date | None): New ETA date, or None to clear.
         specialist_description (str | None): Free-text description for specialist needs.
+        duplicated_repair_id (int | None): Repair this record duplicates. Must be a
+            different record on the same equipment. Required iff status is
+            ``'Closed - Duplicate'``. Transitioning status away from
+            ``'Closed - Duplicate'`` clears this field (silently when the kwarg
+            is omitted by the caller; the web edit flow forces None explicitly).
+            Cannot be set non-None when status is anything other than
+            ``'Closed - Duplicate'``. See module-level docs for full rules.
         note (str | None): Optional note text to add to timeline.
 
     Returns:

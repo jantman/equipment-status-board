@@ -731,10 +731,7 @@ def build_repair_action_modal(repair_record):
     if candidates:
         def _label(r):
             prefix = f'#{r.id} [{r.status}] '
-            budget = 75 - len(prefix)
-            if len(r.description) <= budget:
-                return prefix + r.description
-            return prefix + r.description[: max(0, budget - 1)].rstrip() + '…'
+            return prefix + _truncate(r.description, 75 - len(prefix))
 
         dup_options = [
             {

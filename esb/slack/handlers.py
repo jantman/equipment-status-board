@@ -369,13 +369,16 @@ def register_handlers(bolt_app, app):
             from esb.models.repair_record import REPAIR_SEVERITIES, REPAIR_STATUSES
             from esb.slack.forms import build_repair_update_modal, build_user_options
 
-            # Exclude Closed - Duplicate: this modal has no dup-target selector,
-            # and the service rejects status='Closed - Duplicate' without a target.
-            # Users wanting to mark as duplicate must use the action modal
-            # (/esb-repair → pick → Set Status).
+            # Exclude Closed - Duplicate so users cannot *newly* select it via
+            # this modal (no dup-target selector here, service would reject).
+            # BUT if the record's current status is already Closed - Duplicate
+            # we must keep the option, otherwise Slack rejects the modal -- the
+            # builder sets initial_option to record.status, which must exist in
+            # the options list.
             status_options = [
                 {'text': {'type': 'plain_text', 'text': s}, 'value': s}
-                for s in REPAIR_STATUSES if s != 'Closed - Duplicate'
+                for s in REPAIR_STATUSES
+                if s != 'Closed - Duplicate' or record.status == 'Closed - Duplicate'
             ]
             severity_options = [
                 {'text': {'type': 'plain_text', 'text': s}, 'value': s}
