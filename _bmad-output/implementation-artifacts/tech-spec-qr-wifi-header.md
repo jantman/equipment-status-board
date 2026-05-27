@@ -119,14 +119,14 @@ The `wifi_info` field uses these values throughout the stack (form, view, servic
     - `wifi_ssid = StringField('WiFi Network Name (SSID)', validators=[Length(max=100)])` — optional text field
     - `wifi_password = StringField('WiFi Password', validators=[Length(max=100)])` — optional text field
     - `wifi_info_default = SelectField('Default WiFi Info on QR Labels', choices=[('none', 'None'), ('header', 'WiFi header only'), ('ssid', 'WiFi header + SSID'), ('password', 'WiFi header + SSID + Password')])` — dropdown with all four values. Choices are static (all shown in admin regardless of config state); the QR form is where we filter dynamically. Note: admin labels are plain text (no emoji) for clarity.
-  - Notes: Import `Length` validator (already imported in the file). The admin always sees all four options so they can set a default even before configuring SSID/password — they may configure SSID later.
+  - Notes: Import `Length` validator (already imported in the file). The admin always sees all four options so they can set a default even before configuring SSID/password — they may configure SSID later. Add `form-text` help under the default dropdown: "If the selected default requires SSID or password that is not configured above, users will see 'None' selected instead."
 
 - [ ] **Task 3: Update Admin Config view to handle WiFi settings**
   - File: `esb/views/admin.py`
   - Action: In the `app_config()` view function:
     - **GET**: Populate `form.wifi_ssid.data`, `form.wifi_password.data`, and `form.wifi_info_default.data` from `config_service.get_config()` with defaults `''`, `''`, and `'none'` respectively.
     - **POST**: Add a second loop after the existing boolean `config_keys` loop. Define `string_config_keys = [('wifi_ssid', ''), ('wifi_password', ''), ('wifi_info_default', 'none')]`. For each `(key, default)`, read `new_value = (getattr(form, key).data or '').strip()`, compare to `config_service.get_config(key, default)`, and call `set_config(key, new_value, changed_by=current_user.username)` if changed.
-  - Notes: This is a separate loop from the boolean keys because string fields use the raw value directly (no `'true'`/`'false'` conversion). The `.strip()` prevents trailing whitespace in SSID/password values.
+  - Notes: This is a separate loop from the boolean keys because string fields use the raw value directly (no `'true'`/`'false'` conversion). The `.strip()` prevents trailing whitespace in SSID/password values. **Important**: For `wifi_info_default` (a SelectField), if the field is missing from POST data, WTForms sets `.data` to `None`. The coercion `(None or '').strip()` produces `''`, which differs from the default `'none'`, causing a spurious write. Fix: use `(getattr(form, key).data or default).strip()` instead of `(getattr(form, key).data or '').strip()` so that missing/None values fall back to the configured default, not empty string.
 
 - [ ] **Task 4: Update Admin Config template with WiFi section**
   - File: `esb/templates/admin/config.html`
@@ -179,7 +179,7 @@ The `wifi_info` field uses these values throughout the stack (form, view, servic
     - Call `_get_wifi_default()` to get the default.
     - Instantiate `QRGenerateForm(wifi_choices=choices)`.
     - On GET, set `form.wifi_info.data = default` if not already submitted.
-    - On POST (`validate_on_submit`), pass `wifi_info=form.wifi_info.data` and `wifi_ssid`/`wifi_password` values to `render_qr_png()`.
+    - On POST: Re-compute WiFi choices from current config (config may have changed since GET). If `form.wifi_info.data` is not in the current choices, apply the same graceful-degradation clamping as the preview endpoint (password→ssid→header→none). This handles the race condition where admin changes config between the user's GET and POST. Then pass the (possibly clamped) `wifi_info` and wifi config values to `render_qr_png()`. Note: do NOT rely solely on `validate_on_submit()` for this — WTForms SelectField validation would reject a value not in choices and silently re-render the form with no explanation.
     - Update the audit log line to include `wifi_info`: `'QR downloaded: user=%s equipment_id=%s preset=%s include_name=%s include_url=%s wifi_info=%s'`.
     - Pass wifi config to template context for initial preview URL.
   - Action in `qr_preview()`:
@@ -199,18 +199,26 @@ The `wifi_info` field uses these values throughout the stack (form, view, servic
     - `'header'` → 1 row: emoji + "Must be on WiFi"
     - `'ssid'` → 2 rows: header + "Network: {wifi_ssid}"
     - `'password'` → 3 rows: header + SSID + "Password: {wifi_password}"
-  - Action: Calculate text row heights using a unified budget system. The **total text budget** is capped at 55% of canvas height. ALL text rows (WiFi rows, equipment name, URL) share this budget. Steps:
-    1. Compute `min_row_px = _pt_to_px(_MIN_FONT_PT) + 4` (minimum font height + 4px padding = 37px at 300 DPI). This is the absolute floor for any text row.
-    2. Count total text rows: `num_text_rows = num_wifi_rows + (1 if include_name else 0) + (1 if include_url else 0)`.
-    3. If `num_text_rows == 0`, skip all text layout.
-    4. Compute `budget = int(canvas_h_px * 0.55)`.
-    5. Compute `row_height = budget // num_text_rows`.
-    6. If `row_height < min_row_px`: not enough space for all rows at minimum font size. Reduce rows by dropping WiFi rows from bottom up (password first, then SSID, then header) until `budget // remaining_rows >= min_row_px` or WiFi rows reach 0. Log a warning for each dropped WiFi row.
-    7. Final `row_height = budget // num_text_rows` (after any drops).
-    8. `reserved_wifi = num_wifi_rows * row_height`.
-    9. `reserved_top = row_height if include_name else 0` (was hardcoded 15% — now shares the budget).
-    10. `reserved_bottom = row_height if include_url else 0` (same change).
-    This unified budget ensures all text rows get equal height, WiFi + name + URL always fits within 55%, and the QR code gets at least 45% of canvas. WiFi rows at top, name row next, QR in middle, URL at bottom.
+  - Action: Calculate text row heights using a **two-mode layout system** that preserves backward compatibility:
+
+    **Mode A — No WiFi (`num_wifi_rows == 0`)**: Use the EXISTING layout logic unchanged:
+    - `reserved_top = int(canvas_h_px * 0.15) if include_name else 0`
+    - `reserved_bottom = int(canvas_h_px * 0.15) if include_url else 0`
+    - `reserved_wifi = 0`
+    This ensures pixel-identical output for `wifi_info='none'` (AC 13).
+
+    **Mode B — WiFi active (`num_wifi_rows > 0`)**: Use a budget system for WiFi rows only. Name/URL rows keep their existing 15% allocation:
+    1. `reserved_top = int(canvas_h_px * 0.15) if include_name else 0`
+    2. `reserved_bottom = int(canvas_h_px * 0.15) if include_url else 0`
+    3. `min_row_px = _pt_to_px(_MIN_FONT_PT) + 4` (= 37px at 300 DPI). Absolute floor for WiFi rows.
+    4. `wifi_budget = int(canvas_h_px * 0.30)` — WiFi rows share up to 30% of canvas height.
+    5. `wifi_row_height = wifi_budget // num_wifi_rows`.
+    6. `wifi_row_height = max(wifi_row_height, min_row_px)` — never below min font.
+    7. If `reserved_top + reserved_bottom + num_wifi_rows * wifi_row_height > int(canvas_h_px * 0.55)`: drop WiFi rows from bottom up (password → SSID → header) until total fits or WiFi rows reach 0. Update a local `effective_wifi_rows` variable (and corresponding `effective_wifi_info` — e.g., 'password'→'ssid' if password row dropped). Log a warning for each dropped row. **All subsequent rendering must use `effective_wifi_rows` / `effective_wifi_info`, not the original `wifi_info` parameter.**
+    8. `wifi_row_height = min(wifi_budget // effective_wifi_rows, wifi_budget)` if `effective_wifi_rows > 0`, else 0.
+    9. `reserved_wifi = effective_wifi_rows * wifi_row_height`.
+
+    This keeps name/URL at their existing 15% sizes, gives WiFi rows up to 30%, and caps total text at 55% (15% + 15% + 30% max = 60% before capping; the drop loop handles overflow). The QR code gets at least 45% of canvas. WiFi rows at top, name row next, QR in middle, URL at bottom.
   - Action: Update ALL layout math to account for `reserved_wifi`:
     - `avail = min(canvas_w_px, canvas_h_px - reserved_wifi - reserved_top - reserved_bottom) - margin` — QR sizing must subtract `reserved_wifi` or the QR code will be oversized.
     - Equipment name row top: `row_top = reserved_wifi` (was `0`).
@@ -221,7 +229,13 @@ The `wifi_info` field uses these values throughout the stack (form, view, servic
     - For the header row: render the 🛜 emoji using Noto Emoji font, then "Must be on WiFi" text using DejaVuSans-Bold, positioned side-by-side and centered horizontally.
     - For SSID/password rows: render using `_draw_text_row()` with DejaVuSans-Bold as usual.
   - Notes: Add a `_draw_wifi_header_row()` helper for the compound emoji+text rendering. Load Noto Emoji font path as `os.path.join(current_app.static_folder, 'fonts', 'NotoEmoji-Bold.ttf')`. Include an `os.path.isfile()` guard with a diagnostic `RuntimeError` matching the existing pattern in `_draw_text_row()` (e.g., "QR WiFi emoji font missing at {path}. Ensure NotoEmoji-Bold.ttf is vendored in esb/static/fonts/.").
-    **Sizing strategy for compound render**: Start with emoji height = `row_height - 4` (leave padding). Measure emoji width at that size. Then call `_fit_text('Must be on WiFi', max_width_px=max_text_width - emoji_width - gap, max_height_px=row_height, ...)` to get the text font+rendered string. Position emoji and text side-by-side, vertically centered within the row, horizontally centered as a group. If the combined width exceeds `max_text_width` (1.2× QR width), the text auto-shrinks/truncates via `_fit_text` since it receives the reduced `max_width_px`. On very narrow presets where even the emoji alone is wider than the canvas, fall back to text-only "Must be on WiFi" (no emoji).
+    **Sizing strategy for compound render**: 
+    1. Call `_fit_text('Must be on WiFi', max_width_px=int(max_text_width * 0.75), max_height_px=wifi_row_height, ...)` to get the text font + rendered string. This gives text up to 75% of `max_text_width`.
+    2. Set `emoji_size_px = text_font.size` (match the emoji to the *final* text font size, so they look proportional even after text shrinks).
+    3. Load emoji font at `emoji_size_px`. Measure emoji width.
+    4. If `emoji_width + gap + text_width > max_text_width`, re-run `_fit_text` with further reduced `max_width_px` to accommodate the emoji.
+    5. Position emoji and text side-by-side, vertically centered within the row, horizontally centered as a group.
+    6. If even the emoji alone at `min_row_px` is wider than `max_text_width`, fall back to text-only "Must be on WiFi" (no emoji). Note: the threshold is `max_text_width` (1.2× QR width), not canvas width.
 
 - [ ] **Task 9: Update QR form template with WiFi dropdown**
   - File: `esb/templates/equipment/qr.html`
@@ -251,11 +265,11 @@ The `wifi_info` field uses these values throughout the stack (form, view, servic
     - `test_wifi_ssid_renders_two_rows` — with `wifi_info='ssid'`, verify both header and SSID regions have non-white pixels.
     - `test_wifi_password_renders_three_rows` — with `wifi_info='password'`, verify all three WiFi regions have non-white pixels.
     - `test_wifi_header_qr_still_decodes` — with `wifi_info='header'`, verify pyzbar can still decode the QR payload (text didn't overlap QR region).
-    - `test_wifi_info_none_no_reserved_space` — with `wifi_info='none'`, verify that `reserved_wifi == 0` (no extra space allocated). Do this by checking the image dimensions match the preset exactly (same as without WiFi params) AND that the top row region (where WiFi would be) is all white. This validates backward compatibility more meaningfully than comparing the function's output to itself.
+    - `test_wifi_info_none_backward_compatible` — Render the same equipment item twice: once with `wifi_info='none'` (the new default) and once without the `wifi_info` parameter at all (to simulate pre-feature behavior). Decode both to RGB pixel arrays and assert they are identical. This validates AC 13's pixel-identity guarantee. Additionally, render with `wifi_info='none'` + `include_name=True` and verify the name row starts at `y=0` (not shifted down) — confirming `reserved_wifi == 0`.
     - `test_wifi_header_small_preset_renders_or_skips` — with `wifi_info='header'` on `sticker_1` preset, verify either: (a) the image renders successfully with non-white pixels at top and a decodable QR, OR (b) if the preset is too small for WiFi rows (row_height < min_row_px after capping), the image renders without WiFi info (graceful skip). This ensures the small-preset guard logic works.
     - `test_wifi_all_rows_small_preset` — with `wifi_info='password'` on `avery_5160` (shortest height preset with WiFi), verify the adaptive sizing either renders with capped row heights or gracefully skips WiFi.
   - Notes: Follow existing test patterns (pixel inspection, pyzbar decode). Use `sticker_4` for happy-path tests where room is guaranteed. Also test at least one small preset (`sticker_1` or `avery_5160`) for the edge cases.
-    To compute pixel boundaries in tests, replicate the unified budget math: `budget = int(canvas_h * 0.55)`, `num_text_rows = num_wifi_rows + include_name + include_url`, `row_height = budget // num_text_rows`. WiFi row N occupies `y=N*row_height` to `y=(N+1)*row_height`. Equipment name row (if present) starts at `y=num_wifi_rows*row_height`. Crop and inspect each region independently.
+    To compute pixel boundaries in tests, replicate the two-mode layout: when `num_wifi_rows > 0`, `wifi_budget = int(canvas_h * 0.30)`, `wifi_row_height = max(wifi_budget // num_wifi_rows, min_row_px)`, `reserved_wifi = num_wifi_rows * wifi_row_height`. WiFi row N occupies `y=N*wifi_row_height` to `y=(N+1)*wifi_row_height`. Name row starts at `y=reserved_wifi` with height `int(canvas_h * 0.15)`. When `num_wifi_rows == 0`, use existing 15% math unchanged. Crop and inspect each region independently.
 
 - [ ] **Task 12: Add QR view tests for WiFi functionality**
   - File: `tests/test_views/test_equipment_views.py`
@@ -340,7 +354,7 @@ New vendored font: `NotoEmoji-Bold.ttf` (static Bold instance, ~200-400 KB) extr
 ### Notes
 
 - **Font limitation resolved**: DejaVuSans-Bold.ttf does NOT contain U+1F6DC (WiFi emoji). Verified via fontTools cmap inspection. Solution: bundle Google's Noto Emoji monochrome font (Bold static instance extracted from the variable font) which contains the glyph as a clean black-and-white WiFi icon (concentric arcs + dot in a rounded square). Rendering uses NotoEmoji-Bold.ttf for the emoji, DejaVuSans-Bold for text. U+1F6DC presence was verified in the source variable font via `fontTools` cmap check; Task 1 includes a verification step for the extracted static instance.
-- For very small label presets (1"×1"), adding WiFi header rows reduces available QR space. The unified text budget (Task 8) allocates 55% of canvas to all text rows equally. If rows can't fit at the minimum font height (37px at 300 DPI), WiFi rows are dropped from bottom up (password → SSID → header) until the remaining rows fit. This prevents both vertical text overflow and QR code sizing failures on small presets.
+- For very small label presets (1"×1"), adding WiFi header rows reduces available QR space. The two-mode layout (Task 8) preserves existing 15% name/URL sizing when WiFi is off, and allocates up to 30% for WiFi rows when active, capped so total text never exceeds 55%. If WiFi rows can't fit at minimum font height (37px at 300 DPI), they're dropped from bottom up (password → SSID → header). This prevents both vertical text overflow and QR code sizing failures on small presets.
 - The `_fit_text()` function handles graceful degradation: if text is too wide, it shrinks the font down to 8pt, then truncates with ellipsis. This will naturally handle long SSIDs/passwords.
-- **Pre-existing latent bug in `_fit_text`**: The step-based shrink loop (`size_px -= step`) can skip `min_px` when `max_height_px` is not congruent to `min_px` modulo `step`. WiFi text (SSID/password strings) is more likely to hit this than short equipment names. As part of Task 8, add a final attempt at exactly `min_px` before falling through to truncation: after the while loop, if `size_px < min_px`, try once at `min_px`.
+- **Pre-existing latent bug in `_fit_text`**: The step-based shrink loop (`size_px -= step`) can skip `min_px` when `max_height_px` is not congruent to `min_px` modulo `step`. WiFi text (SSID/password strings) is more likely to hit this than short equipment names. As part of Task 8, fix this: after the while loop exits (with `size_px < min_px`), check whether the **full text** fits at exactly `min_px`: `font = _load_font(font_path, min_px); if width_at(text, font) <= max_width_px: return font, text`. The font is already loaded at `min_px` on line 179 of the current code — the missing piece is the width check before jumping to truncation.
 - The `_load_font()` function uses `@lru_cache(maxsize=64)` keyed on `(font_path, size_px)`. The vendored `NotoEmoji-Bold.ttf` is a static font, so it works with this cache without modification. No variable-font axis handling needed at runtime.
