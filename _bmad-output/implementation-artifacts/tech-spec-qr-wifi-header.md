@@ -5,7 +5,7 @@ created: '2026-05-26'
 status: 'ready-for-dev'
 stepsCompleted: [1, 2, 3, 4]
 tech_stack: ['Python 3.14', 'Flask', 'Flask-SQLAlchemy', 'Flask-WTF/WTForms', 'Pillow', 'qrcode', 'MariaDB (Docker)', 'Alembic']
-files_to_modify: ['esb/services/qr_service.py', 'esb/forms/equipment_forms.py', 'esb/views/equipment.py', 'esb/forms/admin_forms.py', 'esb/views/admin.py', 'esb/templates/equipment/qr.html', 'esb/templates/admin/config.html', 'esb/static/js/app.js', 'esb/static/fonts/NotoEmoji[wght].ttf (new)', 'esb/static/fonts/OFL-NotoEmoji.txt (new)', 'tests/test_services/test_qr_service.py', 'tests/test_views/test_equipment_views.py', 'tests/test_views/test_admin_views.py']
+files_to_modify: ['esb/services/qr_service.py', 'esb/forms/equipment_forms.py', 'esb/views/equipment.py', 'esb/forms/admin_forms.py', 'esb/views/admin.py', 'esb/templates/equipment/qr.html', 'esb/templates/admin/config.html', 'esb/static/js/app.js', 'esb/static/fonts/NotoEmoji-Bold.ttf (new)', 'esb/static/fonts/OFL-NotoEmoji.txt (new)', 'tests/test_services/test_qr_service.py', 'tests/test_views/test_equipment_views.py', 'tests/test_views/test_admin_views.py']
 code_patterns: ['service-layer delegation', 'config_service.get_config(key, default) / set_config(key, value, changed_by)', 'AppConfigForm with BooleanField/StringField + admin view GET-populate/POST-save pattern', 'QR render_qr_png builds Pillow canvas with reserved_top/reserved_bottom text rows', '_draw_text_row auto-sizes text via _fit_text with DejaVuSans-Bold.ttf', 'QR form JS live-preview debounces change events and rebuilds URLSearchParams', 'QRGenerateForm uses WTForms SelectField/BooleanField']
 test_patterns: ['SQLite in-memory DB (TestingConfig)', 'CSRF disabled in tests', 'staff_client/tech_client/client fixtures', 'configured_base_url fixture sets ESB_BASE_URL', 'monkeypatch for error path testing', 'pyzbar.decode for QR payload verification', 'Pillow pixel inspection for text rendering verification']
 ---
@@ -24,7 +24,7 @@ ESB is only accessible on the LAN, but QR codes printed on equipment labels don'
 
 Add a "Must be on WiFi" header row at the very top of generated QR label images, with optional SSID and password text below it. WiFi detail level is controlled via a dropdown on the QR generation form with hierarchical options (None / Header only / Header+SSID / Header+SSID+Password). SSID and password values are stored as runtime `AppConfig` settings managed through the existing Admin UI at `/admin/config`. Dropdown options that require unconfigured values are hidden from the form. The default dropdown selection is also configurable via Admin UI.
 
-**Font note:** The WiFi emoji (🛜 U+1F6DC) is NOT in DejaVuSans-Bold.ttf. We will bundle Google's **Noto Emoji** monochrome font (`NotoEmoji[wght].ttf`, ~1.9 MB, SIL OFL 1.1 license) which contains the glyph as a clean black-and-white WiFi icon. The rendering code uses Noto Emoji for the 🛜 character and DejaVuSans-Bold for all text.
+**Font note:** The WiFi emoji (🛜 U+1F6DC) is NOT in DejaVuSans-Bold.ttf. We will bundle a static Bold instance of Google's **Noto Emoji** monochrome font (`NotoEmoji-Bold.ttf`, ~200-400 KB, SIL OFL 1.1 license) extracted from the variable font at vendoring time using `fontTools`. It renders the glyph as a clean black-and-white WiFi icon. The rendering code uses Noto Emoji for the 🛜 character and DejaVuSans-Bold for all text.
 
 ### Scope
 
@@ -55,20 +55,20 @@ Add a "Must be on WiFi" header row at the very top of generated QR label images,
 
 ### Files to Reference
 
-| File | Purpose | Key Lines |
-| ---- | ------- | --------- |
-| `esb/services/qr_service.py` | QR rendering — `render_qr_png()`, `_draw_text_row()`, `_fit_text()` | L56-129 (render), L132-154 (draw_text), L157-193 (fit_text) |
-| `esb/services/config_service.py` | `get_config(key, default)` / `set_config(key, value, changed_by)` | L13-28, L31-71 |
-| `esb/forms/equipment_forms.py` | `QRGenerateForm` — size, include_name, include_url | L130-141 |
-| `esb/forms/admin_forms.py` | `AppConfigForm` — existing config form fields | L33-42 |
-| `esb/views/equipment.py` | `qr()` and `qr_preview()` route handlers | L233-307 |
-| `esb/views/admin.py` | `app_config()` — GET populate, POST iterate config_keys | L247-290 |
-| `esb/templates/equipment/qr.html` | QR form with live preview `#qr-preview` img | Full file (48 lines) |
-| `esb/templates/admin/config.html` | Admin config page — card sections with form fields | Full file (93 lines) |
-| `esb/static/js/app.js` | QR preview JS — debounced change handler builds URLSearchParams | L239-261 |
-| `tests/test_services/test_qr_service.py` | QR service tests — pixel inspection, pyzbar decode, fit_text | Full file (307 lines) |
-| `tests/test_views/test_equipment_views.py` | QR view tests — form rendering, download, preview | L1549-1740 |
-| `tests/test_views/test_admin_views.py` | Admin config tests — GET form, POST save, mutation logging | L890-953, L955-1050 |
+| File | Purpose | Key Symbols |
+| ---- | ------- | ----------- |
+| `esb/services/qr_service.py` | QR rendering | `render_qr_png()`, `_draw_text_row()`, `_fit_text()`, `_load_font()`, `QR_SIZE_PRESETS` |
+| `esb/services/config_service.py` | Runtime config CRUD | `get_config(key, default)`, `set_config(key, value, changed_by)` |
+| `esb/forms/equipment_forms.py` | QR form definition | `QRGenerateForm` class — `size`, `include_name`, `include_url` fields |
+| `esb/forms/admin_forms.py` | Admin config form | `AppConfigForm` class |
+| `esb/views/equipment.py` | QR route handlers | `qr()` (GET/POST), `qr_preview()` (GET) |
+| `esb/views/admin.py` | Admin config route | `app_config()` — GET populate, POST iterate `config_keys` |
+| `esb/templates/equipment/qr.html` | QR form with live preview | `#qr-form`, `#qr-preview` img, `data-preview-base` |
+| `esb/templates/admin/config.html` | Admin config page | Card sections with form fields |
+| `esb/static/js/app.js` | QR preview JS | IIFE block: `#qr-form` change listener, `URLSearchParams`, debounce |
+| `tests/test_services/test_qr_service.py` | QR service tests | `TestRenderQRPng`, `TestFitText` — pixel inspection, pyzbar decode |
+| `tests/test_views/test_equipment_views.py` | QR view tests | `TestEquipmentQR` — form rendering, download, preview |
+| `tests/test_views/test_admin_views.py` | Admin config tests | `TestAppConfig`, `TestAppConfigNotificationTriggers` |
 
 ### Technical Decisions
 
@@ -76,7 +76,7 @@ Add a "Must be on WiFi" header row at the very top of generated QR label images,
 - **WiFi header at top**: Placed above equipment name so it's the first thing seen on the label, reinforcing the WiFi requirement.
 - **Hierarchical dropdown**: Single select with options filtered by available config. Prevents nonsensical combos (e.g. password without SSID). Cleaner than multiple checkboxes.
 - **Configurable default**: `wifi_info_default` config key lets admins set the default dropdown value so users don't have to change it every time.
-- **Two-font rendering**: Use Noto Emoji (`NotoEmoji[wght].ttf`, monochrome, SIL OFL 1.1) for the 🛜 emoji glyph and DejaVuSans-Bold for text. Noto Emoji is a variable font (weight 300–700); use weight 700 for bold to match. The emoji is rendered separately from text to avoid font-fallback complexity in Pillow.
+- **Two-font rendering**: Use Noto Emoji (`NotoEmoji-Bold.ttf`, monochrome, SIL OFL 1.1) for the 🛜 emoji glyph and DejaVuSans-Bold for text. The source font (`NotoEmoji-Bold.ttf`) is a variable font — to avoid runtime variable-font complexity (Pillow's `set_variation_by_name()` requires `fontTools`, and the existing `_load_font` LRU cache key doesn't include weight), **extract the Bold (wght=700) instance at vendoring time** using `fontTools`: `fontTools.instancer.instantiateVariableFont(font, {"wght": 700})` and save as `NotoEmoji-Bold.ttf`. This produces a static TrueType file that works with the existing `_load_font` cache and requires no additional runtime dependencies. The emoji is rendered separately from text to avoid font-fallback complexity in Pillow.
 - **WiFi text rendering approach**: Reuse the existing `_draw_text_row()` mechanism for text portions. The WiFi header line renders the emoji and "Must be on WiFi" text side-by-side in the top reserved region. SSID/password lines render as additional stacked `_draw_text_row()` calls below the header. Each WiFi line gets its own reserved row region at the very top of the canvas, above the equipment name region.
 - **Dynamic form choices**: The `QRGenerateForm` `wifi_info` SelectField choices must be computed at form instantiation time (not class definition time) because they depend on runtime DB config. This can be done by passing choices to the constructor or by overriding `__init__` to query config_service.
 
@@ -98,10 +98,20 @@ The `wifi_info` field uses these values throughout the stack (form, view, servic
 ---
 
 - [ ] **Task 1: Vendor Noto Emoji font**
-  - File: `esb/static/fonts/NotoEmoji[wght].ttf` (new)
-  - Action: Download `NotoEmoji[wght].ttf` from `https://raw.githubusercontent.com/google/fonts/main/ofl/notoemoji/NotoEmoji%5Bwght%5D.ttf` and place in `esb/static/fonts/`.
+  - File: `esb/static/fonts/NotoEmoji-Bold.ttf` (new)
+  - Action: Download the variable font `NotoEmoji[wght].ttf` from `https://raw.githubusercontent.com/google/fonts/main/ofl/notoemoji/NotoEmoji%5Bwght%5D.ttf`. Then extract the Bold (wght=700) static instance using fontTools:
+    ```python
+    from fontTools.ttLib import TTFont
+    from fontTools.instancer import instantiateVariableFont
+    font = TTFont('NotoEmoji[wght].ttf')
+    instantiateVariableFont(font, {"wght": 700})
+    font.save('esb/static/fonts/NotoEmoji-Bold.ttf')
+    ```
+    This produces a static TrueType file (~200-400 KB, much smaller than the 1.9 MB variable font) that works with the existing `_load_font` LRU cache without requiring `fontTools` at runtime.
+  - Action: Verify U+1F6DC is present in the output font: `TTFont('NotoEmoji-Bold.ttf')['cmap'].getBestCmap()[0x1F6DC]` should return a glyph name without error.
   - File: `esb/static/fonts/OFL-NotoEmoji.txt` (new)
   - Action: Download the SIL OFL 1.1 license text from the same Google Fonts repo directory and save alongside the font.
+  - Notes: `fontTools` is only needed at vendoring time (developer's machine), not at runtime or in Docker. The variable source file (`NotoEmoji[wght].ttf`) should NOT be committed — only the static `NotoEmoji-Bold.ttf` instance.
 
 - [ ] **Task 2: Add WiFi fields to Admin Config form**
   - File: `esb/forms/admin_forms.py`
@@ -115,8 +125,8 @@ The `wifi_info` field uses these values throughout the stack (form, view, servic
   - File: `esb/views/admin.py`
   - Action: In the `app_config()` view function:
     - **GET**: Populate `form.wifi_ssid.data`, `form.wifi_password.data`, and `form.wifi_info_default.data` from `config_service.get_config()` with defaults `''`, `''`, and `'none'` respectively.
-    - **POST**: Add a new `string_config_keys` list: `[('wifi_ssid', ''), ('wifi_password', ''), ('wifi_info_default', 'none')]`. For each, read `getattr(form, key).data` (the raw string, not bool conversion), compare to current config, and call `set_config()` if changed.
-  - Notes: The existing boolean config_keys loop does `'true' if getattr(form, key).data else 'false'`. The new string fields need direct string comparison. Add a separate loop or extend the existing pattern with a type flag.
+    - **POST**: Add a second loop after the existing boolean `config_keys` loop. Define `string_config_keys = [('wifi_ssid', ''), ('wifi_password', ''), ('wifi_info_default', 'none')]`. For each `(key, default)`, read `new_value = (getattr(form, key).data or '').strip()`, compare to `config_service.get_config(key, default)`, and call `set_config(key, new_value, changed_by=current_user.username)` if changed.
+  - Notes: This is a separate loop from the boolean keys because string fields use the raw value directly (no `'true'`/`'false'` conversion). The `.strip()` prevents trailing whitespace in SSID/password values.
 
 - [ ] **Task 4: Update Admin Config template with WiFi section**
   - File: `esb/templates/admin/config.html`
@@ -164,14 +174,14 @@ The `wifi_info` field uses these values throughout the stack (form, view, servic
 
 - [ ] **Task 7: Update `qr()` and `qr_preview()` views to pass WiFi params**
   - File: `esb/views/equipment.py`
-  - Action in `qr()` (GET/POST handler, L233-273):
+  - Action in `qr()` (GET/POST handler):
     - Call `_build_wifi_choices()` to get choices and wifi config values.
     - Call `_get_wifi_default()` to get the default.
     - Instantiate `QRGenerateForm(wifi_choices=choices)`.
     - On GET, set `form.wifi_info.data = default` if not already submitted.
     - On POST (`validate_on_submit`), pass `wifi_info=form.wifi_info.data` and `wifi_ssid`/`wifi_password` values to `render_qr_png()`.
     - Pass wifi config to template context for initial preview URL.
-  - Action in `qr_preview()` (L276-307):
+  - Action in `qr_preview()`:
     - Read `wifi_info` from `request.args.get('wifi_info', 'none')`.
     - Read wifi config values from `config_service`.
     - Pass `wifi_info`, `wifi_ssid`, `wifi_password` to `render_qr_png()`.
@@ -187,12 +197,12 @@ The `wifi_info` field uses these values throughout the stack (form, view, servic
     - `'header'` → 1 row: emoji + "Must be on WiFi"
     - `'ssid'` → 2 rows: header + "Network: {wifi_ssid}"
     - `'password'` → 3 rows: header + SSID + "Password: {wifi_password}"
-  - Action: Calculate `reserved_wifi` as `num_wifi_rows * int(canvas_h_px * 0.08)` (8% of canvas height per WiFi line). This is added to the top of the canvas, above `reserved_top` (equipment name).
+  - Action: Calculate `reserved_wifi` using adaptive sizing: `row_height = int(canvas_h_px * 0.06)` (6% per row), then `reserved_wifi = num_wifi_rows * row_height`. Total reserved space (wifi + name + url) must not exceed 60% of canvas height. If it would, reduce `row_height` proportionally: `max_wifi = int(canvas_h_px * 0.6) - reserved_top - reserved_bottom; row_height = max(int(canvas_h_px * 0.03), max_wifi // num_wifi_rows)`. This ensures the QR code always gets at least 40% of the canvas. This is added to the top of the canvas, above `reserved_top` (equipment name).
   - Action: Shift the equipment name row down by `reserved_wifi`. Shift the QR paste position down by `reserved_wifi`.
   - Action: Render WiFi rows at the top:
     - For the header row: render the 🛜 emoji using Noto Emoji font, then "Must be on WiFi" text using DejaVuSans-Bold, positioned side-by-side and centered horizontally.
     - For SSID/password rows: render using `_draw_text_row()` with DejaVuSans-Bold as usual.
-  - Notes: Add a `_draw_wifi_header_row()` helper for the compound emoji+text rendering. Load Noto Emoji font path as `os.path.join(current_app.static_folder, 'fonts', 'NotoEmoji[wght].ttf')`.
+  - Notes: Add a `_draw_wifi_header_row()` helper for the compound emoji+text rendering. Load Noto Emoji font path as `os.path.join(current_app.static_folder, 'fonts', 'NotoEmoji-Bold.ttf')`.
 
 - [ ] **Task 9: Update QR form template with WiFi dropdown**
   - File: `esb/templates/equipment/qr.html`
@@ -203,16 +213,16 @@ The `wifi_info` field uses these values throughout the stack (form, view, servic
       {{ form.wifi_info(class="form-select") }}
     </div>
     ```
-  - Action: Update the initial preview `<img>` src URL to include `wifi_info` parameter.
+  - Action: Update the initial preview `<img>` src URL to include `wifi_info` parameter. The existing `url_for()` call in the `src` attribute uses Jinja kwargs — add `wifi_info=form.wifi_info.data` to match the pattern used by `include_name` and `include_url`. The view (Task 7) must pass `form` to the template context with `wifi_info.data` already set to the default value.
 
 - [ ] **Task 10: Update QR preview JavaScript to include WiFi param**
   - File: `esb/static/js/app.js`
-  - Action: In the QR preview update function (L246-253), add `wifi_info` to the URLSearchParams:
+  - Action: In the QR preview `update()` function (inside the `#qr-form` IIFE), add `wifi_info` to the URLSearchParams:
     ```js
     var wifiInfo = form.querySelector('[name="wifi_info"]');
     if (wifiInfo) params.set('wifi_info', wifiInfo.value);
     ```
-  - Notes: The `change` event listener on the form already catches all `<select>` changes, so the WiFi dropdown triggers preview updates automatically.
+  - Notes: The `change` event listener on the form already catches all `<select>` changes, so the WiFi dropdown triggers preview updates automatically. The preview endpoint has a 5-minute cache (`Cache-Control: private, max-age=300`). Since `wifi_info` is a URL param, different dropdown selections produce different cache entries. However, if an admin changes the SSID/password in the config while a user has the QR form open, the preview may show stale data for up to 5 minutes. This is acceptable — the downloaded PNG always renders with current config values (POST is not cached).
 
 - [ ] **Task 11: Add QR service tests for WiFi rendering**
   - File: `tests/test_services/test_qr_service.py`
@@ -223,7 +233,7 @@ The `wifi_info` field uses these values throughout the stack (form, view, servic
     - `test_wifi_password_renders_three_rows` — with `wifi_info='password'`, verify all three WiFi regions have non-white pixels.
     - `test_wifi_header_qr_still_decodes` — with `wifi_info='header'`, verify pyzbar can still decode the QR payload (text didn't overlap QR region).
     - `test_wifi_info_default_none` — verify default `wifi_info='none'` produces same output as without the parameter.
-  - Notes: Follow existing test patterns (pixel inspection, pyzbar decode). Use `sticker_4` preset for sufficient room.
+  - Notes: Follow existing test patterns (pixel inspection, pyzbar decode). Use `sticker_4` preset for sufficient room. To compute WiFi region pixel boundaries in tests, replicate the layout math: `row_height = int(canvas_h * 0.06)`, `reserved_wifi = num_rows * row_height`. WiFi row N occupies `y=N*row_height` to `y=(N+1)*row_height`. Equipment name row (if present) starts at `y=reserved_wifi`. Crop and inspect each region independently.
 
 - [ ] **Task 12: Add QR view tests for WiFi functionality**
   - File: `tests/test_views/test_equipment_views.py`
@@ -270,7 +280,7 @@ The `wifi_info` field uses these values throughout the stack (form, view, servic
 
 - [ ] **AC 8**: Given a user selects "🛜 WiFi + SSID + Password" with both configured, when the PNG is rendered, then the image shows WiFi header, SSID line, and password line, all above the equipment name.
 
-- [ ] **AC 9**: Given a user changes the WiFi Info dropdown on the QR form, when the dropdown value changes, then the live preview image updates within 150ms (debounced) to reflect the new WiFi info selection.
+- [ ] **AC 9**: Given a user changes the WiFi Info dropdown on the QR form, when the dropdown value changes, then the live preview image URL is updated (after the existing 150ms debounce) to include the new `wifi_info` query parameter, and the preview re-renders to reflect the selection.
 
 - [ ] **AC 10**: Given a staff user navigates to `/admin/config`, when they view the page, then they see a "WiFi / QR Label Settings" card with fields for WiFi SSID, WiFi Password, and Default WiFi Info dropdown.
 
@@ -280,7 +290,7 @@ The `wifi_info` field uses these values throughout the stack (form, view, servic
 
 - [ ] **AC 13**: Given WiFi info is set to "None", when the QR code is rendered, then the output is identical to the current behavior (no WiFi info, no extra reserved space at top).
 
-- [ ] **AC 14**: Given a very small preset (1"×1" sticker) with WiFi header enabled, when the QR code is rendered, then the image renders without error (the existing marginal-module-size warning may fire but rendering completes).
+- [ ] **AC 14**: Given a very small preset (1"×1" sticker) with WiFi header only enabled (no SSID/password), when the QR code is rendered, then the image renders without error (the existing marginal-module-size warning may fire but rendering completes). With all three WiFi rows + name + URL on a 1"×1" sticker, a ValueError from insufficient QR space is acceptable — the adaptive sizing limits total reserved text to 60% of canvas height to minimize this risk.
 
 - [ ] **AC 15**: Given the QR code is rendered with WiFi header, when scanned with a QR reader, then the QR payload still decodes correctly to the expected URL (WiFi text does not overlap the QR region).
 
@@ -288,9 +298,11 @@ The `wifi_info` field uses these values throughout the stack (form, view, servic
 
 ### Dependencies
 
-No new Python packages required. Pillow and qrcode are already dependencies.
+No new Python runtime dependencies. Pillow and qrcode are already installed.
 
-New vendored font: `NotoEmoji[wght].ttf` (~1.9 MB) from Google Fonts, licensed under SIL Open Font License 1.1. Include `OFL-NotoEmoji.txt` license file alongside the font in `esb/static/fonts/`.
+**Build-time dependency**: `fontTools` (pip install fontTools) is needed once on the developer's machine to extract the Bold static instance from the Noto Emoji variable font. It is NOT needed at runtime or in the Docker image.
+
+New vendored font: `NotoEmoji-Bold.ttf` (static Bold instance, ~200-400 KB) extracted from Google's Noto Emoji variable font, licensed under SIL Open Font License 1.1. Include `OFL-NotoEmoji.txt` license file alongside the font in `esb/static/fonts/`.
 
 ### Testing Strategy
 
@@ -298,13 +310,12 @@ New vendored font: `NotoEmoji[wght].ttf` (~1.9 MB) from Google Fonts, licensed u
 - Unit tests for `QRGenerateForm` with dynamic WiFi choices based on config state
 - View tests for `qr()` and `qr_preview()` routes with WiFi params
 - Admin view tests for new config fields (GET populates, POST saves)
-- Edge case: all WiFi config empty → dropdown shows only "None", default is "None"
+- Edge case: all WiFi config empty → dropdown shows "None" and "🛜 Must be on WiFi" (header requires no config), default is "None"
 - Edge case: SSID set but password empty → "Header+SSID+Password" option hidden
 
 ### Notes
 
-- **Font limitation resolved**: DejaVuSans-Bold.ttf does NOT contain U+1F6DC (WiFi emoji). Verified via fontTools cmap inspection. Solution: bundle Google's Noto Emoji monochrome font which contains the glyph as a clean black-and-white WiFi icon (concentric arcs + dot in a rounded square). Rendering uses Noto Emoji for the emoji, DejaVuSans-Bold for text.
+- **Font limitation resolved**: DejaVuSans-Bold.ttf does NOT contain U+1F6DC (WiFi emoji). Verified via fontTools cmap inspection. Solution: bundle Google's Noto Emoji monochrome font (Bold static instance extracted from the variable font) which contains the glyph as a clean black-and-white WiFi icon (concentric arcs + dot in a rounded square). Rendering uses NotoEmoji-Bold.ttf for the emoji, DejaVuSans-Bold for text. U+1F6DC presence was verified in the source variable font via `fontTools` cmap check; Task 1 includes a verification step for the extracted static instance.
 - For very small label presets (1"×1"), adding WiFi header rows reduces available QR space. The existing marginal-module-size warning in `render_qr_png()` will catch this — no additional blocking logic needed.
 - The `_fit_text()` function handles graceful degradation: if text is too wide, it shrinks the font down to 8pt, then truncates with ellipsis. This will naturally handle long SSIDs/passwords.
-- The `_load_font()` function uses `@lru_cache(maxsize=64)` so repeated renders at the same font size are fast.
-- The admin config POST handler pattern iterates a `config_keys` list of `(key, default)` tuples. New WiFi string fields need different handling than booleans — the value is the string itself, not 'true'/'false'.
+- The `_load_font()` function uses `@lru_cache(maxsize=64)` keyed on `(font_path, size_px)`. The vendored `NotoEmoji-Bold.ttf` is a static font, so it works with this cache without modification. No variable-font axis handling needed at runtime.
