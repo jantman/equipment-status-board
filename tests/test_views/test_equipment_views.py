@@ -1851,6 +1851,16 @@ class TestEquipmentQR:
         assert resp.status_code == 200
         assert resp.content_type.startswith('image/png')
 
+    def test_qr_download_without_wifi_info_param(self, staff_client, make_equipment, configured_base_url):
+        """POST without wifi_info field (e.g., scripted client) should succeed, treated as 'none'."""
+        eq = make_equipment('X', 'Y', 'Z')
+        resp = staff_client.post(
+            f'/equipment/{eq.id}/qr',
+            data={'size': 'sticker_2', 'submit': 'Download QR Code'},
+        )
+        assert resp.status_code == 200
+        assert resp.content_type.startswith('image/png')
+
     def test_qr_preview_rejects_invalid_wifi_info(self, staff_client, make_equipment, configured_base_url):
         eq = make_equipment('X', 'Y', 'Z')
         resp_bogus = staff_client.get(f'/equipment/{eq.id}/qr/preview?size=sticker_2&wifi_info=bogus')

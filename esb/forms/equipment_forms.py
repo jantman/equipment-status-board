@@ -136,7 +136,7 @@ class QRGenerateForm(FlaskForm):
         validators=[DataRequired()],
         default='sticker_2',
     )
-    wifi_info = SelectField('WiFi Info')
+    wifi_info = SelectField('WiFi Info', default='none')
     include_name = BooleanField('Include equipment name above QR', default=False)
     include_url = BooleanField('Include URL below QR', default=False)
     submit = SubmitField('Download QR Code')
@@ -144,3 +144,7 @@ class QRGenerateForm(FlaskForm):
     def __init__(self, *args, wifi_choices=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.wifi_info.choices = wifi_choices or [('none', 'None')]
+        # Robustness: a missing wifi_info in POST data should be treated as 'none',
+        # not None (which would fail SelectField validation).
+        if self.wifi_info.data is None:
+            self.wifi_info.data = 'none'
