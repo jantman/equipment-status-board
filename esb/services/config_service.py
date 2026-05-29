@@ -28,13 +28,22 @@ def get_config(key: str, default: str = '') -> str:
     return config.value
 
 
-def set_config(key: str, value: str, changed_by: str) -> AppConfig:
+def set_config(
+    key: str,
+    value: str,
+    changed_by: str,
+    *,
+    log_old_override: str | None = None,
+    log_new_override: str | None = None,
+) -> AppConfig:
     """Set a runtime config value (upsert).
 
     Args:
         key: Config key to set.
         value: New value.
         changed_by: Username making the change.
+        log_old_override: If provided, log this instead of the real old value (for secrets).
+        log_new_override: If provided, log this instead of the real new value (for secrets).
 
     Returns:
         The created or updated AppConfig instance.
@@ -64,8 +73,8 @@ def set_config(key: str, value: str, changed_by: str) -> AppConfig:
 
     log_mutation('app_config.updated', changed_by, {
         'key': key,
-        'old_value': old_value,
-        'new_value': value,
+        'old_value': log_old_override if log_old_override is not None else old_value,
+        'new_value': log_new_override if log_new_override is not None else value,
     })
 
     return config

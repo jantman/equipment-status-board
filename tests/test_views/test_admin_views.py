@@ -906,6 +906,7 @@ class TestAppConfig:
         """Staff can enable tech doc editing."""
         resp = staff_client.post('/admin/config', data={
             'tech_doc_edit_enabled': 'y',
+            'wifi_info_default': 'none',
         }, follow_redirects=True)
         assert resp.status_code == 200
         assert b'Configuration updated successfully' in resp.data
@@ -918,7 +919,9 @@ class TestAppConfig:
         from esb.services import config_service
         config_service.set_config('tech_doc_edit_enabled', 'true', 'test')
 
-        resp = staff_client.post('/admin/config', data={}, follow_redirects=True)
+        resp = staff_client.post('/admin/config', data={
+            'wifi_info_default': 'none',
+        }, follow_redirects=True)
         assert resp.status_code == 200
         assert b'Configuration updated successfully' in resp.data
         assert config_service.get_config('tech_doc_edit_enabled') == 'false'
@@ -928,6 +931,7 @@ class TestAppConfig:
         capture.records.clear()
         staff_client.post('/admin/config', data={
             'tech_doc_edit_enabled': 'y',
+            'wifi_info_default': 'none',
         })
         entries = [
             json.loads(r.message) for r in capture.records
@@ -992,6 +996,7 @@ class TestAppConfigNotificationTriggers:
             'notify_resolved': 'y',
             'notify_severity_changed': 'y',
             'notify_status_changed': 'y',
+            'wifi_info_default': 'none',
             # notify_eta_updated NOT included = disabled
         }, follow_redirects=True)
         assert resp.status_code == 200
@@ -1008,6 +1013,7 @@ class TestAppConfigNotificationTriggers:
             'notify_resolved': 'y',
             'notify_severity_changed': 'y',
             'notify_eta_updated': 'y',
+            'wifi_info_default': 'none',
             # notify_status_changed NOT included = disabled
         }, follow_redirects=True)
         assert resp.status_code == 200
@@ -1021,6 +1027,7 @@ class TestAppConfigNotificationTriggers:
 
         resp = staff_client.post('/admin/config', data={
             'notify_new_report': 'y',
+            'wifi_info_default': 'none',
         }, follow_redirects=True)
         assert resp.status_code == 200
         assert b'Configuration updated successfully' in resp.data
@@ -1031,6 +1038,7 @@ class TestAppConfigNotificationTriggers:
         capture.records.clear()
         staff_client.post('/admin/config', data={
             'notify_new_report': 'y',
+            'wifi_info_default': 'none',
         })
         entries = [
             json.loads(r.message) for r in capture.records
@@ -1044,6 +1052,162 @@ class TestAppConfigNotificationTriggers:
         """Technician gets 403 on config page."""
         resp = tech_client.get('/admin/config')
         assert resp.status_code == 403
+
+
+class TestAppConfigWiFi:
+    """Tests for WiFi settings in /admin/config."""
+
+    def test_config_shows_wifi_fields(self, staff_client, staff_user):
+        resp = staff_client.get('/admin/config')
+        assert resp.status_code == 200
+        assert b'wifi_ssid' in resp.data
+        assert b'wifi_password' in resp.data
+        assert b'wifi_info_default' in resp.data
+        assert b'WiFi / QR Label Settings' in resp.data
+
+    def test_config_saves_wifi_ssid(self, staff_client, staff_user):
+        resp = staff_client.post('/admin/config', data={
+            'wifi_ssid': 'MyNetwork',
+            'wifi_info_default': 'none',
+        }, follow_redirects=True)
+        assert resp.status_code == 200
+        assert b'Configuration updated successfully' in resp.data
+        from esb.services import config_service
+        assert config_service.get_config('wifi_ssid') == 'MyNetwork'
+
+    def test_config_saves_wifi_password(self, staff_client, staff_user):
+        resp = staff_client.post('/admin/config', data={
+            'wifi_password': 'secret123',
+            'wifi_info_default': 'none',
+        }, follow_redirects=True)
+        assert resp.status_code == 200
+        from esb.services import config_service
+        assert config_service.get_config('wifi_password') == 'secret123'
+
+    def test_config_saves_wifi_info_default(self, staff_client, staff_user):
+        resp = staff_client.post('/admin/config', data={
+            'wifi_info_default': 'header',
+        }, follow_redirects=True)
+        assert resp.status_code == 200
+        from esb.services import config_service
+        assert config_service.get_config('wifi_info_default') == 'header'
+
+    def test_config_clears_wifi_ssid(self, staff_client, staff_user):
+        from esb.services import config_service
+        config_service.set_config('wifi_ssid', 'OldNetwork', 'test')
+        resp = staff_client.post('/admin/config', data={
+            'wifi_ssid': '',
+            'wifi_info_default': 'none',
+        }, follow_redirects=True)
+        assert resp.status_code == 200
+        assert config_service.get_config('wifi_ssid') == ''
+
+    def test_config_wifi_mutation_logging(self, staff_client, staff_user, capture):
+        capture.records.clear()
+        staff_client.post('/admin/config', data={
+            'wifi_ssid': 'NewNet',
+            'wifi_info_default': 'none',
+        })
+        entries = [
+            json.loads(r.message) for r in capture.records
+            if 'app_config.updated' in r.message
+        ]
+        wifi_entries = [e for e in entries if e['data']['key'] == 'wifi_ssid']
+        assert len(wifi_entries) == 1
+        assert wifi_entries[0]['data']['new_value'] == 'NewNet'
+
+    def test_config_wifi_password_masked_in_log(self, staff_client, staff_user, capture):
+        capture.records.clear()
+        staff_client.post('/admin/config', data={
+            'wifi_password': 'supersecret',
+            'wifi_info_default': 'none',
+        })
+        entries = [
+            json.loads(r.message) for r in capture.records
+            if 'app_config.updated' in r.message
+        ]
+        pw_entries = [e for e in entries if e['data']['key'] == 'wifi_password']
+        assert len(pw_entries) == 1
+        assert pw_entries[0]['data']['new_value'] == '***'
+        assert 'supersecret' not in str(pw_entries[0])
+
+    def test_config_wifi_password_clear_logs_distinguishable(self, staff_client, staff_user, capture):
+        """Clearing a password produces a distinguishable audit entry (old='***', new='')."""
+        from esb.services import config_service
+        config_service.set_config('wifi_password', 'existingpw', 'test')
+        capture.records.clear()
+        staff_client.post('/admin/config', data={
+            'wifi_password_clear': 'y',
+            'wifi_info_default': 'none',
+        })
+        entries = [
+            json.loads(r.message) for r in capture.records
+            if 'app_config.updated' in r.message
+        ]
+        pw_entries = [e for e in entries if e['data']['key'] == 'wifi_password']
+        assert len(pw_entries) == 1
+        assert pw_entries[0]['data']['old_value'] == '***'
+        assert pw_entries[0]['data']['new_value'] == ''
+        assert 'existingpw' not in str(pw_entries[0])
+        assert config_service.get_config('wifi_password') == ''
+
+    def test_config_wifi_password_blank_means_unchanged(self, staff_client, staff_user):
+        """Submitting blank password without the clear checkbox preserves existing value."""
+        from esb.services import config_service
+        config_service.set_config('wifi_password', 'keepme', 'test')
+        staff_client.post('/admin/config', data={
+            'wifi_password': '',
+            'wifi_info_default': 'none',
+        })
+        assert config_service.get_config('wifi_password') == 'keepme'
+
+    def test_config_wifi_password_not_prefilled_in_html(self, staff_client, staff_user):
+        """Stored password value must not be reflected in the HTML value attribute."""
+        from esb.services import config_service
+        config_service.set_config('wifi_password', 'secret-no-leak', 'test')
+        resp = staff_client.get('/admin/config')
+        assert resp.status_code == 200
+        assert b'secret-no-leak' not in resp.data
+
+    def test_config_wifi_password_field_is_masked(self, staff_client, staff_user):
+        resp = staff_client.get('/admin/config')
+        assert resp.status_code == 200
+        assert b'type="password"' in resp.data
+
+    def test_config_wifi_ssid_preserves_whitespace(self, staff_client, staff_user):
+        """SSIDs with leading/trailing spaces are valid — store verbatim."""
+        resp = staff_client.post('/admin/config', data={
+            'wifi_ssid': '  MyNet  ',
+            'wifi_info_default': 'none',
+        }, follow_redirects=True)
+        assert resp.status_code == 200
+        from esb.services import config_service
+        assert config_service.get_config('wifi_ssid') == '  MyNet  '
+
+    def test_config_wifi_password_preserves_whitespace(self, staff_client, staff_user):
+        """Passwords can legitimately contain spaces — store verbatim."""
+        resp = staff_client.post('/admin/config', data={
+            'wifi_password': '  pass word  ',
+            'wifi_info_default': 'none',
+        }, follow_redirects=True)
+        assert resp.status_code == 200
+        from esb.services import config_service
+        assert config_service.get_config('wifi_password') == '  pass word  '
+
+    def test_config_post_without_wifi_info_default_succeeds(self, staff_client, staff_user):
+        """POST without wifi_info_default field should succeed (treated as 'none').
+
+        Regression test: scripted clients or older tests that omit the field
+        previously caused SelectField pre-validation to fail with 'Not a valid
+        choice', blocking ALL config updates in the submission.
+        """
+        resp = staff_client.post('/admin/config', data={
+            'tech_doc_edit_enabled': 'y',
+        }, follow_redirects=True)
+        assert resp.status_code == 200
+        assert b'Configuration updated successfully' in resp.data
+        from esb.services import config_service
+        assert config_service.get_config('tech_doc_edit_enabled') == 'true'
 
 
 class TestAreaMutationLogging:
