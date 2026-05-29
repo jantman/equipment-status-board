@@ -338,7 +338,7 @@ class TestRenderQRPngWifi:
         )
         img_none = Image.open(io.BytesIO(result_none)).convert('RGB')
         img_default = Image.open(io.BytesIO(result_default)).convert('RGB')
-        assert list(img_none.get_flattened_data()) == list(img_default.get_flattened_data())
+        assert img_none.tobytes() == img_default.tobytes()
 
     def test_wifi_ssid_renders_two_rows(self, app, make_equipment):
         eq = make_equipment(name='Widget')
@@ -394,7 +394,7 @@ class TestRenderQRPngWifi:
         )
         img_none = Image.open(io.BytesIO(result_none)).convert('RGB')
         img_default = Image.open(io.BytesIO(result_default)).convert('RGB')
-        assert list(img_none.get_flattened_data()) == list(img_default.get_flattened_data())
+        assert img_none.tobytes() == img_default.tobytes()
 
         result_with_name = render_qr_png(
             eq, QR_PRESETS_BY_KEY['sticker_4'],
