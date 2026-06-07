@@ -2,7 +2,7 @@
 title: 'QR Code Template Support'
 slug: 'qr-code-template'
 created: '2026-06-06'
-status: 'ready-for-dev'
+status: 'completed'
 stepsCompleted: [1, 2, 3, 4]
 tech_stack: ['Python 3.14', 'Flask', 'Flask-WTF', 'Pillow', 'qrcode[pil]', 'pyzbar (tests)', 'Jinja2', 'pytest']
 files_to_modify:
@@ -130,12 +130,12 @@ Add a new `QR_TEMPLATE_CONFIG_PATH` environment variable on the existing `Config
 
 ### Tasks
 
-- [ ] Task 1: Add `QR_TEMPLATE_CONFIG_PATH` to config
+- [x] Task 1: Add `QR_TEMPLATE_CONFIG_PATH` to config
   - File: `esb/config.py`
   - Action: Add `QR_TEMPLATE_CONFIG_PATH = os.environ.get('QR_TEMPLATE_CONFIG_PATH', '')` to the `Config` class (alongside `ESB_BASE_URL`).
   - Notes: Empty string = feature disabled. No override needed in `TestingConfig` (default empty keeps existing tests on the non-template path). Remember: this binds at import time — tests patch the class attribute, never the env var (see Task 11).
 
-- [ ] Task 2: Add `QRTemplate` dataclass + `load_template_config()` loader to the QR service
+- [x] Task 2: Add `QRTemplate` dataclass + `load_template_config()` loader to the QR service
   - File: `esb/services/qr_service.py`
   - Action: Add a frozen dataclass `QRTemplate` holding: `image_path: str` (absolute), `font_path: str` (absolute; when JSON omits `font`, the vendored DejaVu fallback resolved package-relative: `os.path.join(os.path.dirname(esb.__file__), 'static', 'fonts', 'DejaVuSans-Bold.ttf')` — NOT via `current_app`), `qr_bbox`, `name_bbox`, `url_bbox: tuple[int, int, int, int] | None`, `image_w: int`, `image_h: int`. Add `load_template_config(json_path: str) -> QRTemplate` that:
     1. Reads and parses the JSON file (raise `ValueError` with the path on unreadable file / malformed JSON)
@@ -145,12 +145,12 @@ Add a new `QR_TEMPLATE_CONFIG_PATH` environment variable on the existing `Config
     5. Raises `ValueError` with a specific, human-readable message for every failure mode
   - Notes: Pure function — must not use `current_app` or require an app context (Task 6 tests it bare; the module itself already imports `current_app` at `qr_service.py:13` for other functions, which is fine — the loader just can't touch it). Do not import forms (enforced by `TestNoFormImport`).
 
-- [ ] Task 3: Fail-fast startup validation in the app factory
+- [x] Task 3: Fail-fast startup validation in the app factory
   - File: `esb/__init__.py`
   - Action: In `create_app()`, immediately after the `UPLOAD_PATH` normalization block: if `app.config.get('QR_TEMPLATE_CONFIG_PATH')` is non-empty, call `qr_service.load_template_config(path)` and store the result on `app.config['QR_TEMPLATE']`; otherwise set `app.config['QR_TEMPLATE'] = None`. Let the loader's `ValueError` propagate (app fails to start with the loader's message).
   - Notes: Import `qr_service` locally inside `create_app` (matches the existing local-import style, avoids import cycles).
 
-- [ ] Task 4: Template rendering path in `render_qr_png`
+- [x] Task 4: Template rendering path in `render_qr_png`
   - File: `esb/services/qr_service.py`
   - Action: Add keyword param `template: QRTemplate | None = None` to `render_qr_png()`. When `template` is not None, ignore all `wifi_*` args and render via a new `_render_template_png(equipment, preset, dpi, include_name, include_url, base_url, template)` helper:
     1. Compute `canvas_w_px`/`canvas_h_px` from preset × dpi exactly as today; apply the existing `MAX_CANVAS_PX` guard
@@ -163,17 +163,17 @@ Add a new `QR_TEMPLATE_CONFIG_PATH` environment variable on the existing `Config
     8. Save PNG with `dpi=(dpi, dpi)` metadata and return bytes
   - Notes: The QR is drawn at final resolution and never resampled afterward — modules stay pure black/white. White-fill happens AFTER the LANCZOS resize so fill edges are hard (no antialiasing inside the bbox). The existing non-template code path must remain unchanged. Per-render template open+resize cost is accepted (see Technical Decisions).
 
-- [ ] Task 5: Conftest fixture for template config
+- [x] Task 5: Conftest fixture for template config
   - File: `tests/conftest.py`
   - Action: Add a **factory fixture** `make_qr_template_config(url_bbox=True, font=True)` (one prescribed shape — not separate variant fixtures and not indirect parametrization, since some tests need both configs in one module). Each call: writes a JSON file into `tmp_path` referencing `tests/qr_code_template.png` and `tests/Poppins-Bold.ttf` (via `os.path.relpath` from `tmp_path`, or by copying the fixtures into `tmp_path`) with bboxes `qr=[509, 949, 1011, 1451]`, `name=[240, 540, 1259, 925]`, and (when `url_bbox=True`) `url=[140, 1490, 1359, 1675]`, omitting `font` when `font=False`; calls `qr_service.load_template_config()` on it; installs the result on `app.config['QR_TEMPLATE']`; returns the `QRTemplate`. Fixture teardown restores the original config value (None). Also add a thin `qr_template_config` convenience fixture that calls the factory with defaults — Task 10's tests use it by name, so it is required, not optional.
   - Notes: Keep the factory in conftest so both service and view tests use it. The `font=False` knob supports the configured-font-vs-fallback difference test (Task 7). The `app` fixture is function-scoped, so per-test config mutation is safe.
 
-- [ ] Task 6: Service tests — loader validation
+- [x] Task 6: Service tests — loader validation
   - File: `tests/test_services/test_qr_service.py`
   - Action: New `TestLoadTemplateConfig` class covering: valid full config (absolute paths resolved, image size recorded, font resolved); valid config omitting `font` (falls back to the package-relative vendored DejaVu path) and omitting `url_bbox` (None); unknown JSON keys ignored; and `ValueError` for each failure mode — nonexistent JSON path, malformed JSON, missing each required key, bbox not 4 ints, `x1 <= x0`, bbox exceeding image bounds, nonexistent image file, nonexistent font file, non-font file as font. Also a render test (can live in `TestRenderQRPngTemplate`) using a small generated **RGBA template with transparent regions** verifying transparency flattens to white in the output (mode-normalization from Task 4 step 2).
   - Notes: Build configs in `tmp_path`; no app context needed.
 
-- [ ] Task 7: Service tests — template rendering & scannability
+- [x] Task 7: Service tests — template rendering & scannability
   - File: `tests/test_services/test_qr_service.py`
   - Action: New `TestRenderQRPngTemplate` class. IMPORTANT: the fixture template contains placeholder content inside every bbox, so presence-of-pixels assertions are vacuous — assert **differences between renders** instead:
     - Output dimensions exactly match preset × dpi for a representative spread (square sticker, landscape `avery_5163`, `letter`) — letterboxing white bars included
@@ -189,7 +189,7 @@ Add a new `QR_TEMPLATE_CONFIG_PATH` environment variable on the existing `Config
     - PNG embeds dpi metadata (parametrized like `test_png_embeds_dpi_metadata`)
   - Notes: Reuse `BASE_URL` constant and pixel-assertion idioms already in the file. Keep decode assertions on 300 dpi presets; do NOT add decode assertions at 180/203 dpi on small presets (1 px modules — legitimately marginal).
 
-- [ ] Task 8: View changes — template-aware `qr` and `qr_preview` routes
+- [x] Task 8: View changes — template-aware `qr` and `qr_preview` routes
   - File: `esb/views/equipment.py`
   - Action: In both routes read `template = current_app.config.get('QR_TEMPLATE')`. When template is active:
     - `qr` GET: construct the form with static `[('none', 'None')]` wifi choices, set `form.wifi_info.data = 'none'`, and set `form.include_name.data = True` (template default ON)
@@ -198,7 +198,7 @@ Add a new `QR_TEMPLATE_CONFIG_PATH` environment variable on the existing `Config
     - `qr_preview`: ignore the `wifi_info` query param entirely (treat as 'none'); ignore `include_url` when no `url_bbox`; pass `template=template` to `render_qr_png()`
   - Notes: Non-template behavior must be completely unchanged. The existing `ValueError → flash / 400` and `OSError/RuntimeError → 500` handling already covers the new guard errors.
 
-- [ ] Task 9: UI changes — conditional form controls + preview JS guard + error message
+- [x] Task 9: UI changes — conditional form controls + preview JS guard + error message
   - File: `esb/templates/equipment/qr.html`, `esb/static/js/app.js`
   - Action:
     1. `qr.html`: wrap the WiFi select `div` in `{% if not template_active %}`; wrap the `include_url` checkbox `div` in `{% if not template_active or template_has_url_bbox %}`. Default both context vars (`template_active`, `template_has_url_bbox`) so non-template rendering is unaffected.
@@ -207,7 +207,7 @@ Add a new `QR_TEMPLATE_CONFIG_PATH` environment variable on the existing `Config
     4. `qr.html:50` — **initial preview src boolean serialization bug**: the initial `img src` is built with `include_name=form.include_name.data`, which serializes Python `True` as the string `'True'`; the preview parser only accepts `('1', 'true', 'on')` (`equipment.py:374-375`, case-sensitive), so it parses as False. With the new template-mode default (`include_name` checked on GET), the first-load preview would silently omit the name until the user touches a field. Fix the template to emit `'1' if form.include_name.data else ''` (same for `include_url`). This also fixes the same latent bug on failed-POST re-renders in non-template mode.
   - Notes: The existing `if (wifiInfo)` guard already handles the removed WiFi select.
 
-- [ ] Task 10: View tests — template-active behavior
+- [x] Task 10: View tests — template-active behavior
   - File: `tests/test_views/test_equipment_views.py`
   - Action: New `TestEquipmentQRTemplate` class (using `configured_base_url` + `qr_template_config`), following the style of the existing `TestEquipmentQR` class at line 1549:
     - GET form: WiFi select absent from HTML; `include_name` present and **checked by default**; `include_url` present; with no-url-bbox config, `include_url` absent
@@ -219,12 +219,12 @@ Add a new `QR_TEMPLATE_CONFIG_PATH` environment variable on the existing `Config
     - Existing non-template tests in `TestEquipmentQR` still pass untouched (regression gate)
   - Notes: Follow the established assertion idioms in `TestEquipmentQR`.
 
-- [ ] Task 11: App-factory startup tests
+- [x] Task 11: App-factory startup tests
   - File: `tests/test_app.py`
   - Action: Tests that `create_app('testing')` raises `ValueError` when `QR_TEMPLATE_CONFIG_PATH` points at a missing/invalid JSON, that a valid path yields a populated `app.config['QR_TEMPLATE']`, and that unset leaves it `None`. **Config classes bind env vars at import time, so `monkeypatch.setenv` does NOT work** — use `monkeypatch.setattr(TestingConfig, 'QR_TEMPLATE_CONFIG_PATH', str(path))` (import `TestingConfig` from `esb.config`) before calling `create_app('testing')`.
   - Notes: `tests/test_app.py` already exercises `create_app(...)` directly — follow its patterns. The conftest `app` fixture is function-scoped; these tests create their own apps and don't interact with it.
 
-- [ ] Task 12: Document the feature for administrators
+- [x] Task 12: Document the feature for administrators
   - File: `docs/administrators.md`
   - Action: Add a section documenting `QR_TEMPLATE_CONFIG_PATH`: the JSON schema (with the example above), relative-path semantics, bbox format/units (template-native pixels, `[x0, y0, x1, y1]`), and these behavioral points:
     - The template should be supplied at the maximum resolution it will be printed at (it is scaled to output size; upscaling softens artwork while the QR itself stays crisp)
@@ -241,16 +241,16 @@ Add a new `QR_TEMPLATE_CONFIG_PATH` environment variable on the existing `Config
 
 ### Acceptance Criteria
 
-- [ ] AC 1: Given `QR_TEMPLATE_CONFIG_PATH` is unset, when any QR form/preview/download is exercised, then behavior is unchanged and the entire existing QR test suite passes unmodified (WiFi controls present, plain white-canvas rendering, `include_name` default unchecked). One deliberate exception: the initial preview-src serialization fix (Task 9.4) changes the GET/re-render HTML's preview query string from `include_name=True` to `include_name=1`/omitted — a bug fix that makes the preview honor a checked box on failed-POST re-renders.
-- [ ] AC 2: Given a valid template config, when a QR PNG is downloaded for any size preset **at 300 dpi or higher** (and whose canvas passes the `MAX_CANVAS_PX` guard — e.g. Letter @ 1200 dpi correctly errors instead, per AC 9), then the PNG has exactly the preset's pixel dimensions and embedded DPI metadata, shows the template artwork outside the bboxes, and pyzbar-decodes to `{base_url}/public/equipment/{id}`. (Low-DPI devices — 180/203 dpi — on small presets can legitimately produce 1 px modules that render with a warning but may not scan; see the Notes risk section. Dimension/metadata/artwork clauses still apply at all DPIs.)
-- [ ] AC 3: Given a template is active, when the output canvas is smaller than the template (downscale) or larger (upscale, e.g. US Letter), then the template scales proportionally (aspect preserved, centered on white) and the QR — drawn at integer module size into its white-filled bbox after scaling — still decodes.
-- [ ] AC 4: Given a template is active, when the form loads, then `include_name` is checked by default; when checked, the scaled name bbox is white-filled (replacing any placeholder artwork) and the equipment name renders in it using the configured font (single-line shrink-to-fit/ellipsis); when unchecked, the name bbox shows the template's own artwork untouched.
-- [ ] AC 5: Given a template config with `url_bbox`, when `include_url` is checked, then the scaled URL bbox is white-filled (replacing any baked artwork, e.g. the example's WiFi line) and the URL renders within it; given a config without `url_bbox`, then the `include_url` checkbox is absent from the form and a crafted `include_url` POST/preview param produces output pixel-identical (decoded `tobytes()` equality) to unchecked.
-- [ ] AC 6: Given a template is active, when the QR form is loaded, then the WiFi select is absent; and when a crafted WiFi value is submitted (POST field) or passed (preview query param), then the request succeeds (no validation rejection) and output is pixel-identical (decoded `tobytes()` equality) to `wifi_info='none'`.
-- [ ] AC 7: Given `QR_TEMPLATE_CONFIG_PATH` is set but invalid (missing file, malformed JSON, missing required key, bad/out-of-bounds bbox, missing image, missing/unloadable font), when `create_app()` runs, then startup fails with a `ValueError` naming the specific problem.
-- [ ] AC 8: Given a preset/DPI combination where the scaled QR bbox cannot fit at least 1 px per module, when generating, then a `ValueError` is flashed on the form (and the preview returns 400, with the broadened preview error message covering this cause); given a marginal (<5 px/module) result, then a scannability warning is logged and rendering proceeds.
-- [ ] AC 9: Given a template is active, when an oversized canvas is requested (e.g. Letter @ 1200 dpi), then the existing `MAX_CANVAS_PX` guard still raises before any template work.
-- [ ] AC 10: Given a template is active, when any render completes, then every pixel inside the scaled QR bbox is pure black or pure white (white-fill + NEAREST invariant — no placeholder ring, no antialiasing).
+- [x] AC 1: Given `QR_TEMPLATE_CONFIG_PATH` is unset, when any QR form/preview/download is exercised, then behavior is unchanged and the entire existing QR test suite passes unmodified (WiFi controls present, plain white-canvas rendering, `include_name` default unchecked). One deliberate exception: the initial preview-src serialization fix (Task 9.4) changes the GET/re-render HTML's preview query string from `include_name=True` to `include_name=1`/omitted — a bug fix that makes the preview honor a checked box on failed-POST re-renders.
+- [x] AC 2: Given a valid template config, when a QR PNG is downloaded for any size preset **at 300 dpi or higher** (and whose canvas passes the `MAX_CANVAS_PX` guard — e.g. Letter @ 1200 dpi correctly errors instead, per AC 9), then the PNG has exactly the preset's pixel dimensions and embedded DPI metadata, shows the template artwork outside the bboxes, and pyzbar-decodes to `{base_url}/public/equipment/{id}`. (Low-DPI devices — 180/203 dpi — on small presets can legitimately produce 1 px modules that render with a warning but may not scan; see the Notes risk section. Dimension/metadata/artwork clauses still apply at all DPIs.)
+- [x] AC 3: Given a template is active, when the output canvas is smaller than the template (downscale) or larger (upscale, e.g. US Letter), then the template scales proportionally (aspect preserved, centered on white) and the QR — drawn at integer module size into its white-filled bbox after scaling — still decodes.
+- [x] AC 4: Given a template is active, when the form loads, then `include_name` is checked by default; when checked, the scaled name bbox is white-filled (replacing any placeholder artwork) and the equipment name renders in it using the configured font (single-line shrink-to-fit/ellipsis); when unchecked, the name bbox shows the template's own artwork untouched.
+- [x] AC 5: Given a template config with `url_bbox`, when `include_url` is checked, then the scaled URL bbox is white-filled (replacing any baked artwork, e.g. the example's WiFi line) and the URL renders within it; given a config without `url_bbox`, then the `include_url` checkbox is absent from the form and a crafted `include_url` POST/preview param produces output pixel-identical (decoded `tobytes()` equality) to unchecked.
+- [x] AC 6: Given a template is active, when the QR form is loaded, then the WiFi select is absent; and when a crafted WiFi value is submitted (POST field) or passed (preview query param), then the request succeeds (no validation rejection) and output is pixel-identical (decoded `tobytes()` equality) to `wifi_info='none'`.
+- [x] AC 7: Given `QR_TEMPLATE_CONFIG_PATH` is set but invalid (missing file, malformed JSON, missing required key, bad/out-of-bounds bbox, missing image, missing/unloadable font), when `create_app()` runs, then startup fails with a `ValueError` naming the specific problem.
+- [x] AC 8: Given a preset/DPI combination where the scaled QR bbox cannot fit at least 1 px per module, when generating, then a `ValueError` is flashed on the form (and the preview returns 400, with the broadened preview error message covering this cause); given a marginal (<5 px/module) result, then a scannability warning is logged and rendering proceeds.
+- [x] AC 9: Given a template is active, when an oversized canvas is requested (e.g. Letter @ 1200 dpi), then the existing `MAX_CANVAS_PX` guard still raises before any template work.
+- [x] AC 10: Given a template is active, when any render completes, then every pixel inside the scaled QR bbox is pure black or pure white (white-fill + NEAREST invariant — no placeholder ring, no antialiasing).
 
 ## Additional Context
 
@@ -275,3 +275,11 @@ No new dependencies: `qrcode[pil]`, `Pillow`, and `pyzbar` (decode verification)
 - **Quiet zone**: the QR image carries its own 4-module white border (`border=4`), and the bbox is white-filled before pasting, so artwork adjacent to (or formerly inside) the QR bbox cannot violate the quiet zone or contrast — no extra padding logic and no "plain background" requirement on the artwork.
 - **Operator responsibility (documented, not enforced)**: supplying the template at the maximum resolution it will be printed at — upscaling softens artwork (the QR itself stays crisp).
 - **Future (out of scope)**: multi-line name wrapping; multiple templates / per-equipment selection; admin upload UI; per-element font overrides; caching the decoded template image if preview profiling warrants.
+
+## Review Notes
+
+- Adversarial review completed (2026-06-07, isolated subagent, diff-only context)
+- Findings: 16 total, 10 fixed, 6 skipped
+- Resolution approach: auto-fix (findings classified "real" and not spec-accepted)
+- Fixed: F1 (non-string image/font paths now raise the specific ValueError), F2 (startup validation forces a full image decode so truncated data fails fast), F3 (bbox overlap validation at load time — overlapping white-fills could erase the QR), F6 (DecompressionBombError caught at startup → ValueError; at render → RuntimeError for the views' handlers), F7 (conftest clears host QR_TEMPLATE_CONFIG_PATH from TestingConfig), F8 (direct tests for the ink-height shrink loop, ellipsization, and render-nothing path + end-to-end descender containment test), F10 (docs document the blank-box outcome; degradation now logs a warning), F11 (text re-ellipsized at the final font size instead of keeping the floor-font prefix), F12 (template-mode checkbox labels drop the "above/below QR" wording), F16 (QR construction + marginal warning deduped into _build_qr/_qr_to_image/_warn_if_marginal)
+- Skipped: F4 (marginal-warning log noise — explicitly accepted in Notes), F5 (per-render template I/O — explicitly accepted in Technical Decisions), F9 (test bbox-mapping oracle mirrors renderer math — inherent, mitigated by decode/dimension tests), F13 (on-disk image swap after startup — out-of-band mutation, accepted), F14 (wifi config queried/passed but ignored in template mode — matches existing view structure), F15 (qr_bbox unusable at every preset passes startup — preset/DPI-dependent geometry can't be fully validated at boot; per-request guard + docs cover it)
