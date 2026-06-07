@@ -116,7 +116,7 @@ By default, QR stickers are rendered as a QR code (plus optional text rows) on a
 }
 ```
 
-- `image` (required) — the template PNG. Paths are resolved **relative to the JSON file's directory** (absolute paths also work).
+- `image` (required) — the template image, at most 50 million pixels. PNG is recommended; any format Pillow can decode works, but note that **EXIF orientation is not applied** — bounding boxes are interpreted against the stored pixel grid, so a rotated phone-camera JPEG will not match what image viewers display. Paths are resolved **relative to the JSON file's directory** (absolute paths also work).
 - `qr_bbox` (required) — where the QR code is drawn.
 - `name_bbox` (required) — where the machine name is drawn.
 - `url_bbox` (optional) — where the equipment URL is drawn. When omitted, the "Include URL" checkbox is removed from the QR form.

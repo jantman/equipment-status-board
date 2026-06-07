@@ -329,7 +329,10 @@ def qr(id):
     if form.validate_on_submit():
         if template is not None:
             # No clamp/flash — wifi is simply unsupported in template mode.
+            # Blank the credentials too (matching qr_preview) so no live
+            # secrets ride into a render path that contractually ignores them.
             wifi_info = 'none'
+            wifi_config = {'wifi_ssid': '', 'wifi_password': ''}
             if template.url_bbox is None:
                 form.include_url.data = False
         else:

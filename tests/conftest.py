@@ -15,12 +15,20 @@ from esb.models.repair_record import RepairRecord
 from esb.models.user import User
 from esb.utils.logging import mutation_logger
 
-# Config classes bind env vars at import time, and create_app() consumes
-# QR_TEMPLATE_CONFIG_PATH during startup — a host shell with this exported
-# would otherwise activate a template in every test app (or fail startup
-# outright). Clear it on the class before any create_app() call; tests that
-# exercise the startup path monkeypatch this same attribute.
-TestingConfig.QR_TEMPLATE_CONFIG_PATH = ''
+
+@pytest.fixture(autouse=True)
+def _isolate_qr_template_config(monkeypatch):
+    """Shield tests from a host QR_TEMPLATE_CONFIG_PATH.
+
+    Config classes bind env vars at import time, and create_app() consumes
+    QR_TEMPLATE_CONFIG_PATH during startup — a host shell with this exported
+    would otherwise activate a template in every test app (or fail startup
+    outright). Autouse fixtures run before requested fixtures of the same
+    scope, so this lands before the app fixture's create_app(). Tests that
+    exercise the startup path monkeypatch this same attribute in their own
+    bodies, which applies later and unwinds first.
+    """
+    monkeypatch.setattr(TestingConfig, 'QR_TEMPLATE_CONFIG_PATH', '')
 
 
 class _CaptureHandler(logging.Handler):

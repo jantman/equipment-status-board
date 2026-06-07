@@ -2170,3 +2170,35 @@ class TestEquipmentQRTemplate:
             f'/equipment/{eq.id}/qr/preview?size=sticker_1&device=thermal_203'
         )
         assert resp.status_code == 400
+
+    def test_post_include_name_toggle_roundtrips(
+        self, staff_client, make_equipment, configured_base_url, qr_template_config,
+    ):
+        """Unchecking 'Include name' on a template-mode POST must actually
+        change the output (placeholder artwork instead of the drawn name)."""
+        eq = make_equipment('Table Saw', 'SawStop', 'PCS')
+        data = {'size': 'sticker_2', 'wifi_info': 'none', 'submit': 'Download QR Code'}
+        resp_off = staff_client.post(f'/equipment/{eq.id}/qr', data=data)
+        resp_on = staff_client.post(
+            f'/equipment/{eq.id}/qr', data={**data, 'include_name': 'y'},
+        )
+        assert resp_off.status_code == 200
+        assert resp_on.status_code == 200
+        assert resp_off.content_type.startswith('image/png')
+        assert resp_on.content_type.startswith('image/png')
+        assert self._decoded_bytes(resp_on.data) != self._decoded_bytes(resp_off.data)
+
+    def test_preview_swapped_oversized_image_500(
+        self, staff_client, make_equipment, configured_base_url, qr_template_config,
+        monkeypatch,
+    ):
+        """A post-startup swap to a bomb-sized template image surfaces as a
+        clean 500 (DecompressionBombError → RuntimeError → abort(500)), not an
+        unhandled exception."""
+        from PIL import Image
+        # Lower PIL's limit so the (already validated) fixture image now
+        # exceeds 2× MAX_IMAGE_PIXELS at render-time open.
+        monkeypatch.setattr(Image, 'MAX_IMAGE_PIXELS', 1000)
+        eq = make_equipment('X', 'Y', 'Z')
+        resp = staff_client.get(f'/equipment/{eq.id}/qr/preview?size=sticker_2')
+        assert resp.status_code == 500

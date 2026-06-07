@@ -781,6 +781,15 @@ class TestLoadTemplateConfig:
         with pytest.raises(ValueError, match='cannot load font'):
             load_template_config(str(path))
 
+    def test_oversized_template_image_raises(self, tmp_path, monkeypatch):
+        """Input images are capped like output canvases — a huge template
+        would be fully decoded and resized per render."""
+        from esb.services import qr_service
+        monkeypatch.setattr(qr_service, 'MAX_CANVAS_PX', 1000)
+        path = _write_template_config(tmp_path)
+        with pytest.raises(ValueError, match='exceeding the 1,000 px limit'):
+            load_template_config(str(path))
+
 
 class TestRenderQRPngTemplate:
     """Template rendering tests.
@@ -978,20 +987,28 @@ class TestRenderQRPngTemplate:
                 base_url=BASE_URL, template=template,
             )
 
-    def test_rgba_transparency_flattens_to_white(self, app, make_equipment, tmp_path):
-        """Transparent template regions must render white, not raw black RGB."""
+    @pytest.mark.parametrize('mode', ['RGBA', 'LA', 'P'])
+    def test_transparency_flattens_to_white(self, app, make_equipment, tmp_path, mode):
+        """Transparent template regions must render white, not raw black RGB —
+        for straight-alpha (RGBA/LA) and palette-transparency (P) images."""
         from esb.services.qr_service import load_template_config as load
 
-        # Fully transparent 300×360 RGBA template: everything outside the
+        # Fully transparent 300×360 template: everything outside the
         # white-filled QR bbox must come out pure white.
-        rgba = Image.new('RGBA', (300, 360), (0, 0, 0, 0))
-        rgba.save(tmp_path / 'transparent.png')
+        image_name = f'transparent_{mode}.png'
+        if mode == 'RGBA':
+            Image.new('RGBA', (300, 360), (0, 0, 0, 0)).save(tmp_path / image_name)
+        elif mode == 'LA':
+            Image.new('LA', (300, 360), (0, 0)).save(tmp_path / image_name)
+        else:
+            # Palette image whose only color (index 0, black) is transparent.
+            Image.new('P', (300, 360), 0).save(tmp_path / image_name, transparency=0)
         config = {
-            'image': 'transparent.png',
+            'image': image_name,
             'qr_bbox': [100, 190, 200, 290],
             'name_bbox': [20, 20, 280, 80],
         }
-        json_path = tmp_path / 'rgba_config.json'
+        json_path = tmp_path / f'transparent_{mode}_config.json'
         json_path.write_text(json.dumps(config))
         template = load(str(json_path))
 
@@ -1004,6 +1021,20 @@ class TestRenderQRPngTemplate:
         colors = img.getcolors(maxcolors=256 * 256 * 256) or []
         non_white = [c for _, c in colors if c != (255, 255, 255)]
         assert non_white == [], f'transparent regions rendered as {non_white[:5]}'
+
+    def test_image_size_changed_on_disk_raises(
+        self, app, make_equipment, make_qr_template_config,
+    ):
+        """A post-startup swap to different dimensions must error, not silently
+        distort the artwork against the validated bboxes."""
+        import dataclasses
+        eq = make_equipment(name='Bandsaw')
+        template = make_qr_template_config()
+        stale = dataclasses.replace(template, image_w=1000, image_h=1200)
+        with pytest.raises(RuntimeError, match='changed size on disk'):
+            render_qr_png(
+                eq, QR_PRESETS_BY_KEY['sticker_2'], base_url=BASE_URL, template=stale,
+            )
 
 
 class TestDrawTextInBbox:
@@ -1041,9 +1072,20 @@ class TestDrawTextInBbox:
         assert self._has_ink_inside(canvas, bbox), 'expected truncated text to render'
         self._assert_ink_only_inside(canvas, bbox)
 
+    def test_narrow_bbox_shrinks_below_width_floor(self, app):
+        """A width-constrained box must shrink below _fit_text's 8 pt floor
+        (67 px at 600 dpi) instead of going blank — the sub-floor loop covers
+        width, not just ink height."""
+        canvas = Image.new('RGB', (60, 320), 'white')
+        bbox = (20, 10, 40, 310)  # 20 px wide, far below the 600 dpi floor
+        _draw_text_in_bbox(canvas, 'B', bbox, self.FONT, dpi=600)
+        assert self._has_ink_inside(canvas, bbox), 'expected sub-floor text, not a blank box'
+        self._assert_ink_only_inside(canvas, bbox)
+
     def test_renders_nothing_when_bbox_unusably_small(self, app, caplog):
         canvas = Image.new('RGB', (50, 20), 'white')
-        bbox = (0, 0, 3, 5)
+        # 2 px wide — narrower than the ellipsis at the 4 px hard minimum.
+        bbox = (0, 0, 2, 5)
         logger_name = app.logger.name
         original_propagate = app.logger.propagate
         app.logger.propagate = True

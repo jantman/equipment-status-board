@@ -1,7 +1,9 @@
 """QR code generation service for equipment pages.
 
-Renders QR codes as in-memory PNG bytes with optional equipment-name text
-above and URL text below. No disk caching — generated on demand per request.
+Renders QR codes as in-memory PNG bytes — either the plain layout (QR with
+optional equipment-name text above and URL text below on a white canvas) or,
+when a QR_TEMPLATE_CONFIG_PATH template is configured, composited into branded
+template artwork. No disk caching — generated on demand per request.
 """
 
 import io
@@ -162,6 +164,16 @@ def load_template_config(json_path: str) -> QRTemplate:
         raise ValueError(
             f'QR template config {json_path}: cannot open template image {image_path}: {exc}'
         ) from exc
+
+    # Cap the input like MAX_CANVAS_PX caps the output: the template is fully
+    # decoded and resized per render, and PIL's own bomb check only rejects
+    # above 2× MAX_IMAGE_PIXELS (~179 MP) — far past sane template sizes.
+    if image_w * image_h > MAX_CANVAS_PX:
+        raise ValueError(
+            f'QR template config {json_path}: template image {image_path} is '
+            f'{image_w}×{image_h} ({image_w * image_h:,} px), exceeding the '
+            f'{MAX_CANVAS_PX:,} px limit — supply a smaller template image.'
+        )
 
     if font_value is not None:
         font_path = os.path.join(base_dir, font_value)  # noqa: PTH118
@@ -396,7 +408,14 @@ def _open_template_rgb(image_path: str) -> Image.Image:
     transparent regions as raw (often black) RGB, so composite onto white first.
     """
     try:
-        img = Image.open(image_path)
+        with Image.open(image_path) as img:
+            if img.mode == 'P':
+                img = img.convert('RGBA') if 'transparency' in img.info else img.convert('RGB')
+            if img.mode in ('RGBA', 'LA'):
+                background = Image.new('RGB', img.size, 'white')
+                background.paste(img, mask=img.getchannel('A'))
+                return background
+            return img.convert('RGB')
     except Image.DecompressionBombError as exc:
         # Subclasses Exception, not OSError — re-raise as RuntimeError so the
         # views' existing (OSError, RuntimeError) handlers produce a clean 500
@@ -404,13 +423,6 @@ def _open_template_rgb(image_path: str) -> Image.Image:
         raise RuntimeError(
             f'QR template image {image_path} is too large to process: {exc}'
         ) from exc
-    if img.mode == 'P':
-        img = img.convert('RGBA') if 'transparency' in img.info else img.convert('RGB')
-    if img.mode in ('RGBA', 'LA'):
-        background = Image.new('RGB', img.size, 'white')
-        background.paste(img, mask=img.getchannel('A'))
-        return background
-    return img.convert('RGB')
 
 
 def _render_template_png(
@@ -426,6 +438,15 @@ def _render_template_png(
     never resampled after drawing — modules stay pure black/white.
     """
     tpl = _open_template_rgb(template.image_path)
+    if tpl.size != (template.image_w, template.image_h):
+        # The bboxes were validated against the startup dimensions; resizing a
+        # dimension-changed replacement to the stale targets would silently
+        # distort the artwork and land the bboxes on the wrong content.
+        raise RuntimeError(
+            f'QR template image {template.image_path} changed size on disk '
+            f'({tpl.size[0]}×{tpl.size[1]} vs validated '
+            f'{template.image_w}×{template.image_h}) — restart the app.'
+        )
     s = min(canvas_w_px / template.image_w, canvas_h_px / template.image_h)
     scaled_w = max(1, round(template.image_w * s))
     scaled_h = max(1, round(template.image_h * s))
@@ -486,25 +507,17 @@ def _draw_text_in_bbox(canvas, text, bbox, font_path, *, dpi: int = 300):
     """Draw single-line text centered within a bbox, never spilling outside it.
 
     Unlike _draw_text_row this takes the (startup-validated) template font path
-    directly, and additionally constrains rendered INK height: _fit_text shrinks
-    for width only, but real fonts' ink (ascenders/diacritics + descenders) can
-    exceed the em size, so keep shrinking — below _fit_text's 8 pt floor if
-    needed — until the measured textbbox fits. If nothing fits at the hard
-    minimum, render nothing (the bbox stays white-filled and blank).
+    directly. Sizing starts from _fit_text's width-aware pick but may continue
+    shrinking BELOW its 8 pt dpi-scaled floor — small scaled bboxes make that
+    floor unachievable for width or for ink height (ascenders/diacritics +
+    descenders can exceed the em size) — re-ellipsizing at each candidate size
+    until both fit. If nothing fits at the hard minimum, render nothing (the
+    bbox stays white-filled and blank).
     """
     x0, y0, x1, y1 = bbox
     box_w = x1 - x0
     box_h = y1 - y0
     if box_w <= 0 or box_h <= 0:
-        return
-    font, rendered = _fit_text(
-        text, max_width_px=box_w, max_height_px=box_h, font_path=font_path, dpi=dpi,
-    )
-    if rendered == '':
-        current_app.logger.warning(
-            'QR template: text %r does not fit bbox %s even at minimum size; '
-            'leaving the box blank', text, bbox,
-        )
         return
     scratch = ImageDraw.Draw(Image.new('RGB', (1, 1)))
 
@@ -512,15 +525,25 @@ def _draw_text_in_bbox(canvas, text, bbox, font_path, *, dpi: int = 300):
         left, _, right, _ = scratch.textbbox((0, 0), t, font=f)
         return right - left
 
+    # Starting size only — even when _fit_text gives up ('' at its floor),
+    # the loop below keeps shrinking beneath that floor.
+    font, _ = _fit_text(
+        text, max_width_px=box_w, max_height_px=box_h, font_path=font_path, dpi=dpi,
+    )
     size_px = font.size
     fits = False
+    rendered = ''
     while size_px >= _HARD_MIN_TEXT_PX:
         font = _load_font(font_path, size_px)
-        # Re-ellipsize at this size — a smaller font fits more characters than
-        # the prefix _fit_text chose at its (larger) floor font.
+        # Re-ellipsize at every size — a smaller font fits more characters
+        # than the prefix chosen at a larger one.
         rendered = _ellipsize(text, font, box_w, width_at)
         if rendered == '':
-            break
+            # Even the ellipsis is too wide — shrink proportionally to the
+            # ellipsis overshoot (guaranteed to decrease).
+            ellipsis_w = width_at('…', font)
+            size_px = min(size_px - 1, int(size_px * box_w / ellipsis_w))
+            continue
         left, top, right, bottom = scratch.textbbox((0, 0), rendered, font=font)
         ink_h = bottom - top
         if ink_h <= box_h:
@@ -531,8 +554,8 @@ def _draw_text_in_bbox(canvas, text, bbox, font_path, *, dpi: int = 300):
         size_px = min(size_px - 1, int(size_px * box_h / ink_h))
     if not fits:
         current_app.logger.warning(
-            'QR template: text %r does not fit bbox %s even at minimum size; '
-            'leaving the box blank', text, bbox,
+            'QR template: text %r does not fit bbox %s even at the %d px hard '
+            'minimum; leaving the box blank', text, bbox, _HARD_MIN_TEXT_PX,
         )
         return
 
