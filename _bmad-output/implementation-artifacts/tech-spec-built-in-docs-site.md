@@ -31,6 +31,7 @@ files_to_modify:
   - 'requirements-docs.txt (NEW)'
   - 'pyproject.toml'
   - 'tests/test_views/test_docs_views.py (NEW)'
+  - 'docs/images/*.png (regenerated)'
 code_patterns:
   - 'Blueprint with declarative url_prefix, registered in esb/views/__init__.py register_blueprints()'
   - 'Service layer: business logic in esb/services/, views delegate'
@@ -216,7 +217,7 @@ Serve the existing `docs/*.md` markdown files at a public `/docs/` route inside 
   - File: `tests/test_views/test_docs_views.py` (NEW)
   - Action: Following `tests/test_views/test_public_views.py` conventions (classes per view, unauthenticated `client` fixture, status + content assertions):
     - `TestDocsPages`: each of the six routes (`/docs/`, `/docs/members`, `/docs/technicians`, `/docs/staff`, `/docs/administrators`, `/docs/about`) returns 200 unauthenticated; `/docs/index` returns a 301 redirect to `/docs/` (no duplicate Home URL); unknown slug `/docs/nope` returns 404; every rendered guide contains NO unrendered *placeholder-style* pattern (`re.search(r'\{\{\s*\w+\s*\}\}', html)` is None — NOT a bare `'{{' not in html` check, because the administrators guide legitimately contains the literal `{{.State.Health.Status}}` docker-inspect example in a raw-wrapped code block) and NO intra-doc `.md` hrefs (`re.search(r'href="[^"]*\.md[#"]', html)` is None).
-    - `TestDocsRendering` (AC 2 — without this, an empty/typo'd extensions list ships pipe-soup with all tests green): rendered administrators guide contains `<table>`, `class="admonition"`, and `<pre><code>` (or `<pre>` + `<code>` nesting per python-markdown output), plus the literal `{{.State.Health.Status}}` text; a guide with images (e.g., members) contains `<img` tags.
+    - `TestDocsRendering` (AC 2 — without this, an empty/typo'd extensions list ships pipe-soup with all tests green): rendered administrators guide contains `<table>`, `class="admonition` (NO closing quote — python-markdown always emits the qualifier, e.g. `class="admonition warning"`, so the closed-quote substring never matches), and `<pre><code>` (or `<pre>` + `<code>` nesting per python-markdown output), plus the literal `{{.State.Health.Status}}` text; a guide with images (e.g., members) contains `<img` tags.
     - `TestDocsAnchors` (intra-page fragment links — the only thing exercising the `toc` extension): for each rendered guide, every `href="#fragment"` in the output has a matching `id="fragment"` attribute in the same document (the four real anchor links live in technicians.md and administrators.md; assert generically so future anchors are covered).
     - `TestDocsLinkResolution` (AC 4): collect every `href="/docs/..."` (strip `#anchors`) from each rendered guide and GET each one — all must return 200. Likewise collect every `<img src="...">` from each rendered guide and GET each — all must return 200 (AC 5; guards the image rewrite, which is otherwise unobservable since relative srcs also resolve). Guards against rewrite rules emitting broken slugs.
     - Sub-nav completeness (AC 14): every docs page (six routes) contains links to all five guides AND `/docs/about` in the sub-nav, with exactly one marked active matching the current page — pins the `nav_pages` contract so the template can't silently drift from `DOC_PAGES`.
@@ -235,6 +236,11 @@ Serve the existing `docs/*.md` markdown files at a public `/docs/` route inside 
 - [ ] Task 12: Version bump
   - File: `pyproject.toml`
   - Action: Bump `version` from `0.9.0` to `0.10.0` (minor — new feature) per the project's release procedure in CLAUDE.md. Without this, the release workflow no-ops on merge and the About page advertises a stale version.
+
+- [ ] Task 13: Regenerate committed screenshots
+  - File: `docs/images/*.png`
+  - Action: AFTER all template changes (Tasks 5-6) are final, regenerate the committed screenshots with `make screenshots` (Makefile lines 37-39 → `scripts/generate_screenshots.py`; requires playwright chromium, see the `screenshots-check` job in `ci.yml` for the install steps) and commit the updated PNGs.
+  - Notes: Task 6 changes the chrome of nearly every captured page (navbar "Docs" item on authed pages; footer docs link on public pages, several captured `full_page=True`). The committed PNGs are displayed on the new `/docs/` pages themselves and on GH Pages — without regeneration, the docs ship screenshots of a UI that lacks the feature's own links. CI will NOT catch this: `screenshots-check` only verifies the files exist, not that they're current.
 
 ### Acceptance Criteria
 
