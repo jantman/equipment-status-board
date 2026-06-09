@@ -208,6 +208,11 @@ class TestDocsFeatureGating:
         assert 'Static Status Page' not in _render('members', {})
         assert 'Static Status Page' in _render('members', STATIC_ON)
 
+    def test_static_page_section_gated_on_staff(self):
+        # STATIC_PAGE_PUBLIC_URL governs both the Members and Staff guides.
+        assert 'Static Status Page' not in _render('staff', {})
+        assert 'Static Status Page' in _render('staff', STATIC_ON)
+
 
 class TestDocsValueSubstitution:
     """Installation-specific values replace the old generic phrases."""

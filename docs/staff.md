@@ -247,6 +247,8 @@ Staff have full access to the Repair Queue (accessible via the **Repair Queue** 
 
 Click **Status** in the navigation bar to see the color-coded equipment grid organized by area. This is the same view that members see — useful for quickly checking the overall health of the space.
 
+{% if static_page_enabled %}
 ### Static Status Page
 
 The static status page is an externally hosted lightweight version of the status dashboard. It is automatically regenerated and pushed whenever equipment status changes. This allows members to check status from outside the makerspace network. Configuration of the static page push method is handled by an administrator via environment variables.{% if static_page_url %} On this deployment it is published at [{{ static_page_url }}]({{ static_page_url }}) — share that link with members who need to check status remotely.{% endif %}
+{% endif %}
