@@ -45,6 +45,7 @@ render as literal text here. Align the extension sets (or add
 ``pymdown-extensions`` at runtime) if/when that happens.
 """
 
+import logging
 import re
 import tomllib
 from collections import OrderedDict
@@ -53,6 +54,14 @@ from pathlib import Path
 import jinja2
 import markdown
 from flask import current_app
+
+logger = logging.getLogger(__name__)
+
+# Per-process latch: the first WiFi AppConfig query failure logs a full
+# traceback (diagnostically useful); subsequent failures log a one-line warning.
+# Prevents log flooding on a pre-migration deployment where the public /docs/
+# pages are hit repeatedly and the app_config table doesn't yet exist.
+_wifi_query_failed_once: bool = False
 
 # Ordered slug → page metadata. Mirrors the ``nav:`` in mkdocs.yml.
 # manual_testing.md and original_requirements_doc.md are deliberately excluded
@@ -131,9 +140,27 @@ def get_placeholder_values():
     # configured" rather than 500-ing every guide page.
     try:
         wifi_ssid = config_service.get_config('wifi_ssid', '')
-    except SQLAlchemyError:
+    except SQLAlchemyError as e:
+        # Roll back the failed session so later queries in this request don't
+        # raise PendingRollbackError, then fail safe to "WiFi not configured".
         db.session.rollback()
         wifi_ssid = ''
+        # Rate-limit: full traceback once per process, one-line warning after,
+        # so a pre-migration deployment serving /docs/ doesn't flood logs while
+        # operators can still detect a genuine DB outage.
+        global _wifi_query_failed_once
+        if not _wifi_query_failed_once:
+            logger.warning(
+                'Failed to read wifi_ssid from AppConfig; '
+                'rendering docs as if WiFi is not configured',
+                exc_info=True,
+            )
+            _wifi_query_failed_once = True
+        else:
+            logger.warning(
+                'Failed to read wifi_ssid from AppConfig: %s: %s',
+                type(e).__name__, e,
+            )
     return {
         # Values
         'oops_channel': cfg['SLACK_OOPS_CHANNEL'],

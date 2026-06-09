@@ -299,6 +299,18 @@ class TestDocsWifiCacheInvalidation:
             assert ('page', 'staff') in old  # old reference still complete
 
 
+class TestDocsWifiQueryResilience:
+    """A missing/failed app_config query must not 500 the public docs."""
+
+    def test_missing_app_config_table_fails_safe_and_logs(self, caplog):
+        docs_service._wifi_query_failed_once = False  # reset per-process latch
+        app = create_app('testing')  # tables deliberately NOT created
+        with caplog.at_level('WARNING', logger='esb.services.docs_service'):
+            resp = app.test_client().get('/docs/members')
+        assert resp.status_code == 200  # fail-safe, not a 500
+        assert any('wifi_ssid' in r.message for r in caplog.records)
+
+
 class TestDocsPlaceholderParity:
     """Drift guard: every runtime placeholder has a mkdocs.yml extra default."""
 

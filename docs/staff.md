@@ -166,9 +166,9 @@ Click **Admin** in the navigation bar, then the **Areas** tab, to manage the are
 ### Creating Areas
 
 1. Click **Add Area**
-2. Enter the area **name** (e.g., "Woodshop")
-{% if slack_enabled %}3. Set the **Slack channel** for repair notifications for this area (e.g., `#woodshop-repairs`)
-{% endif %}4. Click Save
+1. Enter the area **name** (e.g., "Woodshop")
+{% if slack_enabled %}1. Set the **Slack channel** for repair notifications for this area (e.g., `#woodshop-repairs`)
+{% endif %}1. Click Save
 
 ### Editing Areas
 
