@@ -1,8 +1,8 @@
 # Equipment Status Board
 
-[![CI](https://github.com/Decaturmakers/equipment-status-board/actions/workflows/ci.yml/badge.svg)](https://github.com/Decaturmakers/equipment-status-board/actions/workflows/ci.yml)
-[![Docs](https://github.com/Decaturmakers/equipment-status-board/actions/workflows/docs.yml/badge.svg)](https://github.com/Decaturmakers/equipment-status-board/actions/workflows/docs.yml)
-[![GitHub release](https://img.shields.io/github/v/release/Decaturmakers/equipment-status-board)](https://github.com/Decaturmakers/equipment-status-board/releases)
+[![CI](https://github.com/DecaturMakers/equipment-status-board/actions/workflows/ci.yml/badge.svg)](https://github.com/DecaturMakers/equipment-status-board/actions/workflows/ci.yml)
+[![Docs](https://github.com/DecaturMakers/equipment-status-board/actions/workflows/docs.yml/badge.svg)](https://github.com/DecaturMakers/equipment-status-board/actions/workflows/docs.yml)
+[![GitHub release](https://img.shields.io/github/v/release/DecaturMakers/equipment-status-board)](https://github.com/DecaturMakers/equipment-status-board/releases)
 
 A web application for tracking equipment status and coordinating repairs at community makerspaces, originally developed for [Decatur Makers](https://decaturmakers.org). Provides a single source of truth so members know what's working, technicians know what needs fixing, and staff can coordinate it all.
 
@@ -22,7 +22,7 @@ A web application for tracking equipment status and coordinating repairs at comm
 See the [Administrators Guide](https://decaturmakers.github.io/equipment-status-board/administrators/) for full deployment instructions. The short version:
 
 ```bash
-git clone https://github.com/Decaturmakers/equipment-status-board.git
+git clone https://github.com/DecaturMakers/equipment-status-board.git
 cd equipment-status-board
 cp .env.example .env    # Edit with your settings
 docker compose up -d

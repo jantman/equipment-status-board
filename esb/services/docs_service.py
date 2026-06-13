@@ -75,7 +75,7 @@ DOC_PAGES = OrderedDict([
 ])
 
 # About-page constants.
-GITHUB_URL = 'https://github.com/Decaturmakers/equipment-status-board'
+GITHUB_URL = 'https://github.com/DecaturMakers/equipment-status-board'
 DOCS_SITE_URL = 'https://decaturmakers.github.io/equipment-status-board/'
 ISSUES_URL = GITHUB_URL + '/issues'
 LICENSE_NAME = 'MIT'

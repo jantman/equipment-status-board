@@ -184,7 +184,7 @@ class TestStatusDashboardView:
     def _assert_copyright_footer(body):
         """Verify the copyright footer attribution and both links."""
         assert b'Jason Antman / Decatur Makers' in body
-        assert b'href="https://github.com/Decaturmakers/equipment-status-board"' in body
+        assert b'href="https://github.com/DecaturMakers/equipment-status-board"' in body
         assert b'href="https://opensource.org/license/mit"' in body
         assert b'MIT licensed' in body
 

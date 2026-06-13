@@ -338,7 +338,7 @@ class TestDocsAbout:
         with open(pyproject, 'rb') as fh:
             version = tomllib.load(fh)['project']['version']
         assert version in html
-        assert 'https://github.com/Decaturmakers/equipment-status-board/issues' in html
+        assert 'https://github.com/DecaturMakers/equipment-status-board/issues' in html
         assert 'https://decaturmakers.github.io/equipment-status-board/' in html
 
 
