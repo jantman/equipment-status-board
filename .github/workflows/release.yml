@@ -45,6 +45,14 @@ jobs:
             echo "should_release=$SHOULD" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Compute lowercase image name
+        if: steps.version_check.outputs.should_release == 'true'
+        id: image
+        run: |
+          # GHCR requires the repository namespace to be lowercase; the org
+          # (DecaturMakers) is mixed-case, so lowercase github.repository here.
+          echo "name=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
       - name: Set up Docker Buildx
         if: steps.version_check.outputs.should_release == 'true'
         uses: docker/setup-buildx-action@v3
@@ -64,8 +72,8 @@ jobs:
           context: .
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}:latest
-            ghcr.io/${{ github.repository }}:${{ steps.version_check.outputs.current_version }}
+            ${{ steps.image.outputs.name }}:latest
+            ${{ steps.image.outputs.name }}:${{ steps.version_check.outputs.current_version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -84,6 +92,7 @@ jobs:
           VERSION="${{ steps.version_check.outputs.current_version }}"
           TAG="v$VERSION"
           REPO="${{ github.repository }}"
+          IMAGE="${{ steps.image.outputs.name }}"
 
           # Generate changelog via GitHub API
           CHANGELOG=$(gh api \
@@ -96,8 +105,8 @@ jobs:
           {
             printf '%s\n' "$CHANGELOG"
             printf '\n---\n\n## Docker Image\n\n```bash\n'
-            printf 'docker pull ghcr.io/%s:%s\n' "$REPO" "$VERSION"
-            printf 'docker pull ghcr.io/%s:latest\n' "$REPO"
+            printf 'docker pull %s:%s\n' "$IMAGE" "$VERSION"
+            printf 'docker pull %s:latest\n' "$IMAGE"
             printf '```\n'
           } > /tmp/release_body.md
 
